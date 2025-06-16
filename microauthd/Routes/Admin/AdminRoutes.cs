@@ -30,7 +30,7 @@ public static class AdminRoutes
     /// authorization.</remarks>
     /// <param name="routes">The <see cref="IEndpointRouteBuilder"/> to which the administrative routes will be added.</param>
     /// <returns>A <see cref="RouteGroupBuilder"/> representing the group of administrative routes.</returns>
-    public static RouteGroupBuilder MapAdminRoutes(this IEndpointRouteBuilder routes)
+    public static RouteGroupBuilder MapAdminRoutes(this IEndpointRouteBuilder routes, AppConfig config)
     {
         var group = routes.MapGroup("");
 
@@ -93,12 +93,12 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // soft-delete user endpoint****************************************************************
-        group.MapDelete("/users/{id}", (string id, HttpContext ctx) =>
+        group.MapDelete("/users/{id}", (string id, HttpContext ctx, AppConfig config) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
 
-            var result = UserService.SoftDeleteUser(id, ip, ua);
+            var result = UserService.SoftDeleteUser(id, config, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -125,12 +125,12 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // activate a (soft) deleted user endpoint**************************************************
-        group.MapPost("/users/{id}/activate", (string id, HttpContext ctx) =>
+        group.MapPost("/users/{id}/activate", (string id, HttpContext ctx, AppConfig config) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
 
-            var result = UserService.ReactivateSoftDeletedUser(id, ip, ua);
+            var result = UserService.ReactivateSoftDeletedUser(id, config, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -181,21 +181,23 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // delete session endpoint******************************************************************
-        group.MapDelete("/sessions/{jti}", (string jti, HttpContext ctx) =>
+        if (config.EnableTokenRevocation)
         {
-            var ip = ctx.Connection.RemoteIpAddress?.ToString();
-            var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
+            group.MapDelete("/sessions/{jti}", (string jti, HttpContext ctx, AppConfig config) =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString();
+                var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
 
-            var result = UserService.RevokeSessionById(jti, ip, ua);
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("RevokeSession")
-        .Produces(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-        .WithTags("Sessions")
-        .WithOpenApi();
-
+                var result = UserService.RevokeSessionById(jti, config, ip, ua);
+                return result.ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithName("RevokeSession")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .WithTags("Sessions")
+            .WithOpenApi();
+        }
         // get sessions by user endpoint************************************************************
         group.MapGet("/sessions/user/{userId}", (string userId) =>
         {
@@ -209,68 +211,80 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // revoke session endpoint******************************************************************
-        group.MapPost("/revoke", ([FromBody] string jti, HttpContext ctx) =>
+        if (config.EnableTokenRevocation)
         {
-            var ip = ctx.Connection.RemoteIpAddress?.ToString();
-            var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
+            group.MapPost("/revoke", ([FromBody] string jti, HttpContext ctx, AppConfig config) =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString();
+                var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
 
-            var result = UserService.RevokeSessionById(jti, ip, ua);
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("RevokeToken")
-        .Produces(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .WithTags("Sessions")
-        .WithOpenApi();
+                var result = UserService.RevokeSessionById(jti, config, ip, ua);
+                return result.ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithName("RevokeToken")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .WithTags("Sessions")
+            .WithOpenApi();
+        }
 
         // get refresh tokens endpoint**************************************************************
-        group.MapGet("/refresh-tokens", () =>
+        if (config.EnableTokenRefresh)
         {
-            var result = UserService.GetAllRefreshTokens();
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("ListRefreshTokens")
-        .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
-        .WithTags("Refresh Tokens")
-        .WithOpenApi();
+            group.MapGet("/refresh-tokens", () =>
+            {
+                var result = UserService.GetAllRefreshTokens();
+                return result.ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithName("ListRefreshTokens")
+            .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
+            .WithTags("Refresh Tokens")
+            .WithOpenApi();
+        }
 
         // get refresh token by ID endpoint*********************************************************
-        group.MapGet("/refresh-tokens/{id}", (string id) =>
+        if (config.EnableTokenRefresh)
         {
-            var result = UserService.GetRefreshTokenById(id);
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("GetRefreshToken")
-        .Produces<RefreshTokenResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-        .WithTags("Refresh Tokens")
-        .WithOpenApi();
+            group.MapGet("/refresh-tokens/{id}", (string id) =>
+            {
+                var result = UserService.GetRefreshTokenById(id);
+                return result.ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithName("GetRefreshToken")
+            .Produces<RefreshTokenResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .WithTags("Refresh Tokens")
+            .WithOpenApi();
+        }
 
         // get refresh tokens by user ID endpoint***************************************************
-        group.MapGet("/refresh-tokens/user/{userId}", (string userId) =>
+        if (config.EnableTokenRefresh)
         {
-            var result = UserService.GetRefreshTokensByUserId(userId);
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("GetRefreshTokensByUser")
-        .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
-        .WithTags("Refresh Tokens")
-        .WithTags("Users")
-        .WithOpenApi();
+            group.MapGet("/refresh-tokens/user/{userId}", (string userId) =>
+            {
+                var result = UserService.GetRefreshTokensByUserId(userId);
+                return result.ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithName("GetRefreshTokensByUser")
+            .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
+            .WithTags("Refresh Tokens")
+            .WithTags("Users")
+            .WithOpenApi();
+        }
 
         // purge expired sessions endpoint**********************************************************
-        group.MapPost("/sessions/purge", (PurgeTokensRequest req, HttpContext ctx) =>
+        group.MapPost("/sessions/purge", (PurgeTokensRequest req, HttpContext ctx, AppConfig config) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
             var userId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
             var span = TimeSpan.FromSeconds(req.OlderThanSeconds);
-            var result = UserService.PurgeSessions(span, req.PurgeExpired, req.PurgeRevoked, userId, ip, ua);
+            var result = UserService.PurgeSessions(span, req.PurgeExpired, req.PurgeRevoked, config, userId, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -280,30 +294,33 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // purge refresh tokens endpoint************************************************************
-        group.MapPost("/refresh-tokens/purge", (PurgeTokensRequest req, HttpContext ctx) =>
+        if (config.EnableTokenRefresh)
         {
-            var ip = ctx.Connection.RemoteIpAddress?.ToString();
-            var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
-            var userId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+            group.MapPost("/refresh-tokens/purge", (PurgeTokensRequest req, HttpContext ctx, AppConfig config) =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString();
+                var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
+                var userId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
-            var result = UserService.PurgeRefreshTokens(req, userId, ip, ua);
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("PurgeRefreshTokens")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .WithTags("Refresh Tokens")
-        .WithOpenApi();
+                var result = UserService.PurgeRefreshTokens(req, config, userId, ip, ua);
+                return result.ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithName("PurgeRefreshTokens")
+            .Produces<MessageResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .WithTags("Refresh Tokens")
+            .WithOpenApi();
+        }
 
         // create role endpoint*********************************************************************
-        group.MapPost("/roles", (CreateRoleRequest req, HttpContext ctx) =>
+        group.MapPost("/roles", (CreateRoleRequest req, HttpContext ctx, AppConfig config) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
             var userId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
-            var result = RoleService.CreateRole(req.Name, req.Description, userId, ip, ua);
+            var result = RoleService.CreateRole(req.Name, req.Description, config, userId, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -326,14 +343,13 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // delete role endpoint*********************************************************************
-        group.MapDelete("/roles/{roleId}", (string roleId, HttpContext ctx) =>
+        group.MapDelete("/roles/{roleId}", (string roleId, HttpContext ctx, AppConfig config) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
             var userId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
-            var result = RoleService.SoftDeleteRole(roleId, userId, ip, ua);
-            return result.ToHttpResult();
+            var result = RoleService.SoftDeleteRole(roleId, config, userId, ip, ua);
         })
         .RequireAuthorization()
         .WithName("DeleteRole")
@@ -394,13 +410,14 @@ public static class AdminRoutes
         group.MapPost("/permissions", (
             CreatePermissionRequest req,
             ClaimsPrincipal user,
-            HttpContext ctx) =>
+            HttpContext ctx,
+            AppConfig config) =>
         {
             var userId = user.FindFirst("sub")?.Value;
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers.UserAgent.ToString();
 
-            var result = RoleService.CreatePermission(req.Name, userId, ip, ua);
+            var result = RoleService.CreatePermission(req.Name, config, userId, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -423,10 +440,11 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // delete permission by ID endpoint*********************************************************
-        group.MapDelete("/permissions/{permissionId}", (string permissionId, HttpContext context) =>
+        group.MapDelete("/permissions/{permissionId}", (string permissionId, HttpContext context, AppConfig config) =>
         {
             var result = RoleService.SoftDeletePermission(
                 permissionId,
+                config,
                 context.User.GetUserId(),
                 context.Connection.RemoteIpAddress?.ToString(),
                 context.Request.Headers.UserAgent.ToString()
@@ -441,11 +459,16 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // assign permission to role endpoint*******************************************************
-        group.MapPost("/roles/{roleId}/permissions", (string roleId, AssignPermissionRequest req, HttpContext ctx) =>
+        group.MapPost("/roles/{roleId}/permissions", (
+            string roleId, 
+            AssignPermissionRequest req, 
+            HttpContext ctx, 
+            AppConfig config) =>
         {
             var result = RoleService.AssignPermissionsToRole(
                 roleId,
                 req.PermissionIds,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -461,11 +484,16 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // remove permission from role endpoint*****************************************************
-        group.MapDelete("/roles/{roleId}/permissions/{permissionId}", (string roleId, string permissionId, HttpContext ctx) =>
+        group.MapDelete("/roles/{roleId}/permissions/{permissionId}", (
+            string roleId, 
+            string permissionId, 
+            HttpContext ctx,
+            AppConfig config) =>
         {
             var result = RoleService.RemovePermissionFromRole(
                 roleId,
                 permissionId,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -559,11 +587,13 @@ public static class AdminRoutes
         // create scope endpoint********************************************************************
         group.MapPost("/scopes", (
             ScopeResponse req,
-            HttpContext ctx
+            HttpContext ctx,
+            AppConfig config
         ) =>
         {
             var result = RoleService.CreateScope(
                 req,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -580,11 +610,13 @@ public static class AdminRoutes
         // delete scope endpoint********************************************************************
         group.MapDelete("/scopes/{scopeId}", (
             string scopeId,
-            HttpContext ctx
+            HttpContext ctx,
+            AppConfig config
         ) =>
         {
             var result = RoleService.SoftDeleteScope(
                 scopeId,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -614,11 +646,13 @@ public static class AdminRoutes
         // delete client endpoint*******************************************************************
         group.MapDelete("/clients/{id}", (
             string id,
-            HttpContext ctx
+            HttpContext ctx,
+            AppConfig config
         ) =>
         {
             var result = RoleService.SoftDeleteClient(
                 id,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -636,12 +670,14 @@ public static class AdminRoutes
         group.MapPost("/clients/{clientId}/scopes", (
             string clientId,
             AssignScopesRequest req,
-            HttpContext ctx
+            HttpContext ctx,
+            AppConfig config
         ) =>
         {
             var result = RoleService.AddScopesToClient(
                 clientId,
                 req,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -673,12 +709,14 @@ public static class AdminRoutes
         group.MapDelete("/clients/{id}/scopes/{scopeId}", (
             string id,
             string scopeId,
-            HttpContext ctx
+            HttpContext ctx,
+            AppConfig config
         ) =>
         {
             var result = RoleService.RemoveScopeFromClient(
                 id,
                 scopeId,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -710,12 +748,14 @@ public static class AdminRoutes
         group.MapPost("/users/{userId}/scopes", (
             string userId,
             AssignScopesRequest req,
-            HttpContext ctx
+            HttpContext ctx,
+            AppConfig config
         ) =>
         {
             var result = RoleService.AddScopesToUser(
                 userId,
                 req,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()
@@ -739,6 +779,7 @@ public static class AdminRoutes
             var result = RoleService.RemoveScopeFromUser(
                 userId,
                 scopeId,
+                config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
                 ctx.Request.Headers.UserAgent.ToString()

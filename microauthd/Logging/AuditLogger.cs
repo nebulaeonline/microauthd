@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using microauthd.Config;
 using Microsoft.AspNetCore.Http;
 using Serilog;
 
@@ -8,6 +9,7 @@ namespace microauthd.Common;
 public static class AuditLogger
 {
     public static void AuditLog(
+    AppConfig config,
     string? userId,
     string action,
     string? target = null,
@@ -15,6 +17,9 @@ public static class AuditLogger
     string? userAgent = null
 )
     {
+        if (!config.EnableAuditLogging)
+            return;
+
         var id = Guid.NewGuid().ToString();
         var timestamp = DateTime.UtcNow.ToString("o");
 

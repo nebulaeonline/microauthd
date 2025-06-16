@@ -74,17 +74,20 @@ public static class AuthRoutes
         .WithOpenApi();
 
         // me refresh tokens endpoint***************************************************************
-        group.MapGet("/me/refresh-tokens", (ClaimsPrincipal user) =>
+        if (config.EnableTokenRefresh)
         {
-            var userId = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-            return UserService.GetRefreshTokensForSelf(userId).ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("GetMyRefreshTokens")
-        .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
-        .WithTags("me")
-        .WithTags("Refresh Token")
-        .WithOpenApi();
+            group.MapGet("/me/refresh-tokens", (ClaimsPrincipal user) =>
+            {
+                var userId = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                return UserService.GetRefreshTokensForSelf(userId).ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithName("GetMyRefreshTokens")
+            .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
+            .WithTags("me")
+            .WithTags("Refresh Token")
+            .WithOpenApi();
+        }
 
         // whoami endpoint**************************************************************************
         group.MapGet("/whoami", (ClaimsPrincipal user) =>
@@ -126,7 +129,7 @@ public static class AuthRoutes
         }
 
         // user logout endpoint*********************************************************************
-        group.MapPost("/logout", (ClaimsPrincipal user) =>
+        group.MapPost("/logout", (ClaimsPrincipal user, AppConfig config) =>
         {
             var userId = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             var clientIdentifier = user.FindFirst("client_id")?.Value;
@@ -134,7 +137,7 @@ public static class AuthRoutes
             if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(clientIdentifier))
                 return ApiResult<MessageResponse>.Fail("Missing user or client identifier", 400).ToHttpResult();
 
-            return AuthService.Logout(userId, clientIdentifier).ToHttpResult();
+            return AuthService.Logout(userId, clientIdentifier, config).ToHttpResult();
         })
         .RequireAuthorization()
         .WithName("Logout")
@@ -142,14 +145,14 @@ public static class AuthRoutes
         .WithOpenApi();
 
         // logout of all sessions endpoint**********************************************************
-        group.MapPost("/logout-all", (ClaimsPrincipal user) =>
+        group.MapPost("/logout-all", (ClaimsPrincipal user, AppConfig config) =>
         {
             var userId = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
             if (string.IsNullOrWhiteSpace(userId))
                 return ApiResult<MessageResponse>.Fail("Missing user identifier", 400).ToHttpResult();
 
-            return AuthService.LogoutAll(userId).ToHttpResult();
+            return AuthService.LogoutAll(userId, config).ToHttpResult();
         })
         .RequireAuthorization()
         .WithName("LogoutAll")
@@ -246,6 +249,7 @@ public static class AuthRoutes
             return UserService.DeactivateUserScoped(
                 actingUser: user,
                 targetUserId: id,
+                config: config, 
                 ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
                 userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
             ).ToHttpResult();
@@ -262,11 +266,13 @@ public static class AuthRoutes
         group.MapGet("/user/{id}", (
             ClaimsPrincipal user,
             string id,
-            HttpContext ctx) =>
+            HttpContext ctx,
+            AppConfig config) =>
         {
             return UserService.GetUserByIdScoped(
                 actingUser: user,
                 targetUserId: id,
+                config: config,
                 ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
                 userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
             ).ToHttpResult();
@@ -282,10 +288,12 @@ public static class AuthRoutes
         // list users endpoint**********************************************************************
         group.MapGet("/users", (
             ClaimsPrincipal user,
-            HttpContext ctx) =>
+            HttpContext ctx,
+            AppConfig config) =>
         {
             return UserService.ListUsersScoped(
                 actingUser: user,
+                config: config,
                 ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
                 userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
             ).ToHttpResult();
@@ -305,6 +313,7 @@ public static class AuthRoutes
             if (!ctx.Request.HasFormContentType)
             {
                 AuditLogger.AuditLog(
+                    config: config,
                     userId: null,
                     action: "token.introspect.failure",
                     target: $"client=invalid reason=invalid_form",
@@ -323,6 +332,7 @@ public static class AuthRoutes
             if (string.IsNullOrWhiteSpace(token))
             {
                 AuditLogger.AuditLog(
+                    config: config,
                     userId: null,
                     action: "token.introspect.failure",
                     target: $"client=unknown reason=null_token",
@@ -340,6 +350,7 @@ public static class AuthRoutes
             if (!AuthHelpers.TryParseBasicAuth(authHeader, out var clientId, out var clientSecret))
             {
                 AuditLogger.AuditLog(
+                    config: config,
                     userId: null,
                     action: "token.introspect.failure",
                     target: $"client={clientId} reason=unable_to_parse_auth",
@@ -356,6 +367,7 @@ public static class AuthRoutes
             if (client is null)
             {
                 AuditLogger.AuditLog(
+                    config: config,
                     userId: null,
                     action: "token.introspect.failure",
                     target: $"client={clientId} reason=failed_basic_auth",
@@ -381,8 +393,6 @@ public static class AuthRoutes
         .Produces<Dictionary<string, object>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .WithOpenApi();
-
-
 
         return group;
     }

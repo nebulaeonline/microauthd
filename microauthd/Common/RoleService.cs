@@ -23,7 +23,7 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  If the operation succeeds, the result
     /// indicates success and includes a message confirming the role creation. If the operation fails, the result
     /// indicates failure and includes an error message.</returns>
-    public static ApiResult<MessageResponse> CreateRole(string name, string? description, string? userId = null, string? ip = null, string? ua = null)
+    public static ApiResult<MessageResponse> CreateRole(string name, string? description, AppConfig config, string? userId = null, string? ip = null, string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             return ApiResult<MessageResponse>.Fail("Role name is required");
@@ -53,6 +53,7 @@ public static class RoleService
             return ApiResult<MessageResponse>.Fail("Role creation failed (maybe duplicate?)");
 
         AuditLogger.AuditLog(
+            config: config,
             userId: userId,
             action: "role_created",
             target: name,
@@ -173,6 +174,7 @@ public static class RoleService
             cmd2.ExecuteNonQuery();
 
             AuditLogger.AuditLog(
+                config: config,
                 userId: actorId,
                 action: "role_assigned",
                 target: $"user:{userId} -> role:{roleId}",
@@ -238,6 +240,7 @@ public static class RoleService
     /// or if the <paramref name="roleId"/> is invalid.</returns>
     public static ApiResult<MessageResponse> SoftDeleteRole(
         string roleId,
+        AppConfig config,
         string? userId = null,
         string? ip = null,
         string? ua = null)
@@ -272,6 +275,7 @@ public static class RoleService
             return ApiResult<MessageResponse>.Fail("Role not found or already deleted");
 
         AuditLogger.AuditLog(
+            config: config,
             userId: userId,
             action: "role_deleted",
             target: roleId,
@@ -297,7 +301,7 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  If the operation succeeds, the result
     /// is successful and contains a message indicating the permission was created.  If the operation fails (e.g., due
     /// to a duplicate name), the result is a failure with an appropriate error message.</returns>
-    public static ApiResult<MessageResponse> CreatePermission(string name, string? userId, string? ip = null, string? ua = null)
+    public static ApiResult<MessageResponse> CreatePermission(string name, AppConfig config, string? userId, string? ip = null, string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             return ApiResult<MessageResponse>.Fail("Permission name is required");
@@ -324,7 +328,7 @@ public static class RoleService
         if (!success)
             return ApiResult<MessageResponse>.Fail("Permission creation failed (maybe duplicate?)");
 
-        AuditLogger.AuditLog(userId, "create_permission", name, ip, ua);
+        AuditLogger.AuditLog(config, userId, "create_permission", name, ip, ua);
         return ApiResult<MessageResponse>.Ok(new($"Permission '{name}' created"));
     }
 
@@ -376,7 +380,7 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns a success result if the
     /// permission was successfully marked as inactive.  Returns a "not found" result if the permission does not exist
     /// or is already inactive.  Returns a failure result if the <paramref name="permissionId"/> is invalid.</returns>
-    public static ApiResult<MessageResponse> SoftDeletePermission(string permissionId, string? actorUserId = null, string? ip = null, string? ua = null)
+    public static ApiResult<MessageResponse> SoftDeletePermission(string permissionId, AppConfig config, string? actorUserId = null, string? ip = null, string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(permissionId))
             return ApiResult<MessageResponse>.Fail("Permission Id is required");
@@ -395,7 +399,7 @@ public static class RoleService
 
         if (affected > 0)
         {
-            AuditLogger.AuditLog(actorUserId, "permission_deleted", permissionId, ip, ua);
+            AuditLogger.AuditLog(config, actorUserId, "permission_deleted", permissionId, ip, ua);
             return ApiResult<MessageResponse>.Ok(new($"Permission '{permissionId}' marked as inactive"));
         }
 
@@ -421,6 +425,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> AssignPermissionsToRole(
         string roleId,
         List<string> permissionIds,
+        AppConfig config, 
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -470,7 +475,7 @@ public static class RoleService
 
             if (assigned > 0)
             {
-                AuditLogger.AuditLog(actorUserId, "assigned_permissions", roleId, ip, ua);
+                AuditLogger.AuditLog(config, actorUserId, "assigned_permissions", roleId, ip, ua);
                 return ApiResult<MessageResponse>.Ok(new($"Permissions assigned to role '{roleId}'"));
             }
 
@@ -497,6 +502,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> RemovePermissionFromRole(
         string roleId,
         string permissionId,
+        AppConfig config,
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -538,6 +544,7 @@ public static class RoleService
                 return ApiResult<MessageResponse>.Fail("Link not found or already removed");
 
             AuditLogger.AuditLog(
+                config: config,
                 userId: actorUserId,
                 action: "permission_unassigned",
                 target: $"role:{roleId} -> permission:{permissionId}",
@@ -776,6 +783,7 @@ public static class RoleService
                 return ApiResult<MessageResponse>.Fail("Role was not assigned or already removed");
 
             AuditLogger.AuditLog(
+                config: config,
                 userId: actorId,
                 action: "role_unassigned",
                 target: $"user:{userId} -> role:{roleId}",
@@ -806,6 +814,7 @@ public static class RoleService
     /// result indicates failure and includes an error message.</returns>
     public static ApiResult<MessageResponse> CreateScope(
     ScopeResponse req,
+    AppConfig config,
     string? actorUserId = null,
     string? ip = null,
     string? ua = null)
@@ -838,7 +847,7 @@ public static class RoleService
         if (!created)
             return ApiResult<MessageResponse>.Fail("Scope creation failed (duplicate name?)");
 
-        AuditLogger.AuditLog(actorUserId, "create_scope", req.Name, ip, ua);
+        AuditLogger.AuditLog(config, actorUserId, "create_scope", req.Name, ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new($"Created scope '{req.Name}'"));
     }
@@ -854,6 +863,7 @@ public static class RoleService
     /// was successfully deactivated, or a failure result if the scope was not found or is already inactive.</returns>
     public static ApiResult<MessageResponse> SoftDeleteScope(
         string scopeId,
+        AppConfig config,
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -883,7 +893,7 @@ public static class RoleService
         if (affected == 0)
             return ApiResult<MessageResponse>.Fail("Scope not found or already inactive");
 
-        AuditLogger.AuditLog(actorUserId, "delete_scope", scopeId, ip, ua);
+        AuditLogger.AuditLog(config, actorUserId, "delete_scope", scopeId, ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new($"Scope '{scopeId}' deactivated."));
     }
@@ -945,7 +955,7 @@ public static class RoleService
                 cmd.ExecuteNonQuery();
             });
 
-            AuditLogger.AuditLog(actorUserId, "create_client", req.ClientId, ip, ua);
+            AuditLogger.AuditLog(config, actorUserId, "create_client", req.ClientId, ip, ua);
 
             return ApiResult<MessageResponse>.Ok(
                 new MessageResponse($"Created client '{req.ClientId}'"));
@@ -1012,6 +1022,7 @@ public static class RoleService
     /// client was successfully deactivated, or a failure result if the client was not found or is already inactive.</returns>
     public static ApiResult<MessageResponse> SoftDeleteClient(
         string clientId,
+        AppConfig config,
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -1030,7 +1041,7 @@ public static class RoleService
         if (affected == 0)
             return ApiResult<MessageResponse>.Fail("Client not found or already inactive");
 
-        AuditLogger.AuditLog(actorUserId, "delete_client", clientId, ip, ua);
+        AuditLogger.AuditLog(config,actorUserId, "delete_client", clientId, ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new($"Client '{clientId}' deactivated."));
     }
@@ -1096,6 +1107,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> AddScopesToClient(
         string clientId,
         AssignScopesRequest req,
+        AppConfig config,
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -1141,7 +1153,7 @@ public static class RoleService
         if (added == 0)
             return ApiResult<MessageResponse>.Fail("No scopes were assigned. Check scope IDs or duplicates.");
 
-        AuditLogger.AuditLog(actorUserId, "assign_scope_to_client", clientId, ip, ua);
+        AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_client", clientId, ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new($"Assigned {added} scope(s) to client."));
     }
@@ -1244,6 +1256,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> RemoveScopeFromClient(
         string clientId,
         string scopeId,
+        AppConfig config,
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -1267,7 +1280,7 @@ public static class RoleService
         if (affected == 0)
             return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
 
-        AuditLogger.AuditLog(actorUserId, "remove_scope_from_client", $"{clientId}:{scopeId}", ip, ua);
+        AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_client", $"{clientId}:{scopeId}", ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new($"Removed scope '{scopeId}' from client '{clientId}'"));
     }
@@ -1326,6 +1339,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> AddScopesToUser(
         string userId,
         AssignScopesRequest req,
+        AppConfig config,
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -1371,7 +1385,7 @@ public static class RoleService
         if (added == 0)
             return ApiResult<MessageResponse>.Fail("No scopes were assigned — check if they exist or were already assigned");
 
-        AuditLogger.AuditLog(actorUserId, "assign_scope_to_user", userId, ip, ua);
+        AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_user", userId, ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new($"Assigned {added} scope(s) to user."));
     }
@@ -1393,6 +1407,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> RemoveScopeFromUser(
         string userId,
         string scopeId,
+        AppConfig config,
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
@@ -1429,7 +1444,7 @@ public static class RoleService
         if (affected == 0)
             return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
 
-        AuditLogger.AuditLog(actorUserId, "remove_scope_from_user", $"{userId}:{scopeId}", ip, ua);
+        AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_user", $"{userId}:{scopeId}", ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new($"Removed scope '{scopeId}' from user '{userId}'."));
     }

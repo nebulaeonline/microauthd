@@ -227,6 +227,7 @@ public static class AuthService
         Log.Information("Admin Token issued for user {UserId}", r.UserId);
 
         AuditLogger.AuditLog(
+            config: config,
             userId: r.UserId,
             action: "admin_token_issued",
             target: req.ClientIdentifier ?? "(no client id)",
@@ -341,6 +342,7 @@ public static class AuthService
         Log.Debug("Issued token for user {UserId} under client {ClientIdent}", r.UserId, clientIdent);
 
         AuditLogger.AuditLog(
+            config: config,
             userId: r.UserId,
             action: "token_issued",
             target: clientIdent,
@@ -462,6 +464,7 @@ public static class AuthService
         );
 
         AuditLogger.AuditLog(
+            config: config,
             userId: tokenRow.UserId,
             action: "refresh_token_used",
             target: tokenRow.ClientIdentifier,
@@ -593,7 +596,7 @@ public static class AuthService
     /// empty.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that confirms the logout operation. The
     /// message includes the user ID and client identifier.</returns>
-    public static ApiResult<MessageResponse> Logout(string userId, string clientIdentifier)
+    public static ApiResult<MessageResponse> Logout(string userId, string clientIdentifier, AppConfig config)
     {
         Db.WithConnection(conn =>
         {
@@ -619,6 +622,7 @@ public static class AuthService
         });
 
         AuditLogger.AuditLog(
+            config: config,
             userId: userId,
             action: "logout",
             target: clientIdentifier
@@ -637,7 +641,7 @@ public static class AuthService
     /// <param name="userId">The unique identifier of the user whose sessions and refresh tokens are to be revoked. Cannot be null or empty.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that confirms the operation's success.
     /// The message indicates that all sessions and refresh tokens for the specified user have been revoked.</returns>
-    public static ApiResult<MessageResponse> LogoutAll(string userId)
+    public static ApiResult<MessageResponse> LogoutAll(string userId, AppConfig config)
     {
         Db.WithConnection(conn =>
         {
@@ -661,6 +665,7 @@ public static class AuthService
         });
 
         AuditLogger.AuditLog(
+            config: config,
             userId: userId,
             action: "logout_all"
         );
@@ -835,6 +840,7 @@ public static class AuthService
         };
 
         AuditLogger.AuditLog(
+            config: config,
             userId: null,
             action: "oidc_token_issued",
             target: clientId
@@ -906,6 +912,7 @@ public static class AuthService
             };
 
             AuditLogger.AuditLog(
+                config: config,
                 userId: jwt.Subject,
                 action: "token.introspect.success",
                 target: $"client={clientId}",
@@ -966,6 +973,7 @@ public static class AuthService
         if (kid == adminKid)
         {
             AuditLogger.AuditLog(
+                config: config,
                 userId: adminUserId,
                 action: "admin.admin.token.introspect",
                 target: "attempted introspection of admin token",
@@ -997,6 +1005,7 @@ public static class AuthService
             claims["expired"] = jwt.ValidTo < DateTime.UtcNow;
 
             AuditLogger.AuditLog(
+                config: config,
                 userId: adminUserId,
                 action: "admin.auth.token.introspect",
                 target: jwt.Subject,

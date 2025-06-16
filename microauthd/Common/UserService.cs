@@ -82,6 +82,7 @@ public static class UserService
         }
 
         AuditLogger.AuditLog(
+            config: config,
             userId: userId,
             action: "user_created",
             target: username,
@@ -159,6 +160,7 @@ public static class UserService
             return ApiResult<MessageResponse>.Fail("User creation failed (likely duplicate)");
 
         AuditLogger.AuditLog(
+            config: config,
             userId: actingUser.GetUserId(),
             action: "user_created",
             target: userId,
@@ -223,6 +225,7 @@ public static class UserService
     /// the caller lacks the required scope, the result will indicate a "Forbidden" status.</returns>
     public static ApiResult<List<UserResponse>> ListUsersScoped(
     ClaimsPrincipal actingUser,
+    AppConfig config,
     string? ipAddress,
     string? userAgent)
     {
@@ -257,6 +260,7 @@ public static class UserService
         });
 
         AuditLogger.AuditLog(
+            config: config,
             userId: actingUser.GetUserId(),
             action: "user_list",
             ipAddress: ipAddress,
@@ -322,6 +326,7 @@ public static class UserService
     public static ApiResult<UserResponse> GetUserByIdScoped(
         ClaimsPrincipal actingUser,
         string targetUserId,
+        AppConfig config,
         string? ipAddress,
         string? userAgent)
     {
@@ -356,6 +361,7 @@ public static class UserService
             return ApiResult<UserResponse>.NotFound("User not found");
 
         AuditLogger.AuditLog(
+            config: config,
             userId: actingUser.GetUserId(),
             action: "user_read",
             target: targetUserId,
@@ -379,7 +385,7 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> with the result of the operation.
     /// Returns a success result if the user was successfully deactivated, or a failure result if the user was not found
     /// or already inactive.</returns>
-    public static ApiResult<MessageResponse> SoftDeleteUser(string userId, string? ip = null, string? ua = null)
+    public static ApiResult<MessageResponse> SoftDeleteUser(string userId, AppConfig config, string? ip = null, string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<MessageResponse>.Fail("User ID is required", 400);
@@ -396,6 +402,7 @@ public static class UserService
             return ApiResult<MessageResponse>.Fail("User not found or already inactive", 400);
 
         AuditLogger.AuditLog(
+            config: config,
             userId: null, // you may capture admin user from route if desired
             action: "user_deactivated",
             target: userId,
@@ -426,6 +433,7 @@ public static class UserService
     public static ApiResult<MessageResponse> DeactivateUserScoped(
     ClaimsPrincipal actingUser,
         string targetUserId,
+        AppConfig config,
         string? ipAddress,
         string? userAgent)
     {
@@ -451,6 +459,7 @@ public static class UserService
             return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
 
         AuditLogger.AuditLog(
+            config: config,
             userId: actingUser.GetUserId(),
             action: "user_deactivated",
             target: targetUserId,
@@ -472,6 +481,7 @@ public static class UserService
     /// matching soft-deleted user was found.</returns>
     public static ApiResult<MessageResponse> ReactivateSoftDeletedUser(
         string userId,
+        AppConfig config,
         string? ip = null,
         string? ua = null
     )
@@ -491,6 +501,7 @@ public static class UserService
             return ApiResult<MessageResponse>.Fail("User not found or already active", 400);
 
         AuditLogger.AuditLog(
+            config: config,
             userId: null, // capture admin user if desired
             action: "user_reactivated",
             target: userId,
@@ -547,6 +558,7 @@ public static class UserService
             return ApiResult<MessageResponse>.Fail("User not found or inactive", 400);
 
         AuditLogger.AuditLog(
+            config: config,
             userId: null, // or capture the admin performing it, if applicable
             action: "user_password_reset",
             target: userId,
@@ -610,6 +622,7 @@ public static class UserService
             return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
 
         AuditLogger.AuditLog(
+            config: config,
             userId: actingUser.GetUserId(),
             action: "user_password_reset",
             target: targetUserId,
@@ -906,7 +919,7 @@ public static class UserService
     /// <param name="ua">The user agent string of the client initiating the revocation. This parameter is optional and can be null.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="RevokeResponse"/> object that describes the result of the
     /// revocation. The response includes the JTI, the revocation status, and a message providing additional details.</returns>
-    public static ApiResult<RevokeResponse> RevokeSessionById(string jti, string? ip = null, string? ua = null)
+    public static ApiResult<RevokeResponse> RevokeSessionById(string jti, AppConfig config, string? ip = null, string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(jti))
             return ApiResult<RevokeResponse>.Fail("Missing JTI", 400);
@@ -955,6 +968,7 @@ public static class UserService
             updateCmd.ExecuteNonQuery();
 
             AuditLogger.AuditLog(
+                config: config,
                 userId: userId,
                 action: "session_revoked",
                 target: jti,
@@ -995,6 +1009,7 @@ public static class UserService
     TimeSpan olderThan,
     bool purgeExpired,
     bool purgeRevoked,
+    AppConfig config,
     string? userId = null,
     string? ip = null,
     string? ua = null)
@@ -1022,6 +1037,7 @@ public static class UserService
         });
 
         AuditLogger.AuditLog(
+            config: config,
             userId: userId,
             action: "sessions_purged",
             target: $"purged={purged};expired={purgeExpired};revoked={purgeRevoked}",
@@ -1261,6 +1277,7 @@ public static class UserService
     /// criteria were met.</returns>
     public static ApiResult<MessageResponse> PurgeRefreshTokens(
         PurgeTokensRequest req,
+        AppConfig config,
         string? userId = null,
         string? ip = null,
         string? ua = null)
@@ -1288,6 +1305,7 @@ public static class UserService
         });
 
         AuditLogger.AuditLog(
+            config: config,
             userId: userId,
             action: "refresh_tokens_purged",
             target: $"purged={purged};expired={req.PurgeExpired};revoked={req.PurgeRevoked}",

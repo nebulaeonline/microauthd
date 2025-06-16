@@ -66,7 +66,40 @@ public static class ServerHost
                             },
                             OnTokenValidated = context =>
                             {
+                                var config = context.HttpContext.RequestServices.GetRequiredService<AppConfig>();
+
                                 var claims = context.Principal?.Claims?.ToList() ?? new List<Claim>();
+                                var userId = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+                                var jti = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+
+                                // Check session revocation if enabled
+                                if (config.EnableTokenRevocation)
+                                {
+                                    if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(jti))
+                                    {
+                                        context.Fail("Invalid token");
+                                        return Task.CompletedTask;
+                                    }
+
+                                    if (!SessionAccess.IsSessionActive(userId, jti))
+                                    {
+                                        Log.Warning("Replay detected: revoked token jti={Jti} user={UserId}", jti, userId);
+
+                                        AuditLogger.AuditLog(
+                                            config,
+                                            userId: userId,
+                                            action: "auth.token.replay_detected",
+                                            target: $"jti={jti}",
+                                            ipAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+                                            userAgent: context.HttpContext.Request.Headers["User-Agent"].FirstOrDefault()
+                                        );
+
+                                        context.Fail("Invalid token");
+                                        return Task.CompletedTask;
+                                    }
+                                }
+
+                                // Replace principal to bind correct claim types
                                 context.Principal = new ClaimsPrincipal(
                                     new ClaimsIdentity(claims, "Bearer", JwtRegisteredClaimNames.Sub, ClaimTypes.Role)
                                 );
@@ -139,7 +172,40 @@ public static class ServerHost
                             },
                             OnTokenValidated = context =>
                             {
+                                var config = context.HttpContext.RequestServices.GetRequiredService<AppConfig>();
+
                                 var claims = context.Principal?.Claims?.ToList() ?? new List<Claim>();
+                                var userId = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+                                var jti = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+
+                                // Check session revocation if enabled
+                                if (config.EnableTokenRevocation)
+                                {
+                                    if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(jti))
+                                    {
+                                        context.Fail("Invalid token");
+                                        return Task.CompletedTask;
+                                    }
+
+                                    if (!SessionAccess.IsSessionActive(userId, jti))
+                                    {
+                                        Log.Warning("Replay detected: revoked token jti={Jti} user={UserId}", jti, userId);
+
+                                        AuditLogger.AuditLog(
+                                            config,
+                                            userId: userId,
+                                            action: "admin.token.replay_detected",
+                                            target: $"jti={jti}",
+                                            ipAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+                                            userAgent: context.HttpContext.Request.Headers["User-Agent"].FirstOrDefault()
+                                        );
+
+                                        context.Fail("Invalid token");
+                                        return Task.CompletedTask;
+                                    }
+                                }
+
+                                // Replace principal to bind correct claim types
                                 context.Principal = new ClaimsPrincipal(
                                     new ClaimsIdentity(claims, "Bearer", JwtRegisteredClaimNames.Sub, ClaimTypes.Role)
                                 );
@@ -162,7 +228,7 @@ public static class ServerHost
                 if (config.EnableAdminSwagger)
                     SwaggerSetup.ConfigureApp(app);
 
-                app.MapAdminRoutes();
+                app.MapAdminRoutes(config);
             },
             config
         );
