@@ -1,4 +1,4 @@
-﻿namespace microauthd.Common
+﻿namespace madTypes.Common
 {
     public class ApiResult<T>
     {

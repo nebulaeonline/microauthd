@@ -13,7 +13,6 @@
       <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
       <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
       <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)\Generated</CompilerGeneratedFilesOutputPath>
-      <PackageId>nebulae.dotArgon2</PackageId>
       <Authors>Robert C. Horvath III</Authors>
       <Company>Nebulae Foundation LLC</Company>
       <Description>High-performance identity provider with a small footprint designed for security and AOT compilation</Description>

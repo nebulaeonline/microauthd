@@ -1,4 +1,5 @@
 ﻿using madTypes.Api.Responses;
+using madTypes.Common;
 using System.Text.Json.Serialization.Metadata;
 
 namespace microauthd.Common

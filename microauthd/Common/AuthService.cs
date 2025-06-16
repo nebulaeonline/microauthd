@@ -1,5 +1,6 @@
 ﻿using madTypes.Api.Requests;
 using madTypes.Api.Responses;
+using madTypes.Common;
 using microauthd.Config;
 using microauthd.Tokens;
 using Microsoft.IdentityModel.Tokens;
