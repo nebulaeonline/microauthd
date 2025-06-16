@@ -272,17 +272,29 @@ public static class AuthService
 
         var clientIdent = req.ClientIdentifier.Trim();
 
-        // Check client existence
-        var clientExists = Db.WithConnection(conn =>
+        // Check if this matches the config's default client
+        var isDefaultClient = string.Equals(
+            clientIdent,
+            config.OidcClientId,
+            StringComparison.Ordinal
+        );
+
+        // Otherwise, check the DB
+        var existsInDb = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT 1 FROM clients WHERE client_identifier = $cid AND is_active = 1 LIMIT 1;";
+            cmd.CommandText = """
+                SELECT 1
+                FROM clients
+                WHERE client_identifier = $cid AND is_active = 1
+                LIMIT 1;
+            """;
             cmd.Parameters.AddWithValue("$cid", clientIdent);
             using var reader = cmd.ExecuteReader();
             return reader.Read();
         });
 
-        if (!clientExists)
+        if (!isDefaultClient && !existsInDb)
         {
             Log.Warning("Unknown or inactive client_identifier {ClientIdent}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");

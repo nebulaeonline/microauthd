@@ -141,8 +141,31 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // token request endpoint*******************************************************************
-        group.MapPost("/token", (TokenRequest req, AppConfig config, HttpContext ctx) =>
+        group.MapPost("/token", async (AppConfig config, HttpContext ctx) =>
         {
+            if (!ctx.Request.HasFormContentType)
+                return ApiResult<TokenResponse>
+                    .Fail("Invalid credentials", 400)
+                    .ToHttpResult();
+
+            var form = await ctx.Request.ReadFormAsync();
+
+            var req = new TokenRequest
+            {
+                Username = form["username"],
+                Password = form["password"],
+                ClientIdentifier = form["client_id"]
+            };
+
+            if (string.IsNullOrWhiteSpace(req.Username) ||
+                string.IsNullOrWhiteSpace(req.Password) ||
+                string.IsNullOrWhiteSpace(req.ClientIdentifier))
+            {
+                return ApiResult<TokenResponse>
+                    .Fail("Invalid credentials", 400)
+                    .ToHttpResult();
+            }
+
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
 

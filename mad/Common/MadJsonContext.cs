@@ -5,7 +5,8 @@ using madTypes.Api.Requests;
     
 namespace mad.Common;
 
-[JsonSourceGenerationOptions(WriteIndented = false)]
+[JsonSourceGenerationOptions(WriteIndented = false,
+    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(object))] // fallback
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(ErrorResponse))]

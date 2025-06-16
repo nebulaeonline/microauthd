@@ -100,12 +100,35 @@ public static class AuthRoutes
         .WithOpenApi();
 
         // token request endpoint*******************************************************************
-        group.MapPost("/token", (TokenRequest req, AppConfig config, HttpContext ctx) =>
+        group.MapPost("/token", async (AppConfig config, HttpContext ctx) =>
         {
+            if (!ctx.Request.HasFormContentType)
+                return ApiResult<TokenResponse>
+                    .Fail("Invalid credentials", 400)
+                    .ToHttpResult();
+
+            var form = await ctx.Request.ReadFormAsync();
+
+            var request = new TokenRequest
+            {
+                Username = form["username"],
+                Password = form["password"],
+                ClientIdentifier = form["client_id"]
+            };
+
+            if (string.IsNullOrWhiteSpace(request.Username) ||
+                string.IsNullOrWhiteSpace(request.Password) ||
+                string.IsNullOrWhiteSpace(request.ClientIdentifier))
+            {
+                return ApiResult<TokenResponse>
+                    .Fail("Invalid credentials", 400)
+                    .ToHttpResult();
+            }
+
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
 
-            return AuthService.IssueUserToken(req, config, ip, ua).ToHttpResult();
+            return AuthService.IssueUserToken(request, config, ip, ua).ToHttpResult();
         })
         .WithName("IssueToken")
         .Produces<TokenResponse>(StatusCodes.Status200OK)

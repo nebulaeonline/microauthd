@@ -11,7 +11,9 @@ namespace microauthd.Common;
 // deserialize due to AOT and the lack of full
 // reflection
 
-[JsonSourceGenerationOptions(WriteIndented = false)]
+[JsonSourceGenerationOptions(
+    WriteIndented = false,
+    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(object))] // fallback
 [JsonSerializable(typeof(ErrorResponse))]
 [JsonSerializable(typeof(PingResponse))]
