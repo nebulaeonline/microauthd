@@ -26,31 +26,46 @@ internal class MadApiClient
         SetToken(token);
     }
 
-    public async Task<bool> Authenticate(string username, string password)
+    public async Task<bool> Authenticate(string username, string password, string clientId)
     {
-        var req = new TokenRequest { Username = username, Password = password };
+        Console.WriteLine("DEBUG: Starting admin login to " + $"{BaseUrl}/token");
+        Console.WriteLine($"DEBUG: username = {username}");
 
-        var content = JsonContent.Create(
-            req,  // inputValue
-            MadJsonContext.Default.TokenRequest // jsonTypeInfo
-        );
+        var payload = new Dictionary<string, string>
+        {
+            { "username", username },
+            { "password", password },
+            { "client_id", clientId }
+        };
 
-        var res = await _http.PostAsync($"{BaseUrl}/token", content);
+        var content = new FormUrlEncodedContent(payload);
+
+        var req = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/token")
+        {
+            Content = content
+        };
+
+        req.Headers.Add("Accept", "application/json");
+
+        var res = await _http.SendAsync(req);
+        var body = await res.Content.ReadAsStringAsync();
+
+        Console.WriteLine("DEBUG: Response code = " + (int)res.StatusCode);
+        Console.WriteLine("DEBUG: Response body = " + body);
 
         if (!res.IsSuccessStatusCode)
             return false;
 
-        var token = await res.Content.ReadFromJsonAsync(
-            MadJsonContext.Default.TokenResponse
-        );
+        var token = JsonSerializer.Deserialize(body, MadJsonContext.Default.TokenResponse);
 
-        if (token is null)
+        if (token == null || string.IsNullOrWhiteSpace(token.AccessToken))
             return false;
 
         Token = token.AccessToken;
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
         return true;
     }
+
 
     public async Task<HttpResponseMessage> CreateUser(CreateUserRequest request)
     {

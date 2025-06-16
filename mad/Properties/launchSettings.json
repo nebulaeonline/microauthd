@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "mad": {
+      "commandName": "Project",
+      "commandLineArgs": "session login --admin-url=http://localhost:9041"
+    }
+  }
+}

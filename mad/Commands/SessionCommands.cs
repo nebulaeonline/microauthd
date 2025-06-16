@@ -32,8 +32,11 @@ internal static class SessionCommands
             Console.Write("Password: ");
             var password = ConsoleUtils.ReadHiddenInput();
 
+            Console.Write("Client Id: ");
+            var clientId = Console.ReadLine() ?? string.Empty;
+
             var client = new MadApiClient(url);
-            var success = await client.Authenticate(username, password);
+            var success = await client.Authenticate(username, password, clientId);
 
             if (!success)
             {
