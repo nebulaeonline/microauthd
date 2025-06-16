@@ -386,7 +386,7 @@ public static class AuthService
     public static ApiResult<TokenResponse> RefreshAccessToken(RefreshRequest req, AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(req.RefreshToken))
-            return ApiResult<TokenResponse>.Fail("Refresh token is required", 400);
+            return ApiResult<TokenResponse>.Fail("InvalidCredentials", 400);
 
         var sha256 = Utils.Sha256Base64(req.RefreshToken);
 
@@ -435,14 +435,14 @@ public static class AuthService
 
         // Build claims
         var claims = new List<Claim>
-    {
-        new(JwtRegisteredClaimNames.Sub, tokenRow.UserId),
-        new("client_id", tokenRow.ClientIdentifier)
-    };
+        {
+            new(JwtRegisteredClaimNames.Sub, tokenRow.UserId),
+            new("client_id", tokenRow.ClientIdentifier)
+        };
 
         claims.AddRange(RoleService.GetRoleClaimsForUser(tokenRow.UserId));
 
-        // 🧼 Fix the Count problem by querying scopes directly:
+        // Fix the Count problem by querying scopes directly:
         var scopes = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
