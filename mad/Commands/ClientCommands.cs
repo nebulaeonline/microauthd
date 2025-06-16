@@ -1,7 +1,7 @@
 ﻿using System.CommandLine;
 using mad.Common;
 using mad.Http;
-using mad.Api.Requests;
+using madTypes.Api.Requests;
 
 namespace mad.Commands;
 

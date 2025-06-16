@@ -69,4 +69,8 @@
     <ItemGroup>
       <Folder Include="Docs\" />
     </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\madTypes\madTypes.csproj" />
+    </ItemGroup>
 </Project>

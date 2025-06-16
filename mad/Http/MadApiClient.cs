@@ -1,5 +1,5 @@
-﻿using mad.Api.Requests;
-using mad.Api.Responses;
+﻿using madTypes.Api.Requests;
+using madTypes.Api.Responses;
 using mad.Common;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;

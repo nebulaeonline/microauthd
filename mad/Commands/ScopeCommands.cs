@@ -1,8 +1,8 @@
 ﻿using System.CommandLine;
 using mad.Common;
 using mad.Http;
-using mad.Api.Responses;
-using mad.Api.Requests;
+using madTypes.Api.Responses;
+using madTypes.Api.Requests;
 
 namespace mad.Commands;
 

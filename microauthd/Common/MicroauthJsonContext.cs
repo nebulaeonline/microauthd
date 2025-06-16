@@ -1,8 +1,8 @@
 ﻿using System.Text.Json.Serialization;
 
 using microauthd.Config;
-using microauthd.Api.Requests;
-using microauthd.Api.Responses;
+using madTypes.Api.Requests;
+using madTypes.Api.Responses;
 
 namespace microauthd.Common;
 

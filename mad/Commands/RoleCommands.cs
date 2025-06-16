@@ -1,5 +1,5 @@
 ﻿using System.CommandLine;
-using mad.Api.Requests;
+using madTypes.Api.Requests;
 using mad.Common;
 using mad.Http;
 

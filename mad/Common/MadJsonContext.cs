@@ -1,7 +1,7 @@
 ﻿using System.Text.Json.Serialization;
 
-using mad.Api.Responses;
-using mad.Api.Requests;
+using madTypes.Api.Responses;
+using madTypes.Api.Requests;
     
 namespace mad.Common;
 

@@ -1,6 +1,6 @@
 ﻿using System.CommandLine;
 
-using mad.Api.Requests;
+using madTypes.Api.Requests;
 using mad.Http;
 using mad.Common;
 

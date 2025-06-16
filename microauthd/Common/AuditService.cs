@@ -1,4 +1,4 @@
-﻿using microauthd.Api.Responses;
+﻿using madTypes.Api.Responses;
 using Microsoft.AspNetCore.Http;
 
 namespace microauthd.Common
