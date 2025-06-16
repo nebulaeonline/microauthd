@@ -155,8 +155,8 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 
 ### Project Roadmap
 
-1. Add token introspection endpoint (`/introspect`)
-2. Implement replay detection for access tokens
+1. ~~Add token introspection endpoint (`/introspect`)~~ Done.
+2. ~~Implement replay detection for access tokens~~ Done.
 3. Replace shared DB connection with per-request pooling (WAL-mode safe)
 4. Clean up API DTOs (uniform `MessageResponse`, consistent `id + name`)
 5. Launch test harness using `mad` + Python bindings
