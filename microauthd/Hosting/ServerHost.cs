@@ -81,6 +81,8 @@ public static class ServerHost
             },
             app =>
             {
+                app.UseMiddleware<RateLimitMiddleware>("auth");
+
                 app.UseAuthentication();
                 app.UseAuthorization();
 
@@ -152,6 +154,8 @@ public static class ServerHost
             },
             app =>
             {
+                app.UseMiddleware<RateLimitMiddleware>("admin");
+
                 app.UseAuthentication();
                 app.UseAuthorization();
 

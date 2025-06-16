@@ -297,6 +297,93 @@ public static class AuthRoutes
         .WithTags("Auth")
         .WithOpenApi();
 
+        // OIDC token introspection endpoint********************************************************
+        // OIDC token introspection endpoint (machine-to-machine only)
+        group.MapPost("/introspect", async (HttpContext ctx, AppConfig config) =>
+        {
+            // Require valid form
+            if (!ctx.Request.HasFormContentType)
+            {
+                AuditLogger.AuditLog(
+                    userId: null,
+                    action: "token.introspect.failure",
+                    target: $"client=invalid reason=invalid_form",
+                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
+                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
+                );
+
+                return ApiResult<Dictionary<string, object>>
+                    .Fail("Authorization Failed", 403)
+                    .ToHttpResult();
+            }
+
+            var form = await ctx.Request.ReadFormAsync();
+            var token = form["token"].FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                AuditLogger.AuditLog(
+                    userId: null,
+                    action: "token.introspect.failure",
+                    target: $"client=unknown reason=null_token",
+                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
+                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
+                );
+
+                return ApiResult<Dictionary<string, object>>
+                    .Fail("Authorization Failed", 403)
+                    .ToHttpResult();
+            }
+
+            // Require client credentials via HTTP Basic Auth
+            var authHeader = ctx.Request.Headers.Authorization.ToString();
+            if (!AuthHelpers.TryParseBasicAuth(authHeader, out var clientId, out var clientSecret))
+            {
+                AuditLogger.AuditLog(
+                    userId: null,
+                    action: "token.introspect.failure",
+                    target: $"client={clientId} reason=unable_to_parse_auth",
+                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
+                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
+                );
+                return ApiResult<Dictionary<string, object>>
+                    .Fail("Authorization Failed", 403)
+                    .ToHttpResult();
+            }
+
+            // Authenticate the client (supports both in-memory and DB clients)
+            var client = AuthService.AuthenticateClient(clientId, clientSecret, config);
+            if (client is null)
+            {
+                AuditLogger.AuditLog(
+                    userId: null,
+                    action: "token.introspect.failure",
+                    target: $"client={clientId} reason=failed_basic_auth",
+                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
+                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
+                );
+
+                return ApiResult<Dictionary<string, object>>
+                    .Fail("Authorization Failed", 403)
+                    .ToHttpResult();
+            }
+
+            // Delegate to token introspection logic
+            return AuthService.IntrospectToken(
+                token,
+                client.ClientId,
+                ctx.Connection.RemoteIpAddress,
+                ctx.Request.Headers["User-Agent"].FirstOrDefault(),
+                config).ToHttpResult();
+        })
+        .WithName("TokenIntrospection")
+        .WithTags("OIDC")
+        .Produces<Dictionary<string, object>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+        .WithOpenApi();
+
+
+
         return group;
     }
 }

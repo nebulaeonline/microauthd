@@ -802,6 +802,29 @@ public static class AdminRoutes
         .WithTags("Audit")
         .WithOpenApi();
 
+        // token introspection endpoint*************************************************************
+        group.MapPost("/introspect", (TokenIntrospectionRequest req, AppConfig config, HttpContext ctx) =>
+        {
+            var token = req.Token;
+
+            if (string.IsNullOrWhiteSpace(token))
+                return ApiResult<Dictionary<string, object>>
+                    .Fail("Token is required", 400)
+                    .ToHttpResult();
+
+            var adminUserId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+            var ip = ctx.Connection.RemoteIpAddress?.ToString();
+            var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
+
+            return AuthService.IntrospectTokenAsAdmin(token, adminUserId, ip, ua, config).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("AdminIntrospectToken")
+        .Produces<Dictionary<string, object>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Admin")
+        .WithOpenApi();
+
         return group;
     }
 }

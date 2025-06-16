@@ -3,6 +3,7 @@ using madTypes.Api.Responses;
 using madTypes.Common;
 using microauthd.Config;
 using microauthd.Tokens;
+using microauthd.Data;
 using Microsoft.IdentityModel.Tokens;
 using nebulae.dotArgon2;
 using Serilog;
@@ -10,6 +11,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Net;
 using static nebulae.dotArgon2.Argon2;
 
 namespace microauthd.Common;
@@ -140,6 +142,34 @@ public static class AuthService
         });
 
         return (true, user.Id, user.Email, roles);
+    }
+
+    // AuthService.cs
+    public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
+    {
+        // 1. Check special config client (bootstrap)
+        if (clientId == config.OidcClientId &&
+            clientSecret == config.OidcClientSecret)
+        {
+            return new Client
+            {
+                Id = "bootstrap", // sentinel value
+                ClientId = clientId,
+                DisplayName = "Bootstrap Client",
+                ClientSecretHash = "", // never stored
+                IsActive = true
+            };
+        }
+
+        // 2. Look up client in database
+        var client = ClientAccess.GetClientById(clientId);
+        if (client is null || !client.IsActive)
+            return null;
+
+        // 3. Verify Argon2 hash
+        return Argon2.VerifyEncoded(Argon2.Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret))
+            ? client
+            : null;
     }
 
     /// <summary>
@@ -813,4 +843,172 @@ public static class AuthService
         return ApiResult<TokenResponse>.Ok(response);
     }
 
+    /// <summary>
+    /// Validates and introspects a JSON Web Token (JWT) to extract its claims and metadata.
+    /// </summary>
+    /// <remarks>This method validates the token using the provided configuration, including issuer
+    /// validation,  lifetime validation, and signature validation. If the token is valid, its claims and metadata  are
+    /// extracted into a dictionary. If the token is invalid or an error occurs during validation,  the method returns a
+    /// dictionary indicating that the token is inactive.</remarks>
+    /// <param name="token">The JWT to be introspected. Must be a valid, readable token.</param>
+    /// <param name="config">The application configuration containing validation parameters, such as the issuer and signing key.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a dictionary of token claims and metadata.  The dictionary includes the
+    /// following keys: <list type="bullet"> <item><description><c>"active"</c>: A boolean indicating whether the token
+    /// is valid and active.</description></item> <item><description><c>"iss"</c>: The issuer of the
+    /// token.</description></item> <item><description><c>"sub"</c>: The subject of the token.</description></item>
+    /// <item><description><c>"exp"</c>: The expiration time of the token, in seconds since the
+    /// epoch.</description></item> <item><description><c>"iat"</c>: The issued-at time of the token, in seconds since
+    /// the epoch.</description></item> <item><description><c>"nbf"</c>: The not-before time of the token, in seconds
+    /// since the epoch.</description></item> <item><description><c>"aud"</c>: The audience of the
+    /// token.</description></item> <item><description><c>"scope"</c>: An array of scopes associated with the
+    /// token.</description></item> <item><description><c>"client_id"</c>: The client identifier associated with the
+    /// token.</description></item> <item><description><c>"username"</c>: The username associated with the token, if
+    /// available.</description></item> <item><description><c>"token_use"</c>: The intended use of the token (e.g.,
+    /// access or ID token).</description></item> </list> If the token is invalid or cannot be read, the dictionary will
+    /// contain only <c>"active": false</c>.</returns>
+    public static ApiResult<Dictionary<string, object>> IntrospectToken(string token, string clientId, IPAddress? ip, string? ua, AppConfig config)
+    {
+        var handler = new JwtSecurityTokenHandler();
+
+        if (!handler.CanReadToken(token))
+            return ApiResult<Dictionary<string, object>>.Ok(new Dictionary<string, object> { ["active"] = false });
+
+        try
+        {
+            var principal = handler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = config.OidcIssuer,
+                ValidateAudience = false,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = TokenKeyCache.GetPublicKey(isAdmin: false),
+                NameClaimType = JwtRegisteredClaimNames.Sub,
+                RoleClaimType = ClaimTypes.Role
+            }, out var validatedToken);
+
+            var jwt = (JwtSecurityToken)validatedToken;
+
+            var dict = new Dictionary<string, object>
+            {
+                ["active"] = true,
+                ["iss"] = jwt.Issuer,
+                ["jti"] = jwt.Id,
+                ["sub"] = jwt.Subject,
+                ["exp"] = jwt.Payload.Expiration,
+                ["iat"] = new DateTimeOffset(jwt.Payload.IssuedAt).ToUnixTimeSeconds(),
+                ["nbf"] = jwt.Payload.NotBefore,
+                ["aud"] = jwt.Audiences.FirstOrDefault(),
+                ["scope"] = jwt.Claims.Where(c => c.Type == "scope").Select(c => c.Value).ToArray(),
+                ["client_id"] = jwt.Claims.FirstOrDefault(c => c.Type == "client_id")?.Value,
+                ["username"] = jwt.Claims.FirstOrDefault(c => c.Type == "username")?.Value,
+                ["token_use"] = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value
+            };
+
+            AuditLogger.AuditLog(
+                userId: jwt.Subject,
+                action: "token.introspect.success",
+                target: $"client={clientId}",
+                ipAddress: ip?.ToString(),
+                userAgent: ua
+            );
+
+            return ApiResult<Dictionary<string, object>>.Ok(dict);
+        }
+        catch (SecurityTokenException ex)
+        {
+            Log.Warning("Token introspection failed: {Message}", ex.Message);
+            return ApiResult<Dictionary<string, object>>.Ok(new Dictionary<string, object> { ["active"] = false });
+        }
+    }
+
+    /// <summary>
+    /// Inspects a JWT token as an administrator and retrieves its claims and metadata.
+    /// </summary>
+    /// <remarks>This method allows administrators to inspect tokens, including expired ones, without
+    /// validating their lifetime. The method logs the introspection action for auditing purposes. The caller must
+    /// ensure that the provided token is in a valid JWT format; otherwise, an error result is returned.</remarks>
+    /// <param name="config">The application configuration containing the OpenID Connect issuer information.</param>
+    /// <param name="token">The JWT token to be introspected. Must be a valid JWT format.</param>
+    /// <param name="adminUserId">The ID of the administrator performing the introspection. Can be <see langword="null"/> if not applicable.</param>
+    /// <param name="ip">The IP address of the administrator performing the introspection. Can be <see langword="null"/> if not
+    /// applicable.</param>
+    /// <param name="ua">The user agent of the administrator performing the introspection. Can be <see langword="null"/> if not
+    /// applicable.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a dictionary of claims and metadata extracted from the token. The
+    /// dictionary includes the token's claims, a <c>"valid"</c> key indicating whether the token is valid, and an
+    /// <c>"expired"</c> key indicating whether the token has expired. If the token is invalid, the result contains an
+    /// error message and a 400 status code.</returns>
+    public static ApiResult<Dictionary<string, object>> IntrospectTokenAsAdmin(
+        string token,
+        string? adminUserId,
+        string? ip,
+        string? ua,
+        AppConfig config)
+    {
+        var handler = new JwtSecurityTokenHandler();
+
+        // Step 1: Decode without validating
+        JwtSecurityToken decoded;
+        try
+        {
+            decoded = handler.ReadJwtToken(token);
+        }
+        catch
+        {
+            return ApiResult<Dictionary<string, object>>.Fail("Invalid token format", 400);
+        }
+
+        // Step 2: Check the 'kid' to determine key type
+        var kid = decoded.Header.Kid;
+        var adminKid = TokenKeyCache.GetKeyId(isAdmin: true);
+
+        if (kid == adminKid)
+        {
+            AuditLogger.AuditLog(
+                userId: adminUserId,
+                action: "admin.admin.token.introspect",
+                target: "attempted introspection of admin token",
+                ipAddress: ip,
+                userAgent: ua
+            );
+            return ApiResult<Dictionary<string, object>>.Fail("Admin token introspection is not allowed", 403);
+        }
+
+        // Step 3: Proceed with normal (auth) token validation
+        try
+        {
+            var principal = handler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = config.OidcIssuer,
+                ValidateAudience = false,
+                ValidateLifetime = false, // Admins may introspect expired tokens
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = TokenKeyCache.GetPublicKey(isAdmin: false),
+                NameClaimType = JwtRegisteredClaimNames.Sub,
+                RoleClaimType = ClaimTypes.Role
+            }, out var validated);
+
+            var jwt = (JwtSecurityToken)validated;
+
+            var claims = jwt.Claims.ToDictionary(c => c.Type, c => (object)c.Value);
+            claims["valid"] = true;
+            claims["expired"] = jwt.ValidTo < DateTime.UtcNow;
+
+            AuditLogger.AuditLog(
+                userId: adminUserId,
+                action: "admin.auth.token.introspect",
+                target: jwt.Subject,
+                ipAddress: ip,
+                userAgent: ua
+            );
+
+            return ApiResult<Dictionary<string, object>>.Ok(claims);
+        }
+        catch (SecurityTokenException ex)
+        {
+            return ApiResult<Dictionary<string, object>>.Fail($"Invalid token: {ex.Message}", 400);
+        }
+    }
 }
