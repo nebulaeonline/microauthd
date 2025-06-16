@@ -41,14 +41,23 @@ public class Program
             Log.Information("Starting microauthd with configuration: {Config}", config);
             ConfigLogger.LogSafeConfig(config);
 
+            string adminUser = string.Empty;
+            string adminEmail = string.Empty;
+            string adminPass = string.Empty;
+
             // See if our db file exists, if not, launch OOBE
             if (!File.Exists(config.DbFile))
             {
-                OobeDos.LaunchOobe(config);
+                (adminUser, adminEmail, adminPass) = OobeDos.LaunchOobe(config);
+                config = ConfigLoader.Load(parseResult); // Reload config after OOBE
+                DbInitializer.CreateDbTables(config);
+                OobeDos.CreateOobeUserRaw(adminUser, adminEmail, adminPass, config);
             }
-
-            // Initialize the database
-            DbInitializer.CreateDbTables(config);
+            else
+            {
+                // Initialize the database
+                DbInitializer.CreateDbTables(config);
+            }               
 
             // Get our token signing keys in order; that includes
             // generating them if they don't exist, and exporting the

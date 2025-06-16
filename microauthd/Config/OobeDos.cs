@@ -6,7 +6,7 @@ namespace microauthd.Config
 {
     public static class OobeDos
     {
-        public static void LaunchOobe(AppConfig config)
+        public static (string adminUser, string adminEmail, string adminPass) LaunchOobe(AppConfig config)
         {
             var state = new OobeState(config);
             OobePrompts.PrintIntro();
@@ -29,14 +29,14 @@ namespace microauthd.Config
             }
 
             OobePrompts.PromptAdminAccount(state);
-            DbInitializer.CreateDbTables(config);
-            CreateOobeUserRaw(state.AdminUser, state.AdminEmail, state.AdminPass, config);
-            
+                        
             Console.WriteLine("\nmicroauthd is now configured and ready.");
             Console.WriteLine($"Database file:  {state.DbFilePath}");
             Console.WriteLine($"Admin user:     {state.AdminUser}");
 
             Log.Information("OOBE completed successfully.");
+
+            return (state.AdminUser, state.AdminEmail, state.AdminPass);
         }
 
         public static string CreateOobeUserRaw(string username, string email, string password, AppConfig config)
