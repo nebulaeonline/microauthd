@@ -136,8 +136,6 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 
 ### What Still Needs Work
 
-- `/introspect` endpoint is not yet implemented
-- No **JWT replay protection** (on roadmap)
 - Some minor inconsistencies in API response formatting
 - Token usage metadata is stored but not yet used for token tracing
 - Audit log field consistency still being refined
