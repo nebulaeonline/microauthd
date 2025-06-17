@@ -146,6 +146,7 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 
 ### Known Shortcomings
 
+- **Update Endpoints are not yet implemented** - you can create, delete, and assign, but not update scopes, roles, or users (WIP)
 - **No multi-tenancy** support (by design)
 - **No UI** - this is a text-first, CLI- and API-driven system
 - **One shared DB connection** limits concurrency- will be addressed via per-request pooled connections
