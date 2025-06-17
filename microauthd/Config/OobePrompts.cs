@@ -315,7 +315,9 @@ internal static class OobePrompts
             $"enable-otp-auth = {state.EnableOtp.ToString().ToLower()}",
             $"max-login-failures = {state.MaxLoginFailures}",
             $"seconds-to-reset-login-failures = {state.SecondsToResetLoginFailures}",
-            $"failed-password-lockout-duration = {state.FailedPasswordLockoutDuration}"
+            $"failed-password-lockout-duration = {state.FailedPasswordLockoutDuration}",
+            $"enable-audit-logging = {state.AuditLoggingEnabled}",
+            $"audit-log-retention-days = {state.AuditLogRetentionDays}"
         };
 
         File.WriteAllLines(state.ConfigFilePath, lines);
