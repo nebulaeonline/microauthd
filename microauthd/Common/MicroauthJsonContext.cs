@@ -11,9 +11,7 @@ namespace microauthd.Common;
 // deserialize due to AOT and the lack of full
 // reflection
 
-[JsonSourceGenerationOptions(
-    WriteIndented = false,
-    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
+[JsonSourceGenerationOptions(WriteIndented = false)]
 [JsonSerializable(typeof(object))] // fallback
 [JsonSerializable(typeof(ErrorResponse))]
 [JsonSerializable(typeof(PingResponse))]
@@ -57,6 +55,8 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(PermissionResponse))]
 [JsonSerializable(typeof(List<PermissionResponse>))]
 [JsonSerializable(typeof(TokenIntrospectionRequest))]
+[JsonSerializable(typeof(CreatedResponse))]
+[JsonSerializable(typeof(List<CreatedResponse>))]
 public partial class MicroauthJsonContext : JsonSerializerContext
 {
 }

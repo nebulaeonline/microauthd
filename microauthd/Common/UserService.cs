@@ -41,7 +41,7 @@ public static class UserService
     /// <param name="email">The email address for the new user. Must be a valid email format and unique.</param>
     /// <param name="password">The password for the new user. This will be securely hashed before storage.</param>
     /// <param name="config">The application configuration used to determine password hashing settings.</param>
-    public static ApiResult<MessageResponse> CreateUser(
+    public static ApiResult<UserResponse> CreateUser(
         string username,
         string email,
         string password,
@@ -54,7 +54,7 @@ public static class UserService
             string.IsNullOrWhiteSpace(email) ||
             string.IsNullOrWhiteSpace(password))
         {
-            return ApiResult<MessageResponse>.Fail("Username, email, and password are required", 400);
+            return ApiResult<UserResponse>.Fail("Username, email, and password are required", 400);
         }
 
         var userId = Guid.NewGuid().ToString();
@@ -68,31 +68,59 @@ public static class UserService
                 cmd.CommandText = """
                 INSERT INTO users (id, username, password_hash, email, created_at)
                 VALUES ($id, $username, $hash, $email, datetime('now'));
-            """;
+                """;
                 cmd.Parameters.AddWithValue("$id", userId);
                 cmd.Parameters.AddWithValue("$username", username);
                 cmd.Parameters.AddWithValue("$hash", passwordHash);
                 cmd.Parameters.AddWithValue("$email", email);
                 cmd.ExecuteNonQuery();
             });
+
+            var user = Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT id, username, email, created_at, is_active FROM users WHERE id = $id;";
+                cmd.Parameters.AddWithValue("$id", userId);
+
+                using var reader = cmd.ExecuteReader();
+
+                if (reader.Read())
+                {
+                    return new UserResponse
+                    {
+                        Id = reader.GetString(0),
+                        Username = reader.GetString(1),
+                        Email = reader.GetString(2),
+                        CreatedAt = reader.GetString(3),
+                        IsActive = reader.GetInt64(4) == 1
+                    };
+                }
+                else
+                {
+                    return null;
+                }
+            });
+
+            AuditLogger.AuditLog(
+                config: config,
+                userId: userId,
+                action: "user_created",
+                target: username,
+                ipAddress: ip,
+                userAgent: ua
+            );
+
+            if (user is null)
+            {
+                return ApiResult<UserResponse>.Fail("User creation failed, user not found after insert", 400);
+            }
+
+            return ApiResult<UserResponse>.Ok(user);
         }
         catch
         {
-            return ApiResult<MessageResponse>.Fail("User creation failed (maybe duplicate username?)", 400);
-        }
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: userId,
-            action: "user_created",
-            target: username,
-            ipAddress: ip,
-            userAgent: ua
-        );
-
-        return ApiResult<MessageResponse>.Ok(
-            new MessageResponse($"User '{username}' created"), 200
-        );
+            return ApiResult<UserResponse>.Fail("User creation failed (maybe duplicate username?)", 400);
+        }        
     }
 
     /// <summary>

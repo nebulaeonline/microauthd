@@ -10,7 +10,7 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 ## microauthd Status Update - 2025-06-16
 
-microauthd is currently not yet ready for production use. It is maybe at a 0.7-prealpha stage. The code is functional and has been tested in a few scenarios, but it is most definitely not ready for production use. There is no documentation yet, either.
+microauthd is currently not yet ready for production use. It has a LOT of rough edges right now. The code is functional and has been tested in a few scenarios, but it is most definitely not ready for production use. There is no documentation yet, either.
 
 Please read on to understand its current capabilities, design philosophy, real-world security posture, known limitations, and how it will evolve toward a production-ready release.
 

@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace mad.Common;
@@ -16,6 +17,10 @@ public static class AuthUtils
                 return null;
 
             var token = File.ReadAllText(TokenPath).Trim();
+
+            if (IsTokenExpired(token))
+                Console.WriteLine($"Token is expired; commands may no longer work. Please re-login.");
+
             return string.IsNullOrWhiteSpace(token) ? null : token;
         }
         catch
@@ -71,5 +76,25 @@ public static class AuthUtils
         }
 
         return password.ToString();
+    }
+
+    public static bool IsTokenExpired(string token)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwt = handler.ReadJwtToken(token);
+            var exp = jwt.Claims.FirstOrDefault(c => c.Type == "exp")?.Value;
+
+            if (exp is null)
+                return true;
+
+            var expTime = DateTimeOffset.FromUnixTimeSeconds(long.Parse(exp));
+            return expTime < DateTimeOffset.UtcNow;
+        }
+        catch
+        {
+            return true; // Treat any parsing failure as expired/invalid
+        }
     }
 }

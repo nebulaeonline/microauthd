@@ -1,10 +1,11 @@
 ﻿using System.Text.Json.Serialization;
+
 namespace madTypes.Api.Responses;
 
-public class PermissionResponse
+public class CreatedResponse
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = default!;
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = default!;
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = default!;
 }

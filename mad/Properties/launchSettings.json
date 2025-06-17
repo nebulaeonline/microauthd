@@ -2,7 +2,7 @@
   "profiles": {
     "mad": {
       "commandName": "Project",
-      "commandLineArgs": "session login --admin-url=http://localhost:9041"
+      "commandLineArgs": "permission assign --role-id=f2883d2f-7f90-4e67-9a41-c264e1137292 --permission-id=32e5b705-89e7-4fd6-9acc-4014a2bc9bb4 --admin-url=http://localhost:9041"
     }
   }
 }

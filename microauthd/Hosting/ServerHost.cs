@@ -28,6 +28,10 @@ public static class ServerHost
             "auth",
             builder =>
             {
+                builder.Services.ConfigureHttpJsonOptions(opts =>
+                {
+                    opts.SerializerOptions.TypeInfoResolverChain.Insert(0, MicroauthJsonContext.Default);
+                });
                 builder.Services.AddAuthorization();
                 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .AddJwtBearer(options =>
@@ -134,6 +138,10 @@ public static class ServerHost
             "admin",
             builder =>
             {
+                builder.Services.ConfigureHttpJsonOptions(opts =>
+                {
+                    opts.SerializerOptions.TypeInfoResolverChain.Insert(0, MicroauthJsonContext.Default);
+                });
                 builder.Services.AddAuthorization();
                 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .AddJwtBearer(options =>

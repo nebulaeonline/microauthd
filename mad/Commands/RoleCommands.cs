@@ -1,7 +1,8 @@
-﻿using System.CommandLine;
-using madTypes.Api.Requests;
-using mad.Common;
+﻿using mad.Common;
 using mad.Http;
+using madTypes.Api.Requests;
+using System.CommandLine;
+using System.Text.Json;
 
 namespace mad.Commands;
 
@@ -29,30 +30,53 @@ internal static class RoleCommands
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(name);
         cmd.AddOption(desc);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string roleName, string description) =>
+        cmd.SetHandler(async (string url, string? token, string roleName, string description, bool jsonOut) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
-                return;
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var result = await client.CreateRole(new CreateRoleRequest
+                {
+                    Name = roleName,
+                    Description = description
+                });
+
+                if (result is null)
+                {
+                    Console.Error.WriteLine("Failed to create role.");
+                    return;
+                }
+
+                if (jsonOut)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.RoleResponse));
+                }
+                else
+                {
+                    Console.WriteLine($"Created role {roleName} with ID: {result.Id}");
+                }
             }
-
-            var client = new MadApiClient(url, token);
-            var result = await client.CreateRole(new CreateRoleRequest
+            catch (Exception ex)
             {
-                Name = roleName,
-                Description = description
-            });
-
-            Console.WriteLine(result);
-        }, adminUrl, adminToken, name, desc);
+                Console.Error.WriteLine($"Error creating role {roleName}.");
+                Console.Error.WriteLine(ex.Message);
+            }
+        }, adminUrl, adminToken, name, desc, jsonOut);
 
         return cmd;
     }
@@ -63,42 +87,58 @@ internal static class RoleCommands
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
+        cmd.AddOption(jsonOut);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
 
-        cmd.SetHandler(async (string url, string? token) =>
+        cmd.SetHandler(async (string url, string? token, bool json) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
-                return;
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var roles = await client.ListRoles();
+
+                if (roles is null || roles.Count == 0)
+                {
+                    Console.WriteLine(json ? "[]" : "(no roles)");
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(roles, MadJsonContext.Default.ListRoleResponse));
+                    return;
+                }
+
+                Console.WriteLine($"{"Id",-36}  {"Name",-20}  {"Protected",-9}  Description");
+                Console.WriteLine(new string('-', 100));
+                foreach (var r in roles)
+                {
+                    Console.WriteLine($"{r.Id,-36}  {r.Name,-20}  {r.IsProtected,-9}  {r.Description}");
+                }
             }
-
-            var client = new MadApiClient(url, token);
-            var roles = await client.ListRoles();
-
-            if (roles is null || roles.Count == 0)
+            catch (Exception ex)
             {
-                Console.WriteLine("(no roles)");
-                return;
+                Console.Error.WriteLine("Error listing roles.");
+                Console.Error.WriteLine(ex.Message);
             }
-
-            Console.WriteLine($"{"Id",-36}  {"Name",-20}  {"Protected",-9}  Description");
-            Console.WriteLine(new string('-', 100));
-            foreach (var r in roles)
-            {
-                Console.WriteLine($"{r.Id,-36}  {r.Name,-20}  {r.IsProtected,-9}  {r.Description}");
-            }
-        }, adminUrl, adminToken);
+        }, adminUrl, adminToken, jsonOut);
 
         return cmd;
     }
 
     private static Command DeleteRoleCommand()
     {
-        var cmd = new Command("delete", "Delete (deactivate) a role");
+        var cmd = new Command("delete", "Delete a role");
 
         var id = new Option<string>("--id") { IsRequired = true };
 
@@ -111,16 +151,24 @@ internal static class RoleCommands
 
         cmd.SetHandler(async (string url, string? token, string roleId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.DeleteRole(roleId);
-            Console.WriteLine(ok ? $"Deleted role '{roleId}'" : $"Failed to delete role '{roleId}'");
+                var client = new MadApiClient(url, token);
+                var ok = await client.DeleteRole(roleId);
+                Console.WriteLine(ok ? $"Deleted role {roleId}" : $"Failed to delete role {roleId}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error deleting role {roleId}.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, id);
 
         return cmd;
@@ -143,17 +191,25 @@ internal static class RoleCommands
 
         cmd.SetHandler(async (string url, string? token, string userId, string roleId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.AssignRole(userId, roleId);
-            Console.WriteLine(ok ? $"Assigned role '{roleId}' to user '{userId}'"
-                                 : $"Failed to assign role '{roleId}' to user '{userId}'");
+                var client = new MadApiClient(url, token);
+                var ok = await client.AssignRole(userId, roleId);
+                Console.WriteLine(ok ? $"Assigned role {roleId} to user {userId}"
+                                     : $"Failed to assign role {roleId} to user {userId}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error assigning role {roleId} to user {userId}.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, uid, rid);
 
         return cmd;
@@ -176,17 +232,25 @@ internal static class RoleCommands
 
         cmd.SetHandler(async (string url, string? token, string userId, string roleId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.UnassignRole(userId, roleId);
-            Console.WriteLine(ok ? $"Removed role '{roleId}' from user '{userId}'"
-                                 : $"Failed to remove role '{roleId}' from user '{userId}'");
+                var client = new MadApiClient(url, token);
+                var ok = await client.UnassignRole(userId, roleId);
+                Console.WriteLine(ok ? $"Removed role {roleId} from user {userId}"
+                                     : $"Failed to remove role {roleId} from user {userId}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error removing role {roleId} from user {userId}.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, uid, rid);
 
         return cmd;

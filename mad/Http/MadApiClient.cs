@@ -28,9 +28,6 @@ internal class MadApiClient
 
     public async Task<bool> Authenticate(string username, string password, string clientId)
     {
-        Console.WriteLine("DEBUG: Starting admin login to " + $"{BaseUrl}/token");
-        Console.WriteLine($"DEBUG: username = {username}");
-
         var payload = new Dictionary<string, string>
         {
             { "username", username },
@@ -45,36 +42,45 @@ internal class MadApiClient
             Content = content
         };
 
-        req.Headers.Add("Accept", "application/json");
+        try
+        {
+            req.Headers.Add("Accept", "application/json");
 
-        var res = await _http.SendAsync(req);
-        var body = await res.Content.ReadAsStringAsync();
+            var res = await _http.SendAsync(req);
+            var body = await res.Content.ReadAsStringAsync();
 
-        Console.WriteLine("DEBUG: Response code = " + (int)res.StatusCode);
-        Console.WriteLine("DEBUG: Response body = " + body);
+            if (!res.IsSuccessStatusCode)
+                return false;
 
-        if (!res.IsSuccessStatusCode)
+            var token = JsonSerializer.Deserialize(body, MadJsonContext.Default.TokenResponse);
+
+            if (token == null || string.IsNullOrWhiteSpace(token.AccessToken))
+                return false;
+
+            Token = token.AccessToken;
+            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+            return true;
+        }
+        catch
+        {
             return false;
-
-        var token = JsonSerializer.Deserialize(body, MadJsonContext.Default.TokenResponse);
-
-        if (token == null || string.IsNullOrWhiteSpace(token.AccessToken))
-            return false;
-
-        Token = token.AccessToken;
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
-        return true;
+        }
     }
 
-
-    public async Task<HttpResponseMessage> CreateUser(CreateUserRequest request)
+    public async Task<UserResponse?> CreateUser(CreateUserRequest request)
     {
         var content = JsonContent.Create(
             request,
             MadJsonContext.Default.CreateUserRequest
         );
 
-        return await _http.PostAsync($"{BaseUrl}/users", content);
+        var res = await _http.PostAsync($"{BaseUrl}/users", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(
+            MadJsonContext.Default.UserResponse
+        );
     }
 
     public async Task<List<UserResponse>?> ListUsers()
@@ -88,7 +94,7 @@ internal class MadApiClient
         );
     }
 
-    public async Task<bool> DeleteUser(string userId)
+    public async Task<bool> DeactivateUser(string userId)
     {
         var res = await _http.DeleteAsync($"{BaseUrl}/users/{userId}");
         return res.IsSuccessStatusCode;
@@ -99,7 +105,77 @@ internal class MadApiClient
         var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/activate", content: null);
         return res.IsSuccessStatusCode;
     }
-    public async Task<string> CreateRole(CreateRoleRequest request)
+
+    public async Task<List<SessionResponse>> ListSessions()
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/sessions");
+        if (!res.IsSuccessStatusCode)
+            return new();
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListSessionResponse)
+               ?? new();
+    }
+
+    public async Task<List<SessionResponse>> ListSessionsForUser(string userId)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/sessions/user/{userId}");
+        if (!res.IsSuccessStatusCode)
+            return new();
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListSessionResponse)
+               ?? new();
+    }
+
+    public async Task<bool> RevokeSession(string jti)
+    {
+        var res = await _http.DeleteAsync($"{BaseUrl}/sessions/{jti}");
+        return res.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> PurgeSessions(int olderThanSeconds, bool purgeExpired, bool purgeRevoked)
+    {
+        var payload = new PurgeTokensRequest(olderThanSeconds, purgeExpired, purgeRevoked);
+        var content = JsonContent.Create(payload, MadJsonContext.Default.PurgeTokensRequest);
+        var res = await _http.PostAsync($"{BaseUrl}/sessions/purge", content);
+        return res.IsSuccessStatusCode;
+    }
+
+    public async Task<List<RefreshTokenResponse>> ListRefreshTokens()
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/refresh-tokens");
+        if (!res.IsSuccessStatusCode)
+            return new();
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListRefreshTokenResponse) ?? new();
+    }
+
+    public async Task<List<RefreshTokenResponse>> ListRefreshTokensForUser(string userId)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/refresh-tokens/user/{userId}");
+        if (!res.IsSuccessStatusCode)
+            return new();
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListRefreshTokenResponse) ?? new();
+    }
+
+    public async Task<RefreshTokenResponse?> GetRefreshToken(string id)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/refresh-tokens/{id}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.RefreshTokenResponse);
+    }
+
+    public async Task<bool> PurgeRefreshTokens(int olderThanSeconds, bool purgeExpired, bool purgeRevoked)
+    {
+        var payload = new PurgeTokensRequest(olderThanSeconds, purgeExpired, purgeRevoked);
+        var content = JsonContent.Create(payload, MadJsonContext.Default.PurgeTokensRequest);
+        var res = await _http.PostAsync($"{BaseUrl}/refresh-tokens/purge", content);
+        return res.IsSuccessStatusCode;
+    }
+
+    public async Task<RoleResponse?> CreateRole(CreateRoleRequest request)
     {
         var content = JsonContent.Create(
             request,
@@ -107,7 +183,10 @@ internal class MadApiClient
         );
 
         var res = await _http.PostAsync($"{BaseUrl}/roles", content);
-        return await res.Content.ReadAsStringAsync();
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.RoleResponse);
     }
 
     public async Task<List<RoleResponse>?> ListRoles()
@@ -161,11 +240,14 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<string> CreateScope(ScopeResponse scope)
+    public async Task<ScopeResponse?> CreateScope(ScopeResponse scope)
     {
         var content = JsonContent.Create(scope, MadJsonContext.Default.ScopeResponse);
         var res = await _http.PostAsync($"{BaseUrl}/scopes", content);
-        return await res.Content.ReadAsStringAsync();
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ScopeResponse);
     }
 
     public async Task<List<ScopeResponse>> ListScopes()
@@ -232,11 +314,14 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<string> CreatePermission(CreatePermissionRequest request)
+    public async Task<PermissionResponse?> CreatePermission(CreatePermissionRequest request)
     {
         var content = JsonContent.Create(request, MadJsonContext.Default.CreatePermissionRequest);
         var res = await _http.PostAsync($"{BaseUrl}/permissions", content);
-        return await res.Content.ReadAsStringAsync();
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.PermissionResponse);
     }
 
     public async Task<List<PermissionResponse>> ListPermissions()
@@ -255,9 +340,9 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<bool> AssignPermissionsToRole(string roleId, List<string> permissionIds)
+    public async Task<bool> AssignPermissionsToRole(string roleId, string permissionId)
     {
-        var body = new AssignPermissionRequest { PermissionIds = permissionIds };
+        var body = new AssignPermissionRequest { PermissionId = permissionId };
         var content = JsonContent.Create(body, MadJsonContext.Default.AssignPermissionRequest);
         var res = await _http.PostAsync($"{BaseUrl}/roles/{roleId}/permissions", content);
         return res.IsSuccessStatusCode;
@@ -269,23 +354,23 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<List<string>> ListPermissionsForRole(string roleId)
+    public async Task<List<PermissionResponse>> ListPermissionsForRole(string roleId)
     {
         var res = await _http.GetAsync($"{BaseUrl}/roles/{roleId}/permissions");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListString)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionResponse)
                ?? new();
     }
 
-    public async Task<List<string>> ListPermissionsForUser(string userId)
+    public async Task<List<PermissionResponse>> ListPermissionsForUser(string userId)
     {
         var res = await _http.GetAsync($"{BaseUrl}/permissions/user/{userId}");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListString)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionResponse)
                ?? new();
     }
 
@@ -307,11 +392,14 @@ internal class MadApiClient
         return result?.Allowed ?? false;
     }
 
-    public async Task<string> CreateClient(CreateClientRequest request)
+    public async Task<ClientResponse?> CreateClient(CreateClientRequest request)
     {
         var content = JsonContent.Create(request, MadJsonContext.Default.CreateClientRequest);
         var res = await _http.PostAsync($"{BaseUrl}/clients", content);
-        return await res.Content.ReadAsStringAsync();
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ClientResponse);
     }
 
     public async Task<List<ClientResponse>> ListClients()
@@ -334,5 +422,45 @@ internal class MadApiClient
     {
         Token = token;
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    public async Task<List<AuditLogResponse>> ListAuditLogs(string? userId, string? action, int? limit)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(userId))
+            query.Add($"userId={Uri.EscapeDataString(userId)}");
+        if (!string.IsNullOrWhiteSpace(action))
+            query.Add($"action={Uri.EscapeDataString(action)}");
+        if (limit is not null)
+            query.Add($"limit={limit}");
+
+        var url = $"{BaseUrl}/audit-logs";
+        if (query.Count > 0)
+            url += "?" + string.Join("&", query);
+
+        var res = await _http.GetAsync(url);
+        if (!res.IsSuccessStatusCode)
+            return new();
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListAuditLogResponse)
+               ?? new();
+    }
+
+    public async Task<AuditLogResponse?> GetAuditLogById(string id)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/audit-logs/{id}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.AuditLogResponse);
+    }
+
+    public async Task<bool> PurgeAuditLogs(int days)
+    {
+        var payload = new PurgeAuditLogRequest(days);
+        var content = JsonContent.Create(payload, MadJsonContext.Default.PurgeAuditLogRequest);
+
+        var res = await _http.PostAsync($"{BaseUrl}/audit-logs/purge", content);
+        return res.IsSuccessStatusCode;
     }
 }

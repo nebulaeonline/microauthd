@@ -27,9 +27,9 @@ public static class AuditLogger
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            INSERT INTO audit_logs (id, user_id, action, target, timestamp, ip_address, user_agent)
-            VALUES ($id, $uid, $action, $target, $ts, $ip, $ua);
-        """;
+                INSERT INTO audit_logs (id, user_id, action, target, timestamp, ip_address, user_agent)
+                VALUES ($id, $uid, $action, $target, $ts, $ip, $ua);
+            """;
             cmd.Parameters.AddWithValue("$id", id);
             cmd.Parameters.AddWithValue("$uid", (object?)userId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$action", action);

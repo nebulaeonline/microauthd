@@ -26,32 +26,40 @@ internal static class SessionCommands
 
         cmd.SetHandler(async (string url) =>
         {
-            Console.Write("Username: ");
-            var username = Console.ReadLine() ?? string.Empty;
-
-            Console.Write("Password: ");
-            var password = ConsoleUtils.ReadHiddenInput();
-
-            Console.Write("Client Id: ");
-            var clientId = Console.ReadLine() ?? string.Empty;
-
-            var client = new MadApiClient(url);
-            var success = await client.Authenticate(username, password, clientId);
-
-            if (!success)
+            try
             {
-                Console.WriteLine("Login failed. Check your credentials.");
-                return;
+                Console.Write("Username: ");
+                var username = Console.ReadLine() ?? string.Empty;
+
+                Console.Write("Password: ");
+                var password = ConsoleUtils.ReadHiddenInput();
+
+                Console.Write("Client Id: ");
+                var clientId = Console.ReadLine() ?? string.Empty;
+
+                var client = new MadApiClient(url);
+                var success = await client.Authenticate(username, password, clientId);
+
+                if (!success)
+                {
+                    Console.WriteLine("Login failed. Check your credentials.");
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(client.Token))
+                {
+                    AuthUtils.SaveToken(client.Token);
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwt = handler.ReadJwtToken(client.Token);
+                    var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? "unknown";
+
+                    Console.WriteLine($"Logged in as {sub}. Run `mad session logout` when finished.");
+                }
             }
-
-            if (!string.IsNullOrWhiteSpace(client.Token))
+            catch (Exception ex)
             {
-                AuthUtils.SaveToken(client.Token);
-                var handler = new JwtSecurityTokenHandler();
-                var jwt = handler.ReadJwtToken(client.Token);
-                var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? "unknown";
-
-                Console.WriteLine($"Logged in as {sub}. Run `mad session logout` when finished.");
+                Console.Error.WriteLine("Login failed due to an unexpected error.");
+                Console.Error.WriteLine(ex.Message);
             }
         }, adminUrl);
 
@@ -63,11 +71,20 @@ internal static class SessionCommands
         var cmd = new Command("logout", "Clear cached admin token");
         cmd.SetHandler(() =>
         {
-            if (AuthUtils.DeleteToken())
-                Console.WriteLine("Logged out. Token cache cleared.");
-            else
-                Console.WriteLine("No token found or unable to delete.");
+            try
+            {
+                if (AuthUtils.DeleteToken())
+                    Console.WriteLine("Logged out. Token cache cleared.");
+                else
+                    Console.WriteLine("No token found or unable to delete.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Logout failed due to an unexpected error.");
+                Console.Error.WriteLine(ex.Message);
+            }
         });
+
         return cmd;
     }
 
@@ -76,15 +93,15 @@ internal static class SessionCommands
         var cmd = new Command("status", "Show cached session info (if any)");
         cmd.SetHandler(() =>
         {
-            var token = AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                Console.WriteLine("Not logged in.");
-                return;
-            }
-
             try
             {
+                var token = AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.WriteLine("Not logged in.");
+                    return;
+                }
+
                 var handler = new JwtSecurityTokenHandler();
                 var jwt = handler.ReadJwtToken(token);
 
@@ -102,9 +119,10 @@ internal static class SessionCommands
                 Console.WriteLine($"Expires at:   {expTime}");
                 Console.WriteLine($"Token use:    {tokenUse}");
             }
-            catch
+            catch (Exception ex)
             {
                 Console.WriteLine("Token is invalid or corrupted.");
+                Console.Error.WriteLine(ex.Message);
             }
         });
 

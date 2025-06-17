@@ -10,11 +10,14 @@ internal class Program
         var root = new RootCommand("mad - microauthd CLI");
 
         root.AddCommand(UserCommands.Build());
+        root.AddCommand(SessionCtlCommands.Build());
+        root.AddCommand(RefreshTokenCommands.Build());
         root.AddCommand(SessionCommands.Build());
         root.AddCommand(RoleCommands.Build());
         root.AddCommand(PermissionCommands.Build());
         root.AddCommand(ClientCommands.Build());
         root.AddCommand(ScopeCommands.Build());
+        root.AddCommand(AuditLogCommands.Build());
         return await root.InvokeAsync(args);
     }
 }

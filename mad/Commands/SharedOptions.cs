@@ -21,4 +21,7 @@ internal static class SharedOptions
 
     public static Option<string> AdminPassword =>
         new("--admin-password", "Admin password for login");
+
+    public static Option<bool> OutputJson =>
+        new("--json", "Output result as raw JSON");
 }

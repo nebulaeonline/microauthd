@@ -4,6 +4,7 @@ using madTypes.Common;
 using microauthd.Config;
 using Microsoft.Data.Sqlite;
 using nebulae.dotArgon2;
+using Serilog;
 using System.Security.Claims;
 using System.Text;
 using static nebulae.dotArgon2.Argon2;
@@ -23,11 +24,18 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  If the operation succeeds, the result
     /// indicates success and includes a message confirming the role creation. If the operation fails, the result
     /// indicates failure and includes an error message.</returns>
-    public static ApiResult<MessageResponse> CreateRole(string name, string? description, AppConfig config, string? userId = null, string? ip = null, string? ua = null)
+    public static ApiResult<RoleResponse> CreateRole(
+        string name,
+        string? description,
+        AppConfig config,
+        string? userId = null,
+        string? ip = null,
+        string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(name))
-            return ApiResult<MessageResponse>.Fail("Role name is required");
+            return ApiResult<RoleResponse>.Fail("Role name is required");
 
+        var roleId = Guid.NewGuid().ToString();
         var success = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
@@ -35,7 +43,7 @@ public static class RoleService
                 INSERT INTO roles (id, name, description, created_at, modified_at, is_active)
                 VALUES ($id, $name, $desc, datetime('now'), datetime('now'), 1);
             """;
-            cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+            cmd.Parameters.AddWithValue("$id", roleId);
             cmd.Parameters.AddWithValue("$name", name);
             cmd.Parameters.AddWithValue("$desc", description ?? "");
 
@@ -45,12 +53,12 @@ public static class RoleService
             }
             catch (SqliteException)
             {
-                return false; // likely duplicate
+                return false;
             }
         });
 
         if (!success)
-            return ApiResult<MessageResponse>.Fail("Role creation failed (maybe duplicate?)");
+            return ApiResult<RoleResponse>.Fail("Role creation failed (maybe duplicate?)");
 
         AuditLogger.AuditLog(
             config: config,
@@ -61,9 +69,31 @@ public static class RoleService
             userAgent: ua
         );
 
-        return ApiResult<MessageResponse>.Ok(new($"Created role '{name}'"));
-    }
+        var role = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id, name, description, is_protected FROM roles WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", roleId);
+            using var reader = cmd.ExecuteReader();
 
+            if (reader.Read())
+            {
+                return new RoleResponse
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    IsProtected = reader.GetInt32(3) == 1
+                };
+            }
+            return null;
+        });
+
+        if (role is null)
+            return ApiResult<RoleResponse>.Fail("Role created but could not be retrieved from the database.");
+
+        return ApiResult<RoleResponse>.Ok(role);
+    }
 
     /// <summary>
     /// Retrieves a list of all active role names from the database.
@@ -225,6 +255,49 @@ public static class RoleService
         return ApiResult<List<string>>.Ok(roles);
     }
 
+    /// <summary>
+    /// Deletes a role from the database by its unique identifier.
+    /// </summary>
+    /// <remarks>This method performs an audit log entry if the deletion is successful. If the role cannot be
+    /// deleted due to database constraints or if it does not exist, the method returns a failure result.</remarks>
+    /// <param name="roleId">The unique identifier of the role to delete. Cannot be null or empty.</param>
+    /// <param name="config">The application configuration used for logging and auditing. Cannot be null.</param>
+    /// <param name="userId">The optional identifier of the user performing the operation, used for auditing purposes.</param>
+    /// <param name="ip">The optional IP address of the user performing the operation, used for auditing purposes.</param>
+    /// <param name="ua">The optional user agent string of the user performing the operation, used for auditing purposes.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. Returns a success result if the role was deleted, or a failure result if the role was not found or a
+    /// constraint violation occurred.</returns>
+    public static ApiResult<MessageResponse> DeleteRole(
+    string roleId,
+    AppConfig config,
+    string? userId = null,
+    string? ip = null,
+    string? ua = null)
+    {
+        var deleted = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM roles WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", roleId);
+
+            try
+            {
+                return cmd.ExecuteNonQuery() > 0;
+            }
+            catch (SqliteException ex)
+            {
+                Log.Error(ex, "Failed to delete role {RoleId}", roleId);
+                return false;
+            }
+        });
+
+        if (!deleted)
+            return ApiResult<MessageResponse>.Fail("Failed to delete role (not found or constraint violation)");
+
+        AuditLogger.AuditLog(config, userId, "delete_role", roleId, ip, ua);
+        return ApiResult<MessageResponse>.Ok(new($"Role '{roleId}' deleted"));
+    }
 
     /// <summary>
     /// Marks a role as inactive (soft delete) in the system.
@@ -238,6 +311,7 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns a success result if the role
     /// was successfully marked as inactive.  Returns a failure result if the role does not exist, is already inactive,
     /// or if the <paramref name="roleId"/> is invalid.</returns>
+    /*
     public static ApiResult<MessageResponse> SoftDeleteRole(
         string roleId,
         AppConfig config,
@@ -285,7 +359,7 @@ public static class RoleService
 
         return ApiResult<MessageResponse>.Ok(new($"Role '{roleId}' marked as inactive"));
     }
-
+    */
 
     /// <summary>
     /// Creates a new permission with the specified name and logs the operation.
@@ -301,10 +375,17 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  If the operation succeeds, the result
     /// is successful and contains a message indicating the permission was created.  If the operation fails (e.g., due
     /// to a duplicate name), the result is a failure with an appropriate error message.</returns>
-    public static ApiResult<MessageResponse> CreatePermission(string name, AppConfig config, string? userId, string? ip = null, string? ua = null)
+    public static ApiResult<PermissionResponse> CreatePermission(
+        string name,
+        AppConfig config,
+        string? userId,
+        string? ip = null,
+        string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(name))
-            return ApiResult<MessageResponse>.Fail("Permission name is required");
+            return ApiResult<PermissionResponse>.Fail("Permission name is required");
+
+        var permissionId = Guid.NewGuid().ToString();
 
         var success = Db.WithConnection(conn =>
         {
@@ -313,7 +394,7 @@ public static class RoleService
                 INSERT INTO permissions (id, name, created_at, is_active)
                 VALUES ($id, $name, datetime('now'), 1);
             """;
-            cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+            cmd.Parameters.AddWithValue("$id", permissionId);
             cmd.Parameters.AddWithValue("$name", name);
             try
             {
@@ -321,15 +402,38 @@ public static class RoleService
             }
             catch (SqliteException)
             {
-                return false; // likely duplicate
+                return false;
             }
         });
 
         if (!success)
-            return ApiResult<MessageResponse>.Fail("Permission creation failed (maybe duplicate?)");
+            return ApiResult<PermissionResponse>.Fail("Permission creation failed (maybe duplicate?)");
 
         AuditLogger.AuditLog(config, userId, "create_permission", name, ip, ua);
-        return ApiResult<MessageResponse>.Ok(new($"Permission '{name}' created"));
+
+        var permission = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, name FROM permissions WHERE id = $id;
+            """;
+            cmd.Parameters.AddWithValue("$id", permissionId);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new PermissionResponse
+            {
+                Id = reader.GetString(0),
+                Name = reader.GetString(1)
+            };
+        });
+
+        if (permission is null)
+            return ApiResult<PermissionResponse>.Fail("Created permission could not be reloaded.");
+
+        return ApiResult<PermissionResponse>.Ok(permission);
     }
 
 
@@ -369,6 +473,52 @@ public static class RoleService
     }
 
     /// <summary>
+    /// Deletes a permission identified by the specified <paramref name="permissionId"/>.
+    /// </summary>
+    /// <remarks>This method deletes the specified permission from the database. If the deletion is
+    /// successful, an audit log entry is created using the provided <paramref name="config"/> and optional user context
+    /// information (<paramref name="userId"/>, <paramref name="ip"/>, and <paramref name="ua"/>). If the deletion
+    /// fails, the method returns a failure result.</remarks>
+    /// <param name="permissionId">The unique identifier of the permission to delete. Cannot be null or empty.</param>
+    /// <param name="config">The application configuration used for logging and auditing. Cannot be null.</param>
+    /// <param name="userId">The optional identifier of the user performing the operation, used for auditing purposes.</param>
+    /// <param name="ip">The optional IP address of the user performing the operation, used for auditing purposes.</param>
+    /// <param name="ua">The optional user agent string of the user performing the operation, used for auditing purposes.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. Returns a success result if the permission was deleted successfully; otherwise, returns a failure
+    /// result with an error message.</returns>
+    public static ApiResult<MessageResponse> DeletePermission(
+        string permissionId,
+        AppConfig config,
+        string? userId = null,
+        string? ip = null,
+        string? ua = null)
+    {
+        var deleted = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM permissions WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", permissionId);
+
+            try
+            {
+                return cmd.ExecuteNonQuery() > 0;
+            }
+            catch (SqliteException ex)
+            {
+                Log.Error(ex, "Failed to delete permission {PermissionId}", permissionId);
+                return false;
+            }
+        });
+
+        if (!deleted)
+            return ApiResult<MessageResponse>.Fail("Failed to delete permission");
+
+        AuditLogger.AuditLog(config, userId, "delete_permission", permissionId, ip, ua);
+        return ApiResult<MessageResponse>.Ok(new($"Permission '{permissionId}' deleted"));
+    }
+
+    /// <summary>
     /// Marks a permission as inactive (soft deletes it) by updating its status in the database.
     /// </summary>
     /// <remarks>This method performs a soft delete by setting the <c>is_active</c> flag of the specified
@@ -380,6 +530,7 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns a success result if the
     /// permission was successfully marked as inactive.  Returns a "not found" result if the permission does not exist
     /// or is already inactive.  Returns a failure result if the <paramref name="permissionId"/> is invalid.</returns>
+    /*
     public static ApiResult<MessageResponse> SoftDeletePermission(string permissionId, AppConfig config, string? actorUserId = null, string? ip = null, string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(permissionId))
@@ -405,7 +556,7 @@ public static class RoleService
 
         return ApiResult<MessageResponse>.NotFound("Permission not found or already deleted");
     }
-
+    */
 
     /// <summary>
     /// Assigns a set of permissions to a specified role.
@@ -424,13 +575,13 @@ public static class RoleService
     /// permissions were assigned or if the role was not found.</returns>
     public static ApiResult<MessageResponse> AssignPermissionsToRole(
         string roleId,
-        List<string> permissionIds,
+        string permissionId,
         AppConfig config, 
         string? actorUserId = null,
         string? ip = null,
         string? ua = null)
     {
-        if (string.IsNullOrWhiteSpace(roleId) || permissionIds.Count == 0)
+        if (string.IsNullOrWhiteSpace(roleId) || permissionId == null)
             return ApiResult<MessageResponse>.Fail("Role Id and at least one Permission Id are required");
 
         return Db.WithConnection(conn =>
@@ -448,35 +599,33 @@ public static class RoleService
 
             int assigned = 0;
 
-            foreach (var permId in permissionIds)
+            string? lookedUpPermId = null;
+            using (var cmd = conn.CreateCommand())
             {
-                string? lookedUpPermId = null;
-                using (var cmd = conn.CreateCommand())
-                {
-                    cmd.CommandText = "SELECT id FROM permissions WHERE id = $pid AND is_active = 1;";
-                    cmd.Parameters.AddWithValue("$pid", permId);
-                    lookedUpPermId = cmd.ExecuteScalar() as string;
-                }
-
-                if (lookedUpPermId is null)
-                    continue;
-
-                using var cmdInsert = conn.CreateCommand();
-                cmdInsert.CommandText = """
-                    INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id)
-                    VALUES ($id, $roleId, $permId);
-                """;
-                cmdInsert.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-                cmdInsert.Parameters.AddWithValue("$roleId", lookedUpRoleId);
-                cmdInsert.Parameters.AddWithValue("$permId", lookedUpPermId);
-
-                assigned += cmdInsert.ExecuteNonQuery();
+                cmd.CommandText = "SELECT id FROM permissions WHERE id = $pid AND is_active = 1;";
+                cmd.Parameters.AddWithValue("$pid", permissionId);
+                lookedUpPermId = cmd.ExecuteScalar() as string;
             }
+
+            if (lookedUpPermId is null)
+                return ApiResult<MessageResponse>.Fail("No permissions were assigned — check if permission IDs are valid");
+
+            using var cmdInsert = conn.CreateCommand();
+            cmdInsert.CommandText = """
+                INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, assigned_at)
+                VALUES ($id, $roleId, $permId, datetime('now'));
+            """;
+            cmdInsert.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+            cmdInsert.Parameters.AddWithValue("$roleId", lookedUpRoleId);
+            cmdInsert.Parameters.AddWithValue("$permId", lookedUpPermId);
+
+            assigned = cmdInsert.ExecuteNonQuery();
+
 
             if (assigned > 0)
             {
-                AuditLogger.AuditLog(config, actorUserId, "assigned_permissions", roleId, ip, ua);
-                return ApiResult<MessageResponse>.Ok(new($"Permissions assigned to role '{roleId}'"));
+                AuditLogger.AuditLog(config, actorUserId, "assigned_permission", roleId, ip, ua);
+                return ApiResult<MessageResponse>.Ok(new($"Permission assigned to role {roleId}"));
             }
 
             return ApiResult<MessageResponse>.Fail("No permissions were assigned — check if permission IDs are valid");
@@ -561,23 +710,24 @@ public static class RoleService
     /// <summary>
     /// Retrieves the effective permissions for a specified user.
     /// </summary>
-    /// <remarks>The method queries the database to determine the permissions assigned to the user through
-    /// their roles.  Only active users, roles, and permissions are considered. The permissions are returned in
-    /// ascending order.</remarks>
-    /// <param name="userId">The unique identifier of the user whose permissions are to be retrieved. Cannot be null, empty, or whitespace.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a list of permission names assigned to the user.  If the user has no
-    /// permissions, the list will be empty. If the <paramref name="userId"/> is invalid, the result will indicate
-    /// failure.</returns>
-    public static ApiResult<List<string>> GetEffectivePermissionsForUser(string userId)
+    /// <remarks>This method calculates the effective permissions for a user by aggregating permissions 
+    /// assigned through active roles. Only active users, roles, and permissions are considered. The results are ordered
+    /// alphabetically by permission name.</remarks>
+    /// <param name="userId">The unique identifier of the user for whom to retrieve permissions.  This parameter cannot be null, empty, or
+    /// consist only of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="PermissionResponse"/> objects  that represent the
+    /// effective permissions assigned to the user. If the user has no permissions,  the list will be empty. If the
+    /// <paramref name="userId"/> is invalid, the result will indicate failure.</returns>
+    public static ApiResult<List<PermissionResponse>> GetEffectivePermissionsForUser(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<List<string>>.Fail("User Id is required");
+            return ApiResult<List<PermissionResponse>>.Fail("User Id is required");
 
         var list = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT DISTINCT p.name
+                SELECT DISTINCT p.id, p.name
                 FROM users u
                 JOIN user_roles ur ON u.id = ur.user_id
                 JOIN roles r ON ur.role_id = r.id
@@ -593,16 +743,21 @@ public static class RoleService
             cmd.Parameters.AddWithValue("$uid", userId);
 
             using var reader = cmd.ExecuteReader();
-            var perms = new List<string>();
+            var results = new List<PermissionResponse>();
             while (reader.Read())
-                perms.Add(reader.GetString(0));
+            {
+                results.Add(new PermissionResponse
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1)
+                });
+            }
 
-            return perms;
+            return results;
         });
 
-        return ApiResult<List<string>>.Ok(list);
+        return ApiResult<List<PermissionResponse>>.Ok(list);
     }
-
 
     /// <summary>
     /// Determines whether a user has a specific permission based on their roles and active status.
@@ -653,22 +808,23 @@ public static class RoleService
     /// <summary>
     /// Retrieves the list of active permissions associated with a specified role.
     /// </summary>
-    /// <remarks>This method queries the database to retrieve permissions for the specified role.  Both the
-    /// role and its associated permissions must be active to be included in the result.</remarks>
+    /// <remarks>This method queries the database to retrieve permissions associated with the specified role. 
+    /// Only active roles and permissions are included in the result. The method returns a failure result  if the role
+    /// ID is invalid or if no permissions are found for the specified role.</remarks>
     /// <param name="roleId">The unique identifier of the role. This value cannot be null, empty, or whitespace.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a list of permission names associated with the role. If the role does
-    /// not exist, is inactive, or has no active permissions, the list will be empty. Returns a failure result if
-    /// <paramref name="roleId"/> is null, empty, or whitespace.</returns>
-    public static ApiResult<List<string>> GetPermissionsForRole(string roleId)
+    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="PermissionResponse"/> objects that represent the
+    /// active permissions for the specified role. If the <paramref name="roleId"/> is invalid or no permissions are
+    /// found, the result will indicate failure with an appropriate error message.</returns>
+    public static ApiResult<List<PermissionResponse>> GetPermissionsForRole(string roleId)
     {
         if (string.IsNullOrWhiteSpace(roleId))
-            return ApiResult<List<string>>.Fail("Role Id is required");
+            return ApiResult<List<PermissionResponse>>.Fail("Role Id is required");
 
         var list = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT p.name
+                SELECT p.id, p.name
                 FROM role_permissions rp
                 JOIN roles r ON rp.role_id = r.id
                 JOIN permissions p ON rp.permission_id = p.id
@@ -677,16 +833,21 @@ public static class RoleService
             cmd.Parameters.AddWithValue("$rid", roleId);
 
             using var reader = cmd.ExecuteReader();
-            var results = new List<string>();
+            var results = new List<PermissionResponse>();
             while (reader.Read())
-                results.Add(reader.GetString(0));
+            {
+                results.Add(new PermissionResponse
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1)
+                });
+            }
 
             return results;
         });
 
-        return ApiResult<List<string>>.Ok(list);
+        return ApiResult<List<PermissionResponse>>.Ok(list);
     }
-
 
     /// <summary>
     /// Retrieves a list of role claims for the specified user.
@@ -812,15 +973,17 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  If the operation succeeds, the result
     /// indicates success and includes a message confirming the creation of the scope.  If the operation fails, the
     /// result indicates failure and includes an error message.</returns>
-    public static ApiResult<MessageResponse> CreateScope(
-    ScopeResponse req,
-    AppConfig config,
-    string? actorUserId = null,
-    string? ip = null,
-    string? ua = null)
+    public static ApiResult<ScopeResponse> CreateScope(
+        ScopeResponse req,
+        AppConfig config,
+        string? actorUserId = null,
+        string? ip = null,
+        string? ua = null)
     {
         if (!Utils.IsValidTokenName(req.Name))
-            return ApiResult<MessageResponse>.Fail("Invalid scope name: must be non-empty, alphanumeric, -, or _");
+            return ApiResult<ScopeResponse>.Fail("Invalid scope name: must be non-empty, and cannot contain whitespace.");
+
+        var scopeId = Guid.NewGuid().ToString();
 
         var created = Db.WithConnection(conn =>
         {
@@ -829,27 +992,96 @@ public static class RoleService
                 INSERT INTO scopes (id, name, description, created_at, is_active)
                 VALUES ($id, $name, $desc, datetime('now'), 1);
             """;
-            cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+            cmd.Parameters.AddWithValue("$id", scopeId);
             cmd.Parameters.AddWithValue("$name", req.Name);
             cmd.Parameters.AddWithValue("$desc", req.Description ?? "");
 
             try
             {
-                cmd.ExecuteNonQuery();
-                return true;
+                return cmd.ExecuteNonQuery() == 1;
             }
-            catch
+            catch (Exception ex)
             {
-                return false; // likely duplicate
+                Console.WriteLine($"Exception while adding scope: {ex.Message}");
+                return false;
             }
         });
 
         if (!created)
-            return ApiResult<MessageResponse>.Fail("Scope creation failed (duplicate name?)");
+            return ApiResult<ScopeResponse>.Fail("Scope creation failed (duplicate name?)");
 
         AuditLogger.AuditLog(config, actorUserId, "create_scope", req.Name, ip, ua);
 
-        return ApiResult<MessageResponse>.Ok(new($"Created scope '{req.Name}'"));
+        var scope = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, name, description FROM scopes WHERE id = $id;
+            """;
+            cmd.Parameters.AddWithValue("$id", scopeId);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new ScopeResponse
+            {
+                Id = reader.GetString(0),
+                Name = reader.GetString(1),
+                Description = reader.GetString(2)
+            };
+        });
+
+        if (scope is null)
+            return ApiResult<ScopeResponse>.Fail("Created scope could not be reloaded.");
+
+        return ApiResult<ScopeResponse>.Ok(scope);
+    }
+
+
+    /// <summary>
+    /// Deletes a scope identified by the specified scope ID from the database.
+    /// </summary>
+    /// <remarks>This method attempts to delete the specified scope from the database. If the deletion fails, 
+    /// an error is logged, and a failure result is returned. If the deletion succeeds, an audit log  entry is created
+    /// to record the operation.</remarks>
+    /// <param name="scopeId">The unique identifier of the scope to delete. Cannot be null or empty.</param>
+    /// <param name="config">The application configuration used for logging and auditing. Cannot be null.</param>
+    /// <param name="actorUserId">The ID of the user performing the operation, used for auditing. Optional.</param>
+    /// <param name="ip">The IP address of the user performing the operation, used for auditing. Optional.</param>
+    /// <param name="ua">The user agent of the user performing the operation, used for auditing. Optional.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. Returns a success result if the scope was deleted successfully; otherwise, returns a failure result
+    /// with an error message.</returns>
+    public static ApiResult<MessageResponse> DeleteScope(
+        string scopeId,
+        AppConfig config,
+        string? actorUserId = null,
+        string? ip = null,
+        string? ua = null)
+    {
+        var deleted = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM scopes WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", scopeId);
+
+            try
+            {
+                return cmd.ExecuteNonQuery() > 0;
+            }
+            catch (SqliteException ex)
+            {
+                Log.Error(ex, "Failed to delete scope {ScopeId}", scopeId);
+                return false;
+            }
+        });
+
+        if (!deleted)
+            return ApiResult<MessageResponse>.Fail("Failed to delete scope");
+
+        AuditLogger.AuditLog(config, actorUserId, "delete_scope", scopeId, ip, ua);
+        return ApiResult<MessageResponse>.Ok(new($"Scope '{scopeId}' deleted"));
     }
 
     /// <summary>
@@ -861,6 +1093,7 @@ public static class RoleService
     /// <param name="ua">The optional user agent string of the user performing the operation. Used for audit logging.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns a success result if the scope
     /// was successfully deactivated, or a failure result if the scope was not found or is already inactive.</returns>
+    /*
     public static ApiResult<MessageResponse> SoftDeleteScope(
         string scopeId,
         AppConfig config,
@@ -897,7 +1130,7 @@ public static class RoleService
 
         return ApiResult<MessageResponse>.Ok(new($"Scope '{scopeId}' deactivated."));
     }
-
+    */
 
     /// <summary>
     /// Attempts to create a new client with the specified request parameters and configuration.
@@ -914,7 +1147,7 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  If the client is successfully
     /// created, the result is successful and includes a message indicating the created client ID.  Otherwise, the
     /// result is a failure with an appropriate error message.</returns>
-    public static ApiResult<MessageResponse> TryCreateClient(
+    public static ApiResult<ClientResponse> TryCreateClient(
         CreateClientRequest req,
         AppConfig config,
         string? actorUserId = null,
@@ -922,10 +1155,10 @@ public static class RoleService
         string? ua = null)
     {
         if (!Utils.IsValidTokenName(req.ClientId))
-            return ApiResult<MessageResponse>.Fail("Invalid client_id");
+            return ApiResult<ClientResponse>.Fail("Invalid client_id");
 
         if (string.IsNullOrWhiteSpace(req.ClientSecret))
-            return ApiResult<MessageResponse>.Fail("Client secret required");
+            return ApiResult<ClientResponse>.Fail("Client secret required");
 
         var hash = Argon2.Argon2HashEncodedToString(
             Argon2Algorithm.Argon2id,
@@ -939,31 +1172,58 @@ public static class RoleService
 
         var clientId = Guid.NewGuid().ToString();
 
-        try
+        var insertSuccess = Db.WithConnection(conn =>
         {
-            Db.WithConnection(conn =>
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, created_at, modified_at, is_active)
+                VALUES ($id, $cid, $hash, $name, datetime('now'), datetime('now'), 1);
+            """;
+            cmd.Parameters.AddWithValue("$id", clientId);
+            cmd.Parameters.AddWithValue("$cid", req.ClientId);
+            cmd.Parameters.AddWithValue("$hash", hash);
+            cmd.Parameters.AddWithValue("$name", req.DisplayName ?? "");
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    INSERT INTO clients (id, client_id, client_secret_hash, display_name, created_at, is_active)
-                    VALUES ($id, $cid, $hash, $name, datetime('now'), 1);
-                """;
-                cmd.Parameters.AddWithValue("$id", clientId);
-                cmd.Parameters.AddWithValue("$cid", req.ClientId);
-                cmd.Parameters.AddWithValue("$hash", hash);
-                cmd.Parameters.AddWithValue("$name", req.DisplayName ?? "");
-                cmd.ExecuteNonQuery();
-            });
+                return cmd.ExecuteNonQuery() == 1;
+            }
+            catch (SqliteException)
+            {
+                return false;
+            }
+        });
 
-            AuditLogger.AuditLog(config, actorUserId, "create_client", req.ClientId, ip, ua);
+        if (!insertSuccess)
+            return ApiResult<ClientResponse>.Fail("Client creation failed (duplicate client_id?)");
 
-            return ApiResult<MessageResponse>.Ok(
-                new MessageResponse($"Created client '{req.ClientId}'"));
-        }
-        catch
+        AuditLogger.AuditLog(config, actorUserId, "create_client", req.ClientId, ip, ua);
+
+        var client = Db.WithConnection(conn =>
         {
-            return ApiResult<MessageResponse>.Fail("Client creation failed (duplicate client_id?)");
-        }
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, client_identifier, display_name, created_at, is_active
+                FROM clients WHERE id = $id;
+            """;
+            cmd.Parameters.AddWithValue("$id", clientId);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new ClientResponse
+            {
+                Id = reader.GetString(0),
+                ClientId = reader.GetString(1),
+                DisplayName = reader.GetString(2),
+                CreatedAt = reader.GetString(3),
+                IsActive = reader.GetBoolean(4)
+            };
+        });
+
+        if (client is null)
+            return ApiResult<ClientResponse>.Fail("Created client could not be reloaded.");
+
+        return ApiResult<ClientResponse>.Ok(client);
     }
 
 
@@ -1009,6 +1269,52 @@ public static class RoleService
     }
 
     /// <summary>
+    /// Deletes a client record from the database based on the specified client ID.
+    /// </summary>
+    /// <remarks>This method attempts to delete a client record from the database. If the deletion fails
+    /// (e.g., due to a database error or if the client ID does not exist), the method returns a failure result.
+    /// Additionally, an audit log entry is created for successful deletions, including optional metadata such as the
+    /// actor's user ID, IP address, and user agent.</remarks>
+    /// <param name="clientId">The unique identifier of the client to delete. Cannot be null or empty.</param>
+    /// <param name="config">The application configuration used for logging and auditing. Cannot be null.</param>
+    /// <param name="actorUserId">The ID of the user performing the operation, used for auditing. Optional.</param>
+    /// <param name="ip">The IP address of the user performing the operation, used for auditing. Optional.</param>
+    /// <param name="ua">The user agent string of the user performing the operation, used for auditing. Optional.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. Returns a success result if the client was deleted successfully; otherwise, returns a failure result
+    /// with an error message.</returns>
+    public static ApiResult<MessageResponse> DeleteClient(
+        string clientId,
+        AppConfig config,
+        string? actorUserId = null,
+        string? ip = null,
+        string? ua = null)
+    {
+        var deleted = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM clients WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", clientId);
+
+            try
+            {
+                return cmd.ExecuteNonQuery() > 0;
+            }
+            catch (SqliteException ex)
+            {
+                Log.Error(ex, "Failed to delete client {ClientId}", clientId);
+                return false;
+            }
+        });
+
+        if (!deleted)
+            return ApiResult<MessageResponse>.Fail("Failed to delete client");
+
+        AuditLogger.AuditLog(config, actorUserId, "delete_client", clientId, ip, ua);
+        return ApiResult<MessageResponse>.Ok(new($"Client '{clientId}' deleted"));
+    }
+
+    /// <summary>
     /// Deactivates a client by marking it as inactive in the database.
     /// </summary>
     /// <remarks>This method updates the client's status in the database to mark it as inactive.  If the
@@ -1020,6 +1326,7 @@ public static class RoleService
     /// <param name="ua">The optional user agent string of the user performing the operation. Used for audit logging.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns a success result if the
     /// client was successfully deactivated, or a failure result if the client was not found or is already inactive.</returns>
+    /*
     public static ApiResult<MessageResponse> SoftDeleteClient(
         string clientId,
         AppConfig config,
@@ -1045,7 +1352,7 @@ public static class RoleService
 
         return ApiResult<MessageResponse>.Ok(new($"Client '{clientId}' deactivated."));
     }
-
+    */
 
     /// <summary>
     /// Retrieves a list of all active scopes from the database.
@@ -1294,16 +1601,16 @@ public static class RoleService
     /// <param name="userId">The unique identifier of the user whose scopes are to be retrieved. Cannot be null, empty, or whitespace.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of scope names assigned to the user.  If the user has no active
     /// scopes, the list will be empty.  Returns a failure result if the <paramref name="userId"/> is invalid.</returns>
-    public static ApiResult<List<string>> ListScopesForUser(string userId)
+    public static ApiResult<List<ScopeResponse>> ListScopesForUser(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<List<string>>.Fail("User ID is required");
+            return ApiResult<List<ScopeResponse>>.Fail("User ID is required");
 
         var scopes = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT s.name
+                SELECT s.id, s.name, s.description
                 FROM user_scopes us
                 JOIN scopes s ON us.scope_id = s.id
                 WHERE us.user_id = $uid AND us.is_active = 1 AND s.is_active = 1;
@@ -1311,15 +1618,23 @@ public static class RoleService
             cmd.Parameters.AddWithValue("$uid", userId);
 
             using var reader = cmd.ExecuteReader();
-            var list = new List<string>();
+            var list = new List<ScopeResponse>();
             while (reader.Read())
-                list.Add(reader.GetString(0));
+            {
+                list.Add(new ScopeResponse
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1),
+                    Description = reader.IsDBNull(2) ? "" : reader.GetString(2)
+                });
+            }
 
             return list;
         });
 
-        return ApiResult<List<string>>.Ok(scopes);
+        return ApiResult<List<ScopeResponse>>.Ok(scopes);
     }
+
 
 
     /// <summary>

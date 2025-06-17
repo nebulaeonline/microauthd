@@ -1,8 +1,9 @@
-﻿using System.CommandLine;
-using mad.Common;
+﻿using mad.Common;
 using mad.Http;
-using madTypes.Api.Responses;
 using madTypes.Api.Requests;
+using madTypes.Api.Responses;
+using System.CommandLine;
+using System.Text.Json;
 
 namespace mad.Commands;
 
@@ -36,25 +37,54 @@ internal static class ScopeCommands
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(name);
         cmd.AddOption(desc);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string scopeName, string desc) =>
+        cmd.SetHandler(async (string url, string? token, string scopeName, string description, bool jsonOut) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var result = await client.CreateScope(new ScopeResponse { Name = scopeName, Description = desc });
-            Console.WriteLine(result);
-        }, adminUrl, adminToken, name, desc);
+                var client = new MadApiClient(url, token);
+                var result = await client.CreateScope(new ScopeResponse
+                {
+                    Name = scopeName,
+                    Description = description
+                });
+
+                if (result is null)
+                {
+                    Console.Error.WriteLine("Failed to create scope.");
+                    return;
+                }
+
+                if (jsonOut)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.ScopeResponse));
+                }
+                else
+                {
+                    Console.WriteLine($"Created scope {scopeName} with ID: {result.Id}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error creating scope '{scopeName}'.");
+                Console.Error.WriteLine(ex.Message);
+            }
+        }, adminUrl, adminToken, name, desc, jsonOut);
+
 
         return cmd;
     }
@@ -65,41 +95,58 @@ internal static class ScopeCommands
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
+        cmd.AddOption(jsonOut);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
 
-        cmd.SetHandler(async (string url, string? token) =>
+        cmd.SetHandler(async (string url, string? token, bool json) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var scopes = await client.ListScopes();
+
+                if (scopes is null || scopes.Count == 0)
+                {
+                    Console.WriteLine(json ? "[]" : "(no scopes)");
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(scopes, MadJsonContext.Default.ListScopeResponse));
+                }
+                else
+                {
+                    Console.WriteLine($"{"Id",-36}  {"Name",-20}  Description");
+                    Console.WriteLine(new string('-', 100));
+
+                    foreach (var s in scopes)
+                        Console.WriteLine($"{s.Id,-36} {s.Name,-20} {s.Description}");
+                }
             }
-
-            var client = new MadApiClient(url, token);
-            var scopes = await client.ListScopes();
-
-            if (scopes is null || scopes.Count == 0)
+            catch (Exception ex)
             {
-                Console.WriteLine("(no scopes)");
-                return;
+                Console.Error.WriteLine("Error retrieving scopes.");
+                Console.Error.WriteLine(ex.Message);
             }
-
-            Console.WriteLine($"{"Id",-36}  {"Name",-20}  Description");
-            Console.WriteLine(new string('-', 100));
-
-            foreach (var s in scopes)
-                Console.WriteLine($"{s.Id,-36} {s.Name,-20} {s.Description}");
-        }, adminUrl, adminToken);
+        }, adminUrl, adminToken, jsonOut);
 
         return cmd;
     }
 
     private static Command DeleteScopeCommand()
     {
-        var cmd = new Command("delete", "Delete (deactivate) a scope");
+        var cmd = new Command("delete", "Delete a scope");
 
         var id = new Option<string>("--id") { IsRequired = true };
 
@@ -112,16 +159,24 @@ internal static class ScopeCommands
 
         cmd.SetHandler(async (string url, string? token, string scopeId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.DeleteScope(scopeId);
-            Console.WriteLine(ok ? $"Deleted scope '{scopeId}'" : $"Failed to delete scope '{scopeId}'");
+                var client = new MadApiClient(url, token);
+                var ok = await client.DeleteScope(scopeId);
+                Console.WriteLine(ok ? $"Deleted scope {scopeId}" : $"Failed to delete scope {scopeId}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error deleting scope.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, id);
 
         return cmd;
@@ -144,16 +199,24 @@ internal static class ScopeCommands
 
         cmd.SetHandler(async (string url, string? token, string userId, List<string> ids) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.AssignScopesToUser(userId, ids);
-            Console.WriteLine(ok ? "Scopes assigned." : "Failed to assign scopes.");
+                var client = new MadApiClient(url, token);
+                var ok = await client.AssignScopesToUser(userId, ids);
+                Console.WriteLine(ok ? "Scopes assigned." : "Failed to assign scopes.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error assigning scopes to user.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, uid, scopeIds);
 
         return cmd;
@@ -174,17 +237,35 @@ internal static class ScopeCommands
 
         cmd.SetHandler(async (string url, string? token, string userId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var scopes = await client.ListScopesForUser(userId);
-            foreach (var s in scopes)
-                Console.WriteLine($"{s.Name,-20} {s.Description}");
+                var client = new MadApiClient(url, token);
+                var scopes = await client.ListScopesForUser(userId);
+
+                if (scopes is null || scopes.Count == 0)
+                {
+                    Console.WriteLine("(no scopes)");
+                    return;
+                }
+
+                Console.WriteLine($"{"Id",-36}  {"Name",-20}  {"Description"}");
+                Console.WriteLine(new string('-', 100));
+
+                foreach (var s in scopes)
+                    Console.WriteLine($"{s.Id,-36} {s.Name,-20} {s.Description}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error retrieving scopes for user.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, uid);
 
         return cmd;
@@ -207,16 +288,24 @@ internal static class ScopeCommands
 
         cmd.SetHandler(async (string url, string? token, string userId, string scopeId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.RemoveScopeFromUser(userId, scopeId);
-            Console.WriteLine(ok ? "Scope removed." : "Failed to remove scope.");
+                var client = new MadApiClient(url, token);
+                var ok = await client.RemoveScopeFromUser(userId, scopeId);
+                Console.WriteLine(ok ? "Scope removed." : "Failed to remove scope.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error removing scope from user.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, uid, sid);
 
         return cmd;
@@ -239,16 +328,24 @@ internal static class ScopeCommands
 
         cmd.SetHandler(async (string url, string? token, string clientId, List<string> ids) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.AssignScopesToClient(clientId, ids);
-            Console.WriteLine(ok ? "Scopes assigned." : "Failed to assign scopes.");
+                var client = new MadApiClient(url, token);
+                var ok = await client.AssignScopesToClient(clientId, ids);
+                Console.WriteLine(ok ? "Scopes assigned." : "Failed to assign scopes.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error assigning scopes to client.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, cid, scopeIds);
 
         return cmd;
@@ -269,18 +366,37 @@ internal static class ScopeCommands
 
         cmd.SetHandler(async (string url, string? token, string clientId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var scopes = await client.ListScopesForClient(clientId);
-            foreach (var s in scopes)
-                Console.WriteLine($"{s.Name,-20} {s.Description}");
+                var client = new MadApiClient(url, token);
+                var scopes = await client.ListScopesForClient(clientId);
+
+                if (scopes is null || scopes.Count == 0)
+                {
+                    Console.WriteLine("(no scopes)");
+                    return;
+                }
+
+                Console.WriteLine($"{"Id",-36} {"Name",-20} Description");
+                Console.WriteLine(new string('-', 100));
+
+                foreach (var s in scopes)
+                    Console.WriteLine($"{s.Id,-36} {s.Name,-20} {s.Description}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error retrieving scopes for client.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, cid);
+
 
         return cmd;
     }
@@ -302,16 +418,24 @@ internal static class ScopeCommands
 
         cmd.SetHandler(async (string url, string? token, string clientId, string scopeId) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.RemoveScopeFromClient(clientId, scopeId);
-            Console.WriteLine(ok ? "Scope removed." : "Failed to remove scope.");
+                var client = new MadApiClient(url, token);
+                var ok = await client.RemoveScopeFromClient(clientId, scopeId);
+                Console.WriteLine(ok ? "Scope removed." : "Failed to remove scope.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error removing scope from client.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, cid, sid);
 
         return cmd;

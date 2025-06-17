@@ -5,8 +5,8 @@ using madTypes.Api.Requests;
     
 namespace mad.Common;
 
-[JsonSourceGenerationOptions(WriteIndented = false,
-    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
+[JsonSourceGenerationOptions(
+    WriteIndented = false)]
 [JsonSerializable(typeof(object))] // fallback
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(ErrorResponse))]
@@ -31,4 +31,14 @@ namespace mad.Common;
 [JsonSerializable(typeof(List<RoleResponse>))]
 [JsonSerializable(typeof(PermissionResponse))]
 [JsonSerializable(typeof(List<PermissionResponse>))]
+[JsonSerializable(typeof(SessionResponse))]
+[JsonSerializable(typeof(List<SessionResponse>))]
+[JsonSerializable(typeof(CreatedResponse))]
+[JsonSerializable(typeof(List<CreatedResponse>))]
+[JsonSerializable(typeof(AuditLogResponse))]
+[JsonSerializable(typeof(List<AuditLogResponse>))]
+[JsonSerializable(typeof(PurgeAuditLogRequest))]
+[JsonSerializable(typeof(PurgeTokensRequest))]
+[JsonSerializable(typeof(RefreshTokenResponse))]
+[JsonSerializable(typeof(List<RefreshTokenResponse>))]
 public partial class MadJsonContext : JsonSerializerContext { }

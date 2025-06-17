@@ -32,6 +32,12 @@ namespace microauthd.Common
                 var t when t == typeof(ClientResponse) =>
                     MicroauthJsonContext.Default.ClientResponse,
 
+                var t when t == typeof(CreatedResponse) =>
+                    MicroauthJsonContext.Default.CreatedResponse,
+
+                var t when t == typeof(List<CreatedResponse>) =>
+                    MicroauthJsonContext.Default.ListCreatedResponse,
+
                 var t when t == typeof(List<ClientResponse>) =>
                     MicroauthJsonContext.Default.ListClientResponse,
 

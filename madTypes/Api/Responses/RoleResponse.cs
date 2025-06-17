@@ -1,10 +1,15 @@
-﻿namespace madTypes.Api.Responses
+﻿using System.Text.Json.Serialization;
+
+namespace madTypes.Api.Responses;
+
+public class RoleResponse
 {
-    public class RoleResponse
-    {
-        public string Id { get; set; } = default!;
-        public string Name { get; set; } = default!;
-        public string? Description { get; set; }
-        public bool IsProtected { get; set; }
-    }
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = default!;
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = default!;
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+    [JsonPropertyName("is_protected")]
+    public bool IsProtected { get; set; }
 }

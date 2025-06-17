@@ -62,7 +62,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreateUser")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<UserResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Users")
         .WithOpenApi();
@@ -348,7 +348,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreateRole")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<RoleResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Roles")
         .WithOpenApi();
@@ -370,9 +370,10 @@ public static class AdminRoutes
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
-            var userId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+            var userId = ctx.User.GetUserId();
 
-            var result = RoleService.SoftDeleteRole(roleId, config, userId, ip, ua);
+            var result = RoleService.DeleteRole(roleId, config, userId, ip, ua);
+            return result.ToHttpResult();
         })
         .RequireAuthorization()
         .WithName("DeleteRole")
@@ -445,7 +446,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreatePermission")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<PermissionResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Permissions")
         .WithOpenApi();
@@ -465,7 +466,7 @@ public static class AdminRoutes
         // delete permission by ID endpoint*********************************************************
         group.MapDelete("/permissions/{permissionId}", (string permissionId, HttpContext context, AppConfig config) =>
         {
-            var result = RoleService.SoftDeletePermission(
+            var result = RoleService.DeletePermission(
                 permissionId,
                 config,
                 context.User.GetUserId(),
@@ -490,7 +491,7 @@ public static class AdminRoutes
         {
             var result = RoleService.AssignPermissionsToRole(
                 roleId,
-                req.PermissionIds,
+                req.PermissionId,
                 config,
                 ctx.User.GetUserId(),
                 ctx.Connection.RemoteIpAddress?.ToString(),
@@ -539,7 +540,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("GetPermissionsForUser")
-        .Produces<List<string>>(StatusCodes.Status200OK)
+        .Produces<List<PermissionResponse>>(StatusCodes.Status200OK)
         .WithTags("Permissions")
         .WithTags("Users")
         .WithOpenApi();
@@ -562,7 +563,7 @@ public static class AdminRoutes
             CreateClientRequest req,
             AppConfig config,
             HttpContext ctx
-        ) =>
+) =>
         {
             var result = RoleService.TryCreateClient(
                 req,
@@ -575,7 +576,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreateClient")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ClientResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Clients")
         .WithOpenApi();
@@ -588,7 +589,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("GetPermissionsForRole")
-        .Produces<List<string>>(StatusCodes.Status200OK)
+        .Produces<List<PermissionResponse>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Permissions")
         .WithTags("Roles")
@@ -625,7 +626,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreateScope")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ScopeResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Scopes")
         .WithOpenApi();
@@ -637,7 +638,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.SoftDeleteScope(
+            var result = RoleService.DeleteScope(
                 scopeId,
                 config,
                 ctx.User.GetUserId(),
@@ -673,7 +674,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.SoftDeleteClient(
+            var result = RoleService.DeleteClient(
                 id,
                 config,
                 ctx.User.GetUserId(),
@@ -765,6 +766,8 @@ public static class AdminRoutes
         .WithName("ListUserScopes")
         .Produces<List<ScopeResponse>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Scopes")
+        .WithTags("Users")
         .WithOpenApi();
 
         // assign scopes to a user endpoint*********************************************************

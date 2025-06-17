@@ -1,7 +1,8 @@
-﻿using System.CommandLine;
-using madTypes.Api.Requests;
-using mad.Common;
+﻿using mad.Common;
 using mad.Http;
+using madTypes.Api.Requests;
+using System.CommandLine;
+using System.Text.Json;
 
 namespace mad.Commands;
 
@@ -29,25 +30,50 @@ internal static class PermissionCommands
         var name = new Option<string>("--name") { IsRequired = true };
         
         var adminUrl = SharedOptions.AdminUrl;
-        var adminToken = SharedOptions.AdminToken;  
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(name);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string name) =>
+        cmd.SetHandler(async (string url, string? token, string name, bool jsonOut) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var result = await client.CreatePermission(new CreatePermissionRequest { Name = name });
-            Console.WriteLine(result);
-        }, adminUrl, adminToken, name);
+                var client = new MadApiClient(url, token);
+                var result = await client.CreatePermission(new CreatePermissionRequest { Name = name });
+
+                if (result is null)
+                {
+                    Console.Error.WriteLine("Failed to create permission.");
+                    return;
+                }
+
+                if (jsonOut)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.PermissionResponse));
+                }
+                else
+                {
+                    Console.WriteLine($"Created permission {result.Name} with ID: {result.Id}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error creating permission.");
+                Console.Error.WriteLine(ex.Message);
+            }
+        }, adminUrl, adminToken, name, jsonOut);
+
 
         return cmd;
     }
@@ -58,41 +84,56 @@ internal static class PermissionCommands
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
+        cmd.AddOption(jsonOut);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
 
-        cmd.SetHandler(async (string url, string? token) =>
+        cmd.SetHandler(async (string url, string? token, bool json) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token.");
-                return;
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var perms = await client.ListPermissions();
+
+                if (perms is null || perms.Count == 0)
+                {
+                    Console.WriteLine(json ? "[]" : "(no permissions)");
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(perms, MadJsonContext.Default.ListPermissionResponse));
+                    return;
+                }
+
+                Console.WriteLine($"{"Id",-36}  {"Name",-20}");
+                Console.WriteLine(new string('-', 100));
+                foreach (var p in perms)
+                    Console.WriteLine($"{p.Id,-36}  {p.Name,-20}");
             }
-
-            var client = new MadApiClient(url, token);
-            var perms = await client.ListPermissions();
-
-            if (perms.Count == 0)
+            catch (Exception ex)
             {
-                Console.WriteLine("(no permissions)");
-                return;
+                Console.Error.WriteLine("Error listing permissions.");
+                Console.Error.WriteLine(ex.Message);
             }
-
-            Console.WriteLine($"{"ID",-36}  {"Name",-20}");
-            Console.WriteLine(new string('-', 100));
-            foreach (var p in perms)
-                Console.WriteLine($"{p.Id,-36}  {p.Name,-20}");
-
-        }, adminUrl, adminToken);
+        }, adminUrl, adminToken, jsonOut);
 
         return cmd;
     }
 
     private static Command DeletePermissionCommand()
     {
-        var cmd = new Command("delete", "Delete (deactivate) a permission");
+        var cmd = new Command("delete", "Delete a permission");
         var id = new Option<string>("--id") { IsRequired = true };
         
         var adminUrl = SharedOptions.AdminUrl;
@@ -104,16 +145,24 @@ internal static class PermissionCommands
 
         cmd.SetHandler(async (string url, string? token, string id) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.DeletePermission(id);
-            Console.WriteLine(ok ? $"Deleted permission '{id}'" : $"Failed to delete '{id}'");
+                var client = new MadApiClient(url, token);
+                var ok = await client.DeletePermission(id);
+                Console.WriteLine(ok ? $"Deleted permission {id}" : $"Failed to delete {id}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error deleting permission {id}.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, id);
 
         return cmd;
@@ -124,7 +173,7 @@ internal static class PermissionCommands
         var cmd = new Command("assign", "Assign permissions to a role");
 
         var roleId = new Option<string>("--role-id") { IsRequired = true };
-        var permIds = new Option<List<string>>("--permission-id") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
+        var permIds = new Option<string>("--permission-id") { IsRequired = true };
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
@@ -134,18 +183,26 @@ internal static class PermissionCommands
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
 
-        cmd.SetHandler(async (string url, string? token, string rid, List<string> pids) =>
+        cmd.SetHandler(async (string url, string? token, string rid, string pid) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.AssignPermissionsToRole(rid, pids);
-            Console.WriteLine(ok ? "Permissions assigned." : "Failed to assign.");
+                var client = new MadApiClient(url, token);
+                var ok = await client.AssignPermissionsToRole(rid, pid);
+                Console.WriteLine(ok ? "Permissions assigned." : "Failed to assign.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error assigning permission {pid} to role {rid}.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, roleId, permIds);
 
         return cmd;
@@ -167,17 +224,26 @@ internal static class PermissionCommands
 
         cmd.SetHandler(async (string url, string? token, string rid, string pid) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var ok = await client.RemovePermissionFromRole(rid, pid);
-            Console.WriteLine(ok ? "Permission removed." : "Failed to remove.");
+                var client = new MadApiClient(url, token);
+                var ok = await client.RemovePermissionFromRole(rid, pid);
+                Console.WriteLine(ok ? "Permission removed." : "Failed to remove.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error removing permission {pid} from role {rid}.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, roleId, permId);
+
 
         return cmd;
     }
@@ -189,55 +255,116 @@ internal static class PermissionCommands
         
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(roleId);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string rid) =>
+        cmd.SetHandler(async (string url, string? token, string rid, bool asJson) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var perms = await client.ListPermissionsForRole(rid);
-            foreach (var p in perms)
-                Console.WriteLine(p);
-        }, adminUrl, adminToken, roleId);
+                var client = new MadApiClient(url, token);
+                var perms = await client.ListPermissionsForRole(rid);
+
+                if (perms == null || perms.Count == 0)
+                {
+                    Console.WriteLine(asJson ? "[]" : "(no permissions)");
+                    return;
+                }
+
+                if (asJson)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(perms, MadJsonContext.Default.ListPermissionResponse));
+                    return;
+                }
+
+                Console.WriteLine($"{"Id",-36}  {"Name",-20}");
+                Console.WriteLine(new string('-', 100));
+                foreach (var p in perms)
+                {
+                    Console.WriteLine($"{p.Id,-36}  {p.Name,-20}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error listing permissions for role: {ex.Message}");
+            }
+        }, adminUrl, adminToken, roleId, jsonOut);
+
+
 
         return cmd;
     }
 
+    /// <summary>
+    /// Creates a command that lists the effective permissions for a specified user.
+    /// </summary>
+    /// <remarks>This command retrieves and displays the permissions assigned to a user, either in a
+    /// human-readable format or as a JSON array, depending on the specified options. The command requires a user ID and
+    /// supports additional options for specifying the admin URL, authentication token, and output format.</remarks>
+    /// <returns>A <see cref="Command"/> instance configured to list the effective permissions for a user.</returns>
     private static Command ListPermissionsForUserCommand()
     {
         var cmd = new Command("list-for-user", "List effective permissions for a user");
+
         var userId = new Option<string>("--user-id") { IsRequired = true };
-        
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(userId);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string uid) =>
+        cmd.SetHandler(async (string url, string? token, string uid, bool json) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var perms = await client.ListPermissionsForUser(uid);
-            foreach (var p in perms)
-                Console.WriteLine(p);
-        }, adminUrl, adminToken, userId);
+                var client = new MadApiClient(url, token);
+                var perms = await client.ListPermissionsForUser(uid);
+
+                if (perms is null || perms.Count == 0)
+                {
+                    Console.WriteLine(json ? "[]" : "(no permissions)");
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(perms, MadJsonContext.Default.ListPermissionResponse));
+                }
+                else
+                {
+                    Console.WriteLine($"{"Id",-36}  Name");
+                    Console.WriteLine(new string('-', 100));
+                    foreach (var p in perms)
+                        Console.WriteLine($"{p.Id,-36}  {p.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error listing permissions for user {uid}.");
+                Console.Error.WriteLine(ex.Message);
+            }
+        }, adminUrl, adminToken, userId, jsonOut);
 
         return cmd;
     }
@@ -259,17 +386,27 @@ internal static class PermissionCommands
 
         cmd.SetHandler(async (string url, string? token, string uid, string pid) =>
         {
-            token ??= AuthUtils.TryLoadToken();
-            if (string.IsNullOrWhiteSpace(token))
+            try
             {
-                Console.Error.WriteLine("No token.");
-                return;
-            }
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
 
-            var client = new MadApiClient(url, token);
-            var access = await client.CheckAccess(uid, pid);
-            Console.WriteLine(access ? "User has permission." : "User does NOT have permission.");
+                var client = new MadApiClient(url, token);
+                var access = await client.CheckAccess(uid, pid);
+
+                Console.WriteLine(access ? "User has permission." : "User does NOT have permission.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error checking access for user {uid} and permission {pid}.");
+                Console.Error.WriteLine(ex.Message);
+            }
         }, adminUrl, adminToken, userId, permId);
+
 
         return cmd;
     }

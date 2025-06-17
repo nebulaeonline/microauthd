@@ -152,16 +152,11 @@ namespace microauthd.Common
             return result.ToString();
         }
 
-        /// <summary>
-        /// Determines whether the specified input is a valid token name.
-        /// </summary>
-        /// <param name="input">The string to validate as a token name. Must not be null, empty, or consist only of whitespace.</param>
-        /// <returns><see langword="true"/> if the input is non-empty, contains no whitespace, and consists only of letters,
-        /// digits, hyphens ('-'), or underscores ('_'); otherwise, <see langword="false"/>.</returns>
+        // Valid tokens must not contain whitespace and cannot be null or empty.
         public static bool IsValidTokenName(string input)
         {
             return !string.IsNullOrWhiteSpace(input)
-                && input.All(c => char.IsLetterOrDigit(c) || c == '-' || c == '_');
+                && input.All(c => !char.IsWhiteSpace(c));
         }        
     }
 }

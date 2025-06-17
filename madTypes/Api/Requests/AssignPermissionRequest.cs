@@ -2,5 +2,5 @@
 
 public sealed class AssignPermissionRequest
 {
-    public List<string> PermissionIds { get; init; } = new();
+    public string PermissionId { get; set; } = string.Empty;
 }

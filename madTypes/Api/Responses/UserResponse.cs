@@ -1,11 +1,16 @@
-﻿namespace madTypes.Api.Responses
+﻿using System.Text.Json.Serialization;
+namespace madTypes.Api.Responses;
+
+public class UserResponse
 {
-    public class UserResponse
-    {
-        public required string Id { get; set; }
-        public required string Username { get; set; }
-        public required string Email { get; set; }
-        public required string CreatedAt { get; set; }
-        public bool IsActive { get; set; }
-    }
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+    [JsonPropertyName("username")]
+    public required string Username { get; set; }
+    [JsonPropertyName("email")]
+    public required string Email { get; set; }
+    [JsonPropertyName("created_at")]
+    public required string CreatedAt { get; set; }
+    [JsonPropertyName("is_active")]
+    public bool IsActive { get; set; }
 }
