@@ -170,6 +170,6 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 
 microauthd hopes to get to an alpha-level release in the next few months as a small, secure, and deterministic identity service ideal for embedded control planes, internal APIs, or constrained deployments where full platforms are overkill.
 
-It's not ready for general use today, but we're \~4 weeks from a stable v1 release. The CLI is already usable for local testing and automation, and the API surface is stable and predictable.
+It's not ready for general use today, but we're working diligently to get to an alpha release. The CLI is already (mostly) usable for local testing and automation, and the API surface is stable and predictable.
 
 If you're building a system that needs to embed authentication but doesn't want the overhead or complexity of a Keycloak or Auth0, microauthd may be exactly what you're looking for and it's only getting better from here.
