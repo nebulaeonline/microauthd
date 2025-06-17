@@ -53,9 +53,15 @@ public class AppConfig
     public string LogFile { get; set; } = string.Empty;
     public bool EnableAuditLogging { get; set; } = false;
     public int AuditLogRetentionDays { get; set; } = 0;
-    public string OidcIssuer { get; set; } = string.Empty;
-    public string OidcClientId { get; set; } = string.Empty;
-    public string OidcClientSecret { get; set; } = string.Empty;
+
+    public string OidcIssuer
+    {
+        get
+        {
+            var scheme = AuthDomainNoSSL ? "http" : "https";
+                return $"{scheme}://{AuthDomain}";
+        }
+    }
 
     public bool EnableAuthSwagger { get; set; } = false;
     public bool EnableAdminSwagger { get; set; } = false;

@@ -147,26 +147,12 @@ public static class AuthService
     // AuthService.cs
     public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
     {
-        // 1. Check special config client (bootstrap)
-        if (clientId == config.OidcClientId &&
-            clientSecret == config.OidcClientSecret)
-        {
-            return new Client
-            {
-                Id = "bootstrap", // sentinel value
-                ClientId = clientId,
-                DisplayName = "Bootstrap Client",
-                ClientSecretHash = "", // never stored
-                IsActive = true
-            };
-        }
-
-        // 2. Look up client in database
+        // Look up client in database
         var client = ClientAccess.GetClientById(clientId);
         if (client is null || !client.IsActive)
             return null;
 
-        // 3. Verify Argon2 hash
+        // Verify Argon2 hash
         return Argon2.VerifyEncoded(Argon2.Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret))
             ? client
             : null;
@@ -272,14 +258,7 @@ public static class AuthService
 
         var clientIdent = req.ClientIdentifier.Trim();
 
-        // Check if this matches the config's default client
-        var isDefaultClient = string.Equals(
-            clientIdent,
-            config.OidcClientId,
-            StringComparison.Ordinal
-        );
-
-        // Otherwise, check the DB
+        // check the DB for the client identifier
         var existsInDb = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
@@ -294,7 +273,7 @@ public static class AuthService
             return reader.Read();
         });
 
-        if (!isDefaultClient && !existsInDb)
+        if (!existsInDb)
         {
             Log.Warning("Unknown or inactive client_identifier {ClientIdent}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
@@ -495,23 +474,17 @@ public static class AuthService
     }
 
     /// <summary>
-    /// Validates the provided client credentials against the configured OIDC client or the database.
+    /// Validates the credentials of an OpenID Connect (OIDC) client.
     /// </summary>
-    /// <remarks>This method first checks if the provided client credentials match the primary OIDC
-    /// client credentials specified in the application configuration. If not, it queries the database to validate
-    /// the credentials against active client records. The client secret is verified using a secure hash
-    /// comparison.</remarks>
-    /// <param name="clientId">The client identifier to validate.</param>
-    /// <param name="clientSecret">The client secret associated with the client identifier.</param>
-    /// <param name="config">The application configuration containing the primary OIDC client credentials.</param>
-    /// <returns><see langword="true"/> if the client credentials are valid; otherwise, <see langword="false"/>.</returns>
+    /// <remarks>This method verifies the provided client credentials against the stored hash in the database.
+    /// The client must be active for validation to succeed.</remarks>
+    /// <param name="clientId">The unique identifier of the client to validate.</param>
+    /// <param name="clientSecret">The secret associated with the client, used for authentication.</param>
+    /// <param name="config">The application configuration containing database connection settings.</param>
+    /// <returns><see langword="true"/> if the client credentials are valid and the client is active; otherwise, <see
+    /// langword="false"/>.</returns>
     public static bool ValidateOidcClient(string clientId, string clientSecret, AppConfig config)
     {
-        // First: check primary config-based client
-        if (clientId == config.OidcClientId && clientSecret == config.OidcClientSecret)
-            return true;
-
-        // Next: check database
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();

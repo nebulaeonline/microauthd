@@ -153,9 +153,6 @@ public static class ConfigLoader
             LogFile = GetString(Options.LogFile),
             EnableAuditLogging = GetBool(Options.EnableAuditLogging),
             AuditLogRetentionDays = GetInt(Options.AuditLogRetentionDays),
-            OidcIssuer = GetString(Options.OidcIssuer),
-            OidcClientId = GetString(Options.OidcClientId),
-            OidcClientSecret = GetString(Options.OidcClientSecret),
             EnableAuthSwagger = GetBool(Options.EnableAuthSwagger),
             EnableAdminSwagger = GetBool(Options.EnableAdminSwagger)
         };

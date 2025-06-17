@@ -1,12 +1,15 @@
 ﻿using microauthd.Common;
 using microauthd.Data;
+using nebulae.dotArgon2;
 using Serilog;
+using System.Text;
+using static nebulae.dotArgon2.Argon2;
 
 namespace microauthd.Config
 {
     public static class OobeDos
     {
-        public static (string adminUser, string adminEmail, string adminPass) LaunchOobe(AppConfig config)
+        public static PostConfigSettings LaunchOobe(AppConfig config)
         {
             var state = new OobeState(config);
             OobePrompts.PrintIntro();
@@ -36,9 +39,20 @@ namespace microauthd.Config
 
             Log.Information("OOBE completed successfully.");
 
-            return (state.AdminUser, state.AdminEmail, state.AdminPass);
+            // Set up our post-configuration settings
+            var postConfig = new PostConfigSettings
+            {
+                AdminUsername = state.AdminUser,
+                AdminEmail = state.AdminEmail,
+                AdminPassword = state.AdminPass,
+                InitialOidcClientId = state.OidcClientId,
+                InitialOidcClientSecret = state.OidcClientSecret
+            };
+
+            return postConfig;
         }
 
+        // For creating the Admin user immediately post-OOBE
         public static string CreateOobeUserRaw(string username, string email, string password, AppConfig config)
         {
             var userId = Guid.NewGuid().ToString();
@@ -74,7 +88,44 @@ namespace microauthd.Config
                 }
             });
 
+            Log.Information("OOBE: Created initial Admin user '{username}'", username);
+
             return userId;
+        }
+
+        // For creating the initial OIDC client immediately post-OOBE
+        public static void CreateOobeClientRaw(string clientId, string clientSecret, AppConfig config)
+        {
+            if (string.IsNullOrWhiteSpace(clientId))
+                throw new ArgumentException("Client ID must not be empty", nameof(clientId));
+            if (string.IsNullOrWhiteSpace(clientSecret))
+                throw new ArgumentException("Client secret must not be empty", nameof(clientSecret));
+
+            var id = Guid.NewGuid().ToString();
+            var hash = Argon2.Argon2HashEncodedToString(
+                Argon2Algorithm.Argon2id,
+                (uint)config.Argon2Time,
+                (uint)config.Argon2Memory,
+                (uint)config.Argon2Parallelism,
+                Encoding.UTF8.GetBytes(clientSecret),
+                Utils.GenerateSalt(config.Argon2SaltLength),
+                config.Argon2HashLength
+            );
+
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, created_at, modified_at, is_active)
+                    VALUES ($id, $cid, $hash, '', datetime('now'), datetime('now'), 1);
+                """;
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.Parameters.AddWithValue("$cid", clientId);
+                cmd.Parameters.AddWithValue("$hash", hash);
+                cmd.ExecuteNonQuery();
+            });
+
+            Log.Information("OOBE: Created initial client '{ClientId}'", clientId);
         }
     }
 }

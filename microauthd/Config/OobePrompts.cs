@@ -195,11 +195,9 @@ internal static class OobePrompts
 
     public static void PromptOidcClient(OobeState state)
     {
-        state.OidcIssuer = Prompt("OIDC Issuer", state.Config.OidcIssuer);
-
         while (string.IsNullOrWhiteSpace(state.OidcClientId))
         {
-            state.OidcClientId = Prompt("OIDC Client ID", state.Config.OidcClientId);
+            state.OidcClientId = Prompt("OIDC Client ID", string.Empty);
             if (string.IsNullOrWhiteSpace(state.OidcClientId))
                 Console.WriteLine("Client ID cannot be empty!\n");
         }
@@ -268,7 +266,7 @@ internal static class OobePrompts
             $"auth-domain = {state.AuthDomain}",
             $"auth-ssl-cert-file = {state.AuthSSLCertFile}",
             $"auth-ssl-cert-pass = {state.AuthSSLCertPass}",
-            authDomainNoSSLLine,
+            authDomainNoSSLLine + "\n",
 
             "# Admin server config",
             $"admin-ip = {state.AdminIp}",
@@ -276,7 +274,7 @@ internal static class OobePrompts
             $"admin-domain = {state.AdminDomain}",
             $"admin-ssl-cert-file = {state.AdminSSLCertFile}",
             $"admin-ssl-cert-pass = {state.AdminSSLCertPass}",
-            adminDomainNoSSLLine,
+            adminDomainNoSSLLine + "\n",
 
             "# Argon2id config",
             $"argon2id-time = {state.Argon2Time}",
@@ -301,11 +299,6 @@ internal static class OobePrompts
             $"admin-token-signing-key-length-rsa = {state.AdminTokenKeyLength}",
             $"admin-token-signing-key-pass = {state.AdminTokenKeyPass}",
             $"admin-token-expiration = {state.AdminTokenExpiration}\n",
-
-            "# OIDC config",
-            $"oidc-issuer = {state.OidcIssuer}",
-            $"oidc-client-id = {state.OidcClientId}",
-            $"oidc-client-secret = {state.OidcClientSecret}\n",
 
             "# Swagger config",
             "enable-auth-swagger = false",

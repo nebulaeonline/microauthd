@@ -48,10 +48,19 @@ public class Program
             // See if our db file exists, if not, launch OOBE
             if (!File.Exists(config.DbFile))
             {
-                (adminUser, adminEmail, adminPass) = OobeDos.LaunchOobe(config);
+                var postConfig = OobeDos.LaunchOobe(config);
                 config = ConfigLoader.Load(parseResult); // Reload config after OOBE
                 DbInitializer.CreateDbTables(config);
-                OobeDos.CreateOobeUserRaw(adminUser, adminEmail, adminPass, config);
+                
+                // Perform post-OOBE actions
+
+                // Set up the admin user
+                if (postConfig.NeedsAdminCreation)
+                    OobeDos.CreateOobeUserRaw(postConfig.AdminUsername, postConfig.AdminEmail, postConfig.AdminPassword, config);
+
+                // Set up the initial OIDC client
+                if (postConfig.NeedsOidcClientCreation)
+                    OobeDos.CreateOobeClientRaw(postConfig.InitialOidcClientId, postConfig.InitialOidcClientSecret, config);
             }
             else
             {
