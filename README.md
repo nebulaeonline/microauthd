@@ -2,7 +2,7 @@
 
 microauthd is a self-hosted, embedded-friendly identity provider designed for internal services, machine-to-machine workflows, and constrained environments. It is written in C# using the .NET 8 SDK. It is **not** a replacement for Keycloak, Auth0, or Dex. It's a small, hardened component that forms one pillar of a larger authentication and authorization architecture.
 
-Curent AOT status is: building & executing - 26MB executable, 35MB commit memory at rest, sub-500ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
+Curent AOT status is: building & executing - 26MB executable, 35MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
 
 microauthd uses a dual-port architecture with separate admin and auth endpoints, including separate signing keys for admin and auth tokens and completely separate API surfaces.
 
@@ -13,6 +13,8 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 microauthd is currently not yet ready for production use. It has a LOT of rough edges right now. The code is functional and has been tested in a few scenarios, but it is most definitely not ready for production use. There is no documentation yet, either.
 
 Please read on to understand its current capabilities, design philosophy, real-world security posture, known limitations, and how it will evolve toward a production-ready release.
+
+Understand that this is **NOT A PRODUCTION READY SYSTEM**. It is not even suitable for testing in production-like environments yet. It is a work in progress.
 
 ---
 
@@ -136,6 +138,7 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 
 ### What Still Needs Work
 
+- `mad` CLI needs strengthening for production use; it's functional but not polished (and slower than it should be)
 - Some minor inconsistencies in API response formatting
 - Token usage metadata is stored but not yet used for token tracing
 - Audit log field consistency still being refined
@@ -157,9 +160,9 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 2. ~~Implement replay detection for access tokens~~ Done.
 3. Replace shared DB connection with per-request pooling (WAL-mode safe)
 4. Clean up API DTOs (uniform `MessageResponse`, consistent `id + name`)
-5. Launch test harness using `mad` + Python bindings
+5. Launch test harness using `mad` + Python bindings (in progress)
 6. Ship bindings for C#, Go, Python, Rust, and JavaScript (TS, Axios, Node)
-7. More robust failed password mechanisms (rate limiting / exponential backoff)
+7. More robust failed password mechanisms (~~rate limiting~~ (done) / exponential backoff)
 8. OTP login flow
 ---
 
