@@ -18,6 +18,8 @@ internal static class UserCommands
         cmd.AddCommand(GetUserByIdCommand());
         cmd.AddCommand(DeactivateUserCommand());
         cmd.AddCommand(ActivateUserCommand());
+        cmd.AddCommand(DeleteUserCommand());
+        
         return cmd;
     }
 
@@ -487,6 +489,83 @@ internal static class UserCommands
                 else
                 {
                     Console.Error.WriteLine($"Error activating user: {ex.Message}");
+                }
+            }
+        }, adminUrl, adminToken, userId, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command DeleteUserCommand()
+    {
+        var cmd = new Command("delete", "Permanently delete a user");
+
+        var userId = new Option<string>("--id") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(userId);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? tokenOverride, string id, bool json) =>
+        {
+            try
+            {
+                var token = string.IsNullOrWhiteSpace(tokenOverride)
+                    ? AuthUtils.TryLoadToken()
+                    : tokenOverride;
+
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    if (json)
+                    {
+                        var err = new ErrorResponse(false, "No admin token provided. Use --admin-token or run `mad session login`.");
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine("No admin token provided. Use --admin-token or run `mad session login`.");
+                    }
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var success = await client.DeleteUser(id);
+
+                if (json)
+                {
+                    if (success)
+                    {
+                        var msg = new MessageResponse(true, $"Deleted user {id}");
+                        Console.WriteLine(JsonSerializer.Serialize(msg, MadJsonContext.Default.MessageResponse));
+                    }
+                    else
+                    {
+                        var err = new ErrorResponse(false, $"Failed to delete user {id}");
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    }
+                }
+                else
+                {
+                    if (success)
+                        Console.WriteLine($"Deleted user {id}");
+                    else
+                        Console.Error.WriteLine($"Failed to delete user {id}");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (json)
+                {
+                    var err = new ErrorResponse(false, $"Exception while deleting user: {ex.Message}");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                }
+                else
+                {
+                    Console.Error.WriteLine($"Error deleting user: {ex.Message}");
                 }
             }
         }, adminUrl, adminToken, userId, jsonOut);
