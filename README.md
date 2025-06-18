@@ -4,6 +4,18 @@ microauthd is a self-hosted, embedded-friendly identity provider designed for in
 
 Curent AOT status is: building & executing - 26MB executable, 35MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
 
+AOT build:
+
+```bash
+
+$ dotnet publish -r linux-x64 -c Release
+
+or
+
+C:\microauthd> dotnet publish -r win-x64 -c Release
+
+```
+
 microauthd uses a dual-port architecture with separate admin and auth endpoints, including separate signing keys for admin and auth tokens and completely separate API surfaces.
 
 ---
