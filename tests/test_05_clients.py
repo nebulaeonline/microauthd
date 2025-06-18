@@ -30,12 +30,14 @@ def test_create_update_scope_assign_client():
         "--client-id", client_id,
         "--secret", client_secret,
         "--display-name", "Test Client",
+        "--audience", client_id,
         "--json"
     ])
     if not ok or "id" not in client:
         fail_with_data("Failed to create client", client)
 
     cid = client["id"]
+    client["client_secret"] = client_secret
     save_state("client", client)
 
     # Update
