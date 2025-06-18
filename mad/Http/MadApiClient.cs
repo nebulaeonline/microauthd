@@ -117,7 +117,7 @@ internal class MadApiClient
 
     public async Task<bool> DeactivateUser(string userId)
     {
-        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/deactivate", content: null);
+        var res = await _http.PostAsync($"{BaseUrl}/users/deactivate/{userId}", content: null);
         return res.IsSuccessStatusCode;
     }
 

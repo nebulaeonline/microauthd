@@ -145,7 +145,16 @@ public static class AuthService
         return (true, user.Id, user.Email, roles);
     }
 
-    // AuthService.cs
+    /// <summary>
+    /// Authenticates a client using the provided client ID and client secret.
+    /// </summary>
+    /// <remarks>This method verifies the provided client secret against the stored hash using the Argon2id
+    /// algorithm.  The client must be active for authentication to succeed.</remarks>
+    /// <param name="clientId">The unique identifier of the client to authenticate. Cannot be null or empty.</param>
+    /// <param name="clientSecret">The secret associated with the client. Cannot be null or empty.</param>
+    /// <param name="config">The application configuration used for authentication. Cannot be null.</param>
+    /// <returns>The authenticated <see cref="Client"/> object if the client ID and client secret are valid and the client is
+    /// active;  otherwise, <see langword="null"/>.</returns>
     public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
     {
         // Look up client in database
@@ -260,21 +269,22 @@ public static class AuthService
         var clientIdent = req.ClientIdentifier.Trim();
 
         // check the DB for the client identifier
-        var existsInDb = Db.WithConnection(conn =>
+        var client = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT 1
+                SELECT audience
                 FROM clients
                 WHERE client_identifier = $cid AND is_active = 1
                 LIMIT 1;
             """;
             cmd.Parameters.AddWithValue("$cid", clientIdent);
+
             using var reader = cmd.ExecuteReader();
-            return reader.Read();
+            return reader.Read() ? reader.GetString(0) : null;
         });
 
-        if (!existsInDb)
+        if (client is null)
         {
             Log.Warning("Unknown or inactive client_identifier {ClientIdent}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
@@ -320,7 +330,7 @@ public static class AuthService
             claims.Add(new Claim("scope", string.Join(' ', scopes)));
 
         // Issue JWT
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false);
+        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: client);
         UserService.WriteSessionToDb(tokenInfo, config, clientIdent);
 
         // Optionally generate refresh token
@@ -348,7 +358,8 @@ public static class AuthService
             TokenType = "bearer",
             ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
             Jti = tokenInfo.Jti,
-            RefreshToken = refreshToken
+            RefreshToken = refreshToken,
+            Audience = client
         });
     }
 
@@ -445,7 +456,19 @@ public static class AuthService
         if (scopes.Count > 0)
             claims.Add(new Claim("scope", string.Join(' ', scopes)));
 
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false);
+        var audience = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT audience FROM clients
+                WHERE client_identifier = $cid LIMIT 1;
+            """;
+            cmd.Parameters.AddWithValue("$cid", tokenRow.ClientIdentifier);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? reader.GetString(0) : null;
+        }) ?? "microauthd";
+
+        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
         UserService.WriteSessionToDb(tokenInfo, config, tokenRow.ClientIdentifier);
 
         var newRefreshToken = UserService.GenerateAndStoreRefreshToken(
@@ -470,7 +493,8 @@ public static class AuthService
             TokenType = "bearer",
             ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
             Jti = tokenInfo.Jti,
-            RefreshToken = newRefreshToken
+            RefreshToken = newRefreshToken,
+            Audience = audience
         });
     }
 
@@ -505,6 +529,31 @@ public static class AuthService
                 hash,
                 Encoding.UTF8.GetBytes(clientSecret)
             );
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the expected audience value for a given client identifier.
+    /// </summary>
+    /// <remarks>The method queries the database to find the audience for the provided client identifier.  If
+    /// no active client matches the identifier, the method returns <see langword="null"/>.</remarks>
+    /// <param name="clientId">The unique identifier of the client. This value is used to query the database for the associated audience.</param>
+    /// <returns>The audience associated with the specified client identifier if the client is active; otherwise, <see
+    /// langword="null"/>.</returns>
+    public static string? GetExpectedAudienceForClient(string clientId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT audience
+                FROM clients
+                WHERE client_identifier = $cid AND is_active = 1
+                LIMIT 1;
+            """;
+            cmd.Parameters.AddWithValue("$cid", clientId);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? reader.GetString(0) : null;
         });
     }
 
@@ -815,14 +864,27 @@ public static class AuthService
         if (scopes.Count > 0)
             claims.Add(new Claim("scope", string.Join(' ', scopes)));
 
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false);
+        var audience = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT audience FROM clients
+                WHERE client_identifier = $cid LIMIT 1;
+            """;
+            cmd.Parameters.AddWithValue("$cid", clientId);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? reader.GetString(0) : null;
+        }) ?? "microauthd";
+
+        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
 
         var response = new TokenResponse
         {
             AccessToken = tokenInfo.Token,
             TokenType = "bearer",
             ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
-            Jti = tokenInfo.Jti
+            Jti = tokenInfo.Jti,
+            Audience = audience
         };
 
         AuditLogger.AuditLog(
@@ -880,6 +942,28 @@ public static class AuthService
             }, out var validatedToken);
 
             var jwt = (JwtSecurityToken)validatedToken;
+
+            // check blacklist for revoked tokens
+            if (IsRevokedJti(jwt.Id))
+                return ApiResult<Dictionary<string, object>>.Ok(new() { ["active"] = false });
+
+            // check if token's session is deleted/revoked
+            var tokenUse = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "auth";
+
+            if (tokenUse == "auth")
+            {
+                var isRevoked = Db.WithConnection(conn =>
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "SELECT is_revoked FROM sessions WHERE token = $token";
+                    cmd.Parameters.AddWithValue("$token", token);
+                    var result = cmd.ExecuteScalar();
+                    return result is long val && val == 1;
+                });
+
+                if (isRevoked)
+                    return ApiResult<Dictionary<string, object>>.Ok(new() { ["active"] = false });
+            }
 
             var dict = new Dictionary<string, object>
             {
@@ -989,6 +1073,9 @@ public static class AuthService
             var claims = jwt.Claims.ToDictionary(c => c.Type, c => (object)c.Value);
             claims["valid"] = true;
             claims["expired"] = jwt.ValidTo < DateTime.UtcNow;
+            claims["iat"] = new DateTimeOffset(jwt.IssuedAt).ToUnixTimeSeconds();
+            claims["nbf"] = new DateTimeOffset(jwt.ValidFrom).ToUnixTimeSeconds();
+            claims["exp"] = new DateTimeOffset(jwt.ValidTo).ToUnixTimeSeconds();
 
             AuditLogger.AuditLog(
                 config: config,
@@ -1005,5 +1092,83 @@ public static class AuthService
         {
             return ApiResult<Dictionary<string, object>>.Fail($"Invalid token: {ex.Message}", 400);
         }
+    }
+
+    /// <summary>
+    /// Revokes a specified JWT token by marking it as invalid in the system.
+    /// </summary>
+    /// <remarks>This method attempts to revoke the token by first checking for an active session associated
+    /// with the token. If a session is found, it marks the session as revoked. If no session is found, the method adds
+    /// the token's unique identifier (JTI) to a denylist with its expiration time.</remarks>
+    /// <param name="token">The JWT token to be revoked. Must be a valid, readable token.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// revocation. If successful, the response includes a message specifying the revocation method used. If the token
+    /// is invalid or unreadable, the response contains an error message.</returns>
+    public static ApiResult<MessageResponse> RevokeToken(string token)
+    {
+        JwtSecurityToken jwt;
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            jwt = handler.ReadJwtToken(token);
+        }
+        catch (Exception)
+        {
+            return ApiResult<MessageResponse>.Fail("Invalid or unreadable token.");
+        }
+
+        var jti = jwt.Id;
+        var exp = jwt.ValidTo;
+
+        if (string.IsNullOrWhiteSpace(jti))
+            return ApiResult<MessageResponse>.Fail("Token missing 'jti' claim.");
+
+        // Try session-based revocation first
+        var sessionMatch = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE token = $token";
+            cmd.Parameters.AddWithValue("$token", token);
+            return cmd.ExecuteNonQuery(); // affected rows
+        });
+
+        if (sessionMatch > 0)
+            return ApiResult<MessageResponse>.Ok(new(true, "Token revoked via session table"));
+
+        // Otherwise, insert jti into denylist
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT OR IGNORE INTO jti_denylist (jti, expires_at)
+                VALUES ($jti, $exp)
+            """;
+            cmd.Parameters.AddWithValue("$jti", jti);
+            cmd.Parameters.AddWithValue("$exp", exp.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmd.ExecuteNonQuery();
+        });
+
+        return ApiResult<MessageResponse>.Ok(new(true, "Token revoked via denylist"));
+    }
+
+    /// <summary>
+    /// Determines whether the specified JWT ID (JTI) is present in the denylist and has not yet expired.
+    /// </summary>
+    /// <remarks>This method queries the database to verify if the provided JTI is revoked. It checks both the
+    /// presence of the JTI in the denylist and whether its expiration time is still valid. Use this method to enforce
+    /// token revocation policies.</remarks>
+    /// <param name="jti">The unique identifier of the JWT to check. This value cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the specified JTI is found in the denylist and its expiration time has not passed;
+    /// otherwise, <see langword="false"/>.</returns>
+    private static bool IsRevokedJti(string jti)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM jti_denylist WHERE jti = $jti AND expires_at > datetime('now')";
+            cmd.Parameters.AddWithValue("$jti", jti);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read();
+        });
     }
 }

@@ -113,7 +113,7 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // soft-delete user endpoint****************************************************************
-        group.MapPost("/users/{id}/deactivate", (string id, HttpContext ctx, AppConfig config) =>
+        group.MapPost("/users/deactivate/{id}", (string id, HttpContext ctx, AppConfig config) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
@@ -122,7 +122,7 @@ public static class AdminRoutes
             return result.ToHttpResult();
         })
         .RequireAuthorization()
-        .WithName("DeleteUser")
+        .WithName("DeactivateUser")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Users")
@@ -269,19 +269,25 @@ public static class AdminRoutes
         // revoke session endpoint******************************************************************
         if (config.EnableTokenRevocation)
         {
-            group.MapPost("/revoke", ([FromBody] string jti, HttpContext ctx, AppConfig config) =>
+            group.MapPost("/revoke", async (HttpContext ctx) =>
             {
-                var ip = ctx.Connection.RemoteIpAddress?.ToString();
-                var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
+                var form = await ctx.Request.ReadFormAsync();
+                var token = form["token"].ToString();
 
-                var result = UserService.RevokeSessionById(jti, config, ip, ua);
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    return ApiResult<MessageResponse>.Fail("Missing token").ToHttpResult();
+                }
+
+                var result = AuthService.RevokeToken(token);
                 return result.ToHttpResult();
             })
             .RequireAuthorization()
             .WithName("RevokeToken")
-            .Produces(StatusCodes.Status200OK)
+            .Produces<MessageResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-            .WithTags("Sessions")
+            .WithTags("Tokens")
+            .Accepts<IFormCollection>("application/x-www-form-urlencoded")
             .WithOpenApi();
         }
 

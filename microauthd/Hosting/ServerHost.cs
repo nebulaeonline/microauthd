@@ -12,6 +12,8 @@ using microauthd.Data;
 using microauthd.Routes.Admin;
 using microauthd.Routes.Auth;
 using microauthd.Tokens;
+using microauthd.Services;
+
 using System.Security.Claims;
 
 namespace microauthd.Hosting;
@@ -45,7 +47,7 @@ public static class ServerHost
                         {
                             ValidateIssuer = true,
                             ValidIssuer = config.OidcIssuer,
-                            ValidateAudience = false,
+                            ValidateAudience = true,
                             ValidateLifetime = true,
                             ValidateIssuerSigningKey = true,
                             IssuerSigningKey = key,
@@ -58,7 +60,35 @@ public static class ServerHost
                                 }
                             },
                             NameClaimType = JwtRegisteredClaimNames.Sub,
-                            RoleClaimType = ClaimTypes.Role
+                            RoleClaimType = ClaimTypes.Role,
+                            AudienceValidator = (audiences, securityToken, validationParams) =>
+                            {
+                                if (securityToken is not JwtSecurityToken jwt)
+                                    return false;
+
+                                var clientId = jwt.Claims.FirstOrDefault(c => c.Type == "client_id")?.Value;
+                                if (string.IsNullOrWhiteSpace(clientId))
+                                {
+                                    Log.Warning("Audience validation failed: missing client_id claim");
+                                    return false;
+                                }
+
+                                var expectedAudience = AuthService.GetExpectedAudienceForClient(clientId);
+                                if (string.IsNullOrWhiteSpace(expectedAudience))
+                                {
+                                    Log.Warning("Audience validation failed: unknown or inactive client_id: {ClientId}", clientId);
+                                    return false;
+                                }
+
+                                if (!audiences?.Contains(expectedAudience) ?? true)
+                                {
+                                    Log.Warning("Audience mismatch for client_id={ClientId}: expected {Expected}, got {Got}",
+                                        clientId, expectedAudience, string.Join(", ", audiences ?? Enumerable.Empty<string>()));
+                                    return false;
+                                }
+
+                                return true;
+                            }
                         };
 
                         options.Events = new JwtBearerEvents

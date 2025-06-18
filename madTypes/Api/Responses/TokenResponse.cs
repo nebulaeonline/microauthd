@@ -7,4 +7,5 @@ public sealed class TokenResponse
     public int ExpiresIn { get; init; }
     public string? Jti { get; init; }
     public string? RefreshToken { get; init; }
+    public string? Audience { get; init; } = "microauthd";
 }

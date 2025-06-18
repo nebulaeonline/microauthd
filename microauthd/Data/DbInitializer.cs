@@ -81,6 +81,7 @@ public static class DbInitializer
             client_identifier TEXT UNIQUE NOT NULL,
             client_secret_hash TEXT NOT NULL,
             display_name TEXT,
+            audience TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             modified_at TEXT NOT NULL DEFAULT (datetime('now')),
             is_active INTEGER NOT NULL DEFAULT 1
@@ -146,6 +147,10 @@ public static class DbInitializer
             user_agent TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS jti_denylist (
+            jti TEXT PRIMARY KEY,
+            expires_at TEXT NOT NULL
+        );
 
         CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
         CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);
@@ -180,6 +185,7 @@ public static class DbInitializer
           WHERE is_active = 1;
         CREATE INDEX IF NOT EXISTS idx_client_scopes_client_id ON client_scopes(client_id);
         CREATE INDEX IF NOT EXISTS idx_client_scopes_scope_id ON client_scopes(scope_id);
+        CREATE INDEX IF NOT EXISTS idx_jti_expires_at ON jti_denylist(expires_at);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_client_scope_pair_active
           ON client_scopes(client_id, scope_id)
           WHERE is_active = 1;

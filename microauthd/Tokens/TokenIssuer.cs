@@ -34,7 +34,7 @@ public static class TokenIssuer
     /// <returns>A <see cref="TokenInfo"/> object containing the issued token, its unique identifier (JTI),  the issuance and
     /// expiration times, the user ID, and the token's intended use.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the private key used for signing the token is of an unsupported type.</exception>
-    public static TokenInfo IssueToken(AppConfig config, IEnumerable<Claim> userClaims, bool isAdmin)
+    public static TokenInfo IssueToken(AppConfig config, IEnumerable<Claim> userClaims, bool isAdmin, string? audience = null)
     {
         var key = TokenKeyCache.GetPrivateKey(isAdmin);
         var signingCredentials = key switch
@@ -49,6 +49,7 @@ public static class TokenIssuer
         var jti = Guid.NewGuid().ToString("N");
         var tokenUse = isAdmin ? "admin" : "auth";
         var userId = userClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value ?? "unknown";
+        var aud = audience ?? "microauthd";
 
         var claims = new List<Claim>(userClaims)
     {
@@ -60,7 +61,7 @@ public static class TokenIssuer
 
         var jwt = new JwtSecurityToken(
             issuer: config.OidcIssuer,
-            audience: "microauthd",
+            audience: aud,
             claims: claims,
             notBefore: now,
             expires: expires,
