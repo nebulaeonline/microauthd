@@ -69,19 +69,19 @@ def test_cleanup_all_test_objects():
         ], fail_ok=True)
 
     # 7. Delete user <-- deletion is not currently implemented in microauthd
-    #if user:
-    #    run_mad([
-    #        "user", "deactivate", "--id", user["id"]  # Ensure it's inactive
-    #    ], fail_ok=True)
-    #    run_mad([
-    #        "user", "delete", "--id", user["id"]
-    #    ], fail_ok=True)
+    if user:
+        run_mad([
+            "user", "deactivate", "--id", user["id"]  # Ensure it's inactive
+        ], fail_ok=True)
+        run_mad([
+            "user", "delete", "--id", user["id"]
+        ], fail_ok=True)
 
     # 8. Confirm deletions (optional: skip if you're confident)
-    #if user:
-    #    ok, result = run_mad(["user", "get", "--id", user["id"], "--json"], fail_ok=True)
-    #    if ok:
-    #        fail_with_data("User still exists after deletion", result)
+    if user:
+        ok, result = run_mad(["user", "get", "--id", user["id"], "--json"], fail_ok=True)
+        if ok:
+            fail_with_data("User still exists after deletion", result)
 
     if role:
         ok, result = run_mad(["role", "get", "--id", role["id"], "--json"], fail_ok=True)
