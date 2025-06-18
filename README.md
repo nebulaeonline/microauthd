@@ -12,7 +12,7 @@ $ dotnet publish -r linux-x64 -c Release
 
 or
 
-C:\microauthd> dotnet publish -r win-x64 -c Release
+C:\microauthd\microauthd> dotnet publish -r win-x64 -c Release
 
 ```
 
