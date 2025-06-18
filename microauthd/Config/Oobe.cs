@@ -2,6 +2,7 @@
 
 using microauthd.Common;
 using microauthd.Data;
+using microauthd.Services;
 
 namespace microauthd.Config
 {

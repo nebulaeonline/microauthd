@@ -13,6 +13,7 @@ using Serilog;
 using static nebulae.dotArgon2.Argon2;
 using microauthd.Tokens;
 using madTypes.Api.Common;
+using microauthd.Services;
 
 namespace microauthd.Routes.Admin;
 
@@ -112,7 +113,7 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // soft-delete user endpoint****************************************************************
-        group.MapDelete("/users/{id}", (string id, HttpContext ctx, AppConfig config) =>
+        group.MapPost("/users/{id}/deactivate", (string id, HttpContext ctx, AppConfig config) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
@@ -126,6 +127,19 @@ public static class AdminRoutes
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Users")
         .WithOpenApi();
+
+        // delete user permanently endpoint*********************************************************
+        group.MapDelete("/users/{id}", (string id, ClaimsPrincipal user) =>
+        {
+            return UserService.DeleteUser(id).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("DeleteUser")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .WithTags("Users")
+        .WithOpenApi();
+
 
         // reset user password endpoint*************************************************************
         group.MapPost("/users/{id}/reset", (string id, ResetPasswordRequest req, AppConfig config, HttpContext ctx) =>
@@ -493,7 +507,7 @@ public static class AdminRoutes
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers.UserAgent.ToString();
 
-            var result = RoleService.CreatePermission(req.Name, config, userId, ip, ua);
+            var result = PermissionService.CreatePermission(req.Name, config, userId, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -510,7 +524,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.UpdatePermission(id, updated, config);
+            var result = PermissionService.UpdatePermission(id, updated, config);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -523,7 +537,7 @@ public static class AdminRoutes
         // list permissions endpoint****************************************************************
         group.MapGet("/permissions", () =>
         {
-            var result = RoleService.ListAllPermissions();
+            var result = PermissionService.ListAllPermissions();
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -535,7 +549,7 @@ public static class AdminRoutes
         // get permission endpoint******************************************************************
         group.MapGet("/permissions/{id}", (string id, AppConfig config) =>
         {
-            var result = RoleService.GetPermissionById(id);
+            var result = PermissionService.GetPermissionById(id);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -548,7 +562,7 @@ public static class AdminRoutes
         // delete permission by ID endpoint*********************************************************
         group.MapDelete("/permissions/{permissionId}", (string permissionId, HttpContext context, AppConfig config) =>
         {
-            var result = RoleService.DeletePermission(
+            var result = PermissionService.DeletePermission(
                 permissionId,
                 config,
                 context.User.GetUserId(),
@@ -571,7 +585,7 @@ public static class AdminRoutes
             HttpContext ctx, 
             AppConfig config) =>
         {
-            var result = RoleService.AssignPermissionsToRole(
+            var result = PermissionService.AssignPermissionsToRole(
                 roleId,
                 req.PermissionId,
                 config,
@@ -596,7 +610,7 @@ public static class AdminRoutes
             HttpContext ctx,
             AppConfig config) =>
         {
-            var result = RoleService.RemovePermissionFromRole(
+            var result = PermissionService.RemovePermissionFromRole(
                 roleId,
                 permissionId,
                 config,
@@ -617,7 +631,7 @@ public static class AdminRoutes
         // get effective permissions for user endpoint**********************************************
         group.MapGet("/permissions/user/{userId}", (string userId) =>
         {
-            var result = RoleService.GetEffectivePermissionsForUser(userId);
+            var result = PermissionService.GetEffectivePermissionsForUser(userId);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -630,7 +644,7 @@ public static class AdminRoutes
         // check access endpoint********************************************************************
         group.MapPost("/check-access", (CheckAccessRequest req) =>
         {
-            var result = RoleService.UserHasPermission(req.UserId, req.PermissionId);
+            var result = PermissionService.UserHasPermission(req.UserId, req.PermissionId);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -643,7 +657,7 @@ public static class AdminRoutes
         // get permissions for role endpoint********************************************************
         group.MapGet("/roles/{roleId}/permissions", (string roleId) =>
         {
-            var result = RoleService.GetPermissionsForRole(roleId);
+            var result = PermissionService.GetPermissionsForRole(roleId);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -661,7 +675,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.CreateScope(
+            var result = ScopeService.CreateScope(
                 req,
                 config,
                 ctx.User.GetUserId(),
@@ -684,7 +698,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.UpdateScope(id, updated, config);
+            var result = ScopeService.UpdateScope(id, updated, config);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -697,7 +711,7 @@ public static class AdminRoutes
         // list scopes endpoint*********************************************************************
         group.MapGet("/scopes", () =>
         {
-            var result = RoleService.ListAllScopes();
+            var result = ScopeService.ListAllScopes();
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -710,7 +724,7 @@ public static class AdminRoutes
         // get scope endpoint***********************************************************************
         group.MapGet("/scopes/{id}", (string id) =>
         {
-            var result = RoleService.GetScopeById(id);
+            var result = ScopeService.GetScopeById(id);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -727,7 +741,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.DeleteScope(
+            var result = ScopeService.DeleteScope(
                 scopeId,
                 config,
                 ctx.User.GetUserId(),
@@ -750,7 +764,7 @@ public static class AdminRoutes
             HttpContext ctx
 ) =>
         {
-            var result = RoleService.TryCreateClient(
+            var result = ClientService.TryCreateClient(
                 req,
                 config,
                 ctx.User.GetUserId(),
@@ -773,7 +787,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.UpdateClient(id, updated, config);
+            var result = ClientService.UpdateClient(id, updated, config);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -786,7 +800,7 @@ public static class AdminRoutes
         // get clients endpoint********************************************************************
         group.MapGet("/clients", () =>
         {
-            var result = RoleService.GetAllClients();
+            var result = ClientService.GetAllClients();
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -799,7 +813,7 @@ public static class AdminRoutes
         // get client endpoint**********************************************************************
         group.MapGet("/clients/{id}", (string id) =>
         {
-            var result = RoleService.GetClientById(id);
+            var result = ClientService.GetClientById(id);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -816,7 +830,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.DeleteClient(
+            var result = ClientService.DeleteClient(
                 id,
                 config,
                 ctx.User.GetUserId(),
@@ -840,7 +854,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.AddScopesToClient(
+            var result = ScopeService.AddScopesToClient(
                 clientId,
                 req,
                 config,
@@ -860,7 +874,7 @@ public static class AdminRoutes
         // get scopes for client endpoint**********************************************************
         group.MapGet("/clients/{id}/scopes", (string id) =>
         {
-            var result = RoleService.GetScopesForClient(id);
+            var result = ScopeService.GetScopesForClient(id);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -879,7 +893,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.RemoveScopeFromClient(
+            var result = ScopeService.RemoveScopeFromClient(
                 id,
                 scopeId,
                 config,
@@ -901,7 +915,7 @@ public static class AdminRoutes
         // List scopes for a user endpoint**********************************************************
         group.MapGet("/users/{userId}/scopes", (string userId) =>
         {
-            var result = RoleService.ListScopesForUser(userId);
+            var result = ScopeService.ListScopesForUser(userId);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -920,7 +934,7 @@ public static class AdminRoutes
             AppConfig config
         ) =>
         {
-            var result = RoleService.AddScopesToUser(
+            var result = ScopeService.AddScopesToUser(
                 userId,
                 req,
                 config,
@@ -944,7 +958,7 @@ public static class AdminRoutes
             HttpContext ctx
         ) =>
         {
-            var result = RoleService.RemoveScopeFromUser(
+            var result = ScopeService.RemoveScopeFromUser(
                 userId,
                 scopeId,
                 config,

@@ -13,8 +13,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Net;
 using static nebulae.dotArgon2.Argon2;
+using microauthd.Common;
 
-namespace microauthd.Common;
+namespace microauthd.Services;
 
 public static class AuthService
 {
@@ -66,12 +67,12 @@ public static class AuthService
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(salt);
 
-        return Argon2.Argon2HashEncodedToString(
-            Argon2.Argon2Algorithm.Argon2id,
+        return Argon2HashEncodedToString(
+            Argon2Algorithm.Argon2id,
             (uint)config.Argon2Time,
             (uint)config.Argon2Memory,
             (uint)config.Argon2Parallelism,
-            System.Text.Encoding.UTF8.GetBytes(password),
+            Encoding.UTF8.GetBytes(password),
             salt,
             config.Argon2HashLength
         );
@@ -117,7 +118,7 @@ public static class AuthService
             return null;
 
         var passwordBytes = Encoding.UTF8.GetBytes(password);
-        if (!Argon2.VerifyEncoded(Argon2Algorithm.Argon2id, user.Hash, passwordBytes))
+        if (!VerifyEncoded(Argon2Algorithm.Argon2id, user.Hash, passwordBytes))
         {
             RecordFailedLogin(user.Id, config);
             return null;
@@ -153,7 +154,7 @@ public static class AuthService
             return null;
 
         // Verify Argon2 hash
-        return Argon2.VerifyEncoded(Argon2.Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret))
+        return VerifyEncoded(Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret))
             ? client
             : null;
     }
@@ -397,7 +398,7 @@ public static class AuthService
         if (tokenRow is null || tokenRow.IsRevoked || tokenRow.ExpiresAt < DateTime.UtcNow)
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
 
-        if (!Argon2.VerifyEncoded(
+        if (!VerifyEncoded(
                 Argon2Algorithm.Argon2id,
                 tokenRow.Hash,
                 Encoding.UTF8.GetBytes(req.RefreshToken)))
@@ -499,7 +500,7 @@ public static class AuthService
                 return false;
 
             var hash = reader.GetString(0);
-            return Argon2.VerifyEncoded(
+            return VerifyEncoded(
                 Argon2Algorithm.Argon2id,
                 hash,
                 Encoding.UTF8.GetBytes(clientSecret)

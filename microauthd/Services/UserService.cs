@@ -2,6 +2,7 @@
 using madTypes.Api.Requests;
 using madTypes.Api.Responses;
 using madTypes.Common;
+using microauthd.Common;
 using microauthd.Config;
 using Microsoft.Data.Sqlite;
 using nebulae.dotArgon2;
@@ -12,7 +13,7 @@ using System.Text;
 using static microauthd.Tokens.TokenIssuer;
 using static nebulae.dotArgon2.Argon2;
 
-namespace microauthd.Common;
+namespace microauthd.Services;
 
 public static class UserService
 {
@@ -303,10 +304,10 @@ public static class UserService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT id, username, email, created_at, is_active
-            FROM users
-            ORDER BY username ASC;
-        """;
+                SELECT id, username, email, created_at, is_active
+                FROM users
+                ORDER BY username ASC;
+            """;
 
             using var reader = cmd.ExecuteReader();
             var list = new List<UserObject>();
@@ -327,6 +328,30 @@ public static class UserService
         });
 
         return ApiResult<List<UserObject>>.Ok(users);
+    }
+
+    /// <summary>
+    /// Deletes a user with the specified identifier from the database.
+    /// </summary>
+    /// <remarks>This method executes a database operation to delete a user by their unique identifier. 
+    /// Ensure that the provided <paramref name="id"/> corresponds to an existing user in the database.</remarks>
+    /// <param name="id">The unique identifier of the user to delete. Cannot be null or empty.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> object.  If the user is successfully
+    /// deleted, the result is <see cref="ApiResult{T}.Ok"/> with a success message.  If the user is not found, the
+    /// result is <see cref="ApiResult{T}.NotFound"/> with an error message.</returns>
+    public static ApiResult<MessageResponse> DeleteUser(string id)
+    {
+        var rows = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM users WHERE id = $id";
+            cmd.Parameters.AddWithValue("$id", id);
+            return cmd.ExecuteNonQuery();
+        });
+
+        return rows > 0
+            ? ApiResult<MessageResponse>.Ok(new(true, $"Deleted user {id}"))
+            : ApiResult<MessageResponse>.NotFound($"User {id} not found.");
     }
 
     /// <summary>
@@ -1194,7 +1219,7 @@ public static class UserService
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(salt);
 
-        var hash = Argon2.Argon2HashEncodedToString(
+        var hash = Argon2HashEncodedToString(
             Argon2Algorithm.Argon2id,
             (uint)config.Argon2Time,
             (uint)config.Argon2Memory,

@@ -1,6 +1,7 @@
 ﻿namespace microauthd.Config;
 
 using microauthd.Common;
+using microauthd.Services;
 
 internal static class OobePrompts
 {

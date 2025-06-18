@@ -2,7 +2,7 @@
 using madTypes.Common;
 using Microsoft.AspNetCore.Http;
 
-namespace microauthd.Common
+namespace microauthd.Services
 {
     public static class AuditService
     {
