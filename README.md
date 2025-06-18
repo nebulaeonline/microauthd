@@ -24,7 +24,7 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 2025-06-18
 
-Things are a bit in flux at the moment. Some things are broken. Namely token introspection and token revocation. We are working dilligently to fix these issues. Please be patient, we should have fixes out today.
+~~Things are a bit in flux at the moment. Some things are broken.~~ Token introspection and token revocation should be solid again.
 
 2025-06-17
 
