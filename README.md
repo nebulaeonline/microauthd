@@ -4,7 +4,7 @@ microauthd is a self-hosted, embedded-friendly identity provider designed for in
 
 Curent AOT status is: building & executing - 26MB executable, 35MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
 
-AOT build:
+AOT build (same command for mad in the mad directory):
 
 ```bash
 
