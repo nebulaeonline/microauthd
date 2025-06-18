@@ -92,8 +92,8 @@ microauthd ships with a full-featured CLI tool called `mad` that:
 
 - Works with any admin endpoint (via Bearer token or session login)
 - Allows automation of:
-  - User creation, deletion, activation, and deactivation
-  - Role creation, deletion, and assignment 
+  - User creation, update, deletion, activation, and deactivation
+  - Role creation, update, deletion, and assignment 
   - Permission checks
   - Scope + client management
 - Uses a persistent token store (`~/.mad_token`) for login sessions
@@ -138,20 +138,20 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 
 ### What Still Needs Work
 
-- `mad` CLI needs strengthening for production use; it's functional but not polished (and slower than it should be)
-- Some minor inconsistencies in API response formatting
+- `mad` CLI still a WIP but has improved significantly
+- ~~Some minor inconsistencies in API response formatting~~ (APIs are now consistent)
 - Token usage metadata is stored but not yet used for token tracing
 - Audit log field consistency still being refined
 - Swaggger/OpenAPI coverage is in progress (tags are set but needs polish)
 
 ### Known Shortcomings
 
-- **Update Endpoints are not yet implemented** - you can create, delete, and assign, but not update scopes, roles, or users (WIP)
+- ~~**Update Endpoints are not yet implemented**~~ - updates are now implemented for users, roles, permissions, clients, and scopes
 - **No multi-tenancy** support (by design)
 - **No UI** - this is a text-first, CLI- and API-driven system
 - **One shared DB connection** limits concurrency- will be addressed via per-request pooled connections
 - **Does not enforce fine-graned resource ownership or external ACLs** - leaves this to calling systems
-- OOBE is helpful, but **not quite production-ready** for large deployments
+- OOBE is helpful, but **not quite production-ready** for large deployments (much better in v2 of OOBE now)
 - OTP-based loginis not yet implemented (on roadmap)
 - **Bindings for other languages are not yet published**
 
@@ -160,8 +160,8 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 1. ~~Add token introspection endpoint (`/introspect`)~~ Done.
 2. ~~Implement replay detection for access tokens~~ Done.
 3. Replace shared DB connection with per-request pooling (WAL-mode safe)
-4. Clean up API DTOs (uniform `MessageResponse`, consistent `id + name`)
-5. Launch test harness using `mad` + Python bindings (in progress)
+4. ~~Clean up API DTOs (uniform `MessageResponse`, consistent `id + name`)~~ Done.
+5. ~~Launch test harness using `mad` + Python bindings (in progress)~~ Done.
 6. Ship bindings for C#, Go, Python, Rust, and JavaScript (TS, Axios, Node)
 7. More robust failed password mechanisms (~~rate limiting~~ (done) / exponential backoff)
 8. OTP login flow
