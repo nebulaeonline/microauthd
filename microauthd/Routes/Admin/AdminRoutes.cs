@@ -129,9 +129,13 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // delete user permanently endpoint*********************************************************
-        group.MapDelete("/users/{id}", (string id, ClaimsPrincipal user) =>
+        group.MapDelete("/users/{id}", (string id, HttpContext ctx, AppConfig config, ClaimsPrincipal user) =>
         {
-            return UserService.DeleteUser(id).ToHttpResult();
+            var ip = ctx.Connection.RemoteIpAddress?.ToString();
+            var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
+            var userId = ctx.User.GetUserId();
+
+            return UserService.DeleteUser(id, config, userId, ip, ua).ToHttpResult();
         })
         .RequireAuthorization()
         .WithName("DeleteUser")

@@ -44,20 +44,28 @@ public static class TokenIssuer
             _ => throw new InvalidOperationException("Unsupported key type")
         };
 
+        var userId = userClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value ?? "unknown";
         var now = DateTime.UtcNow;
         var expires = now.AddSeconds(isAdmin ? config.AdminTokenExpiration : config.TokenExpiration);
         var jti = Guid.NewGuid().ToString("N");
         var tokenUse = isAdmin ? "admin" : "auth";
-        var userId = userClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value ?? "unknown";
         var aud = audience ?? "microauthd";
 
-        var claims = new List<Claim>(userClaims)
-    {
-        new(JwtRegisteredClaimNames.Jti, jti),
-        new(JwtRegisteredClaimNames.Iat, ((DateTimeOffset)now).ToUnixTimeSeconds().ToString()),
-        new(JwtRegisteredClaimNames.Aud, "microauthd"),
-        new("token_use", tokenUse)
-    };
+        // Base claims (ignore Aud as claim — it’s redundant)
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, userClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value ?? "unknown"),
+            new(JwtRegisteredClaimNames.Jti, jti),
+            new(JwtRegisteredClaimNames.Iat, ((DateTimeOffset)now).ToUnixTimeSeconds().ToString()),
+            new("token_use", tokenUse)
+        };
+
+        // Propagate other claims, including client_id
+        foreach (var c in userClaims)
+        {
+            if (claims.All(existing => existing.Type != c.Type))
+                claims.Add(c);
+        }
 
         var jwt = new JwtSecurityToken(
             issuer: config.OidcIssuer,

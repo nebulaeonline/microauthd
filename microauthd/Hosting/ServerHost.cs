@@ -1,9 +1,8 @@
 ﻿using System.Net;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-
 using Serilog;
 
 using microauthd.Common;
@@ -15,6 +14,7 @@ using microauthd.Tokens;
 using microauthd.Services;
 
 using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
 
 namespace microauthd.Hosting;
 
@@ -63,8 +63,11 @@ public static class ServerHost
                             RoleClaimType = ClaimTypes.Role,
                             AudienceValidator = (audiences, securityToken, validationParams) =>
                             {
-                                if (securityToken is not JwtSecurityToken jwt)
+                                if (securityToken is not JsonWebToken jwt)
+                                {
+                                    Log.Warning("Audience validation failed: token is of type {Type}", securityToken?.GetType().Name ?? "null");
                                     return false;
+                                }
 
                                 var clientId = jwt.Claims.FirstOrDefault(c => c.Type == "client_id")?.Value;
                                 if (string.IsNullOrWhiteSpace(clientId))
@@ -103,11 +106,14 @@ public static class ServerHost
                                 var config = context.HttpContext.RequestServices.GetRequiredService<AppConfig>();
 
                                 var claims = context.Principal?.Claims?.ToList() ?? new List<Claim>();
-                                var userId = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+                                var rawUserId = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+                                var tokenUse = claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "auth";
+                                Guid parsed;
+                                var userId = tokenUse == "auth" && Guid.TryParse(rawUserId, out parsed) ? rawUserId : null;
                                 var jti = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
 
                                 // Check session revocation if enabled
-                                if (config.EnableTokenRevocation)
+                                if (config.EnableTokenRevocation && tokenUse == "auth")
                                 {
                                     if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(jti))
                                     {
@@ -121,7 +127,7 @@ public static class ServerHost
 
                                         AuditLogger.AuditLog(
                                             config,
-                                            userId: userId,
+                                            userId: userId, // already validated to be a GUID
                                             action: "auth.token.replay_detected",
                                             target: $"jti={jti}",
                                             ipAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),

@@ -58,6 +58,15 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(TokenIntrospectionRequest))]
 [JsonSerializable(typeof(CreatedResponse))]
 [JsonSerializable(typeof(List<CreatedResponse>))]
+[JsonSerializable(typeof(Dictionary<string, object>))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(double))]
+[JsonSerializable(typeof(DateTime))]
+[JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(object[]))]
 public partial class MicroauthJsonContext : JsonSerializerContext
 {
 }

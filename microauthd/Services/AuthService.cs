@@ -253,23 +253,22 @@ public static class AuthService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> if the request is successful. Returns a
     /// forbidden result if the credentials or client information are invalid.</returns>
     public static ApiResult<TokenResponse> IssueUserToken(
-        TokenRequest req,
+        IFormCollection form,
         AppConfig config,
         string ip,
         string userAgent)
     {
-        if (string.IsNullOrWhiteSpace(req.Username) ||
-            string.IsNullOrWhiteSpace(req.Password) ||
-            string.IsNullOrWhiteSpace(req.ClientIdentifier))
-        {
-            Log.Warning("Token request failed: missing fields. IP {IP} UA {UA}", ip, userAgent);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
-        }
+        var username = form["username"].ToString();
+        var password = form["password"].ToString();
+        var clientIdent = form["client_id"].ToString();
 
-        var clientIdent = req.ClientIdentifier.Trim();
+        if (string.IsNullOrWhiteSpace(username) ||
+        string.IsNullOrWhiteSpace(password) ||
+        string.IsNullOrWhiteSpace(clientIdent))
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
 
         // check the DB for the client identifier
-        var client = Db.WithConnection(conn =>
+        var audience = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
@@ -280,21 +279,31 @@ public static class AuthService
             """;
             cmd.Parameters.AddWithValue("$cid", clientIdent);
 
-            using var reader = cmd.ExecuteReader();
-            return reader.Read() ? reader.GetString(0) : null;
+            try
+            {
+                using var reader = cmd.ExecuteReader();
+                if (!reader.Read())
+                    return null;
+
+                return reader.IsDBNull(0) ? "microauthd" : reader.GetString(0);
+            }
+            catch
+            {
+                return "microauthd";
+            }
         });
 
-        if (client is null)
+        if (string.IsNullOrEmpty(clientIdent))
         {
             Log.Warning("Unknown or inactive client_identifier {ClientIdent}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
         // Authenticate user
-        var result = AuthenticateUser(req.Username, req.Password, config);
+        var result = AuthenticateUser(username, password, config);
         if (result is not { Success: true } r)
         {
-            Log.Warning("Failed login attempt for {Username}. IP {IP} UA {UA}", req.Username, ip, userAgent);
+            Log.Warning("Failed login attempt for {Username}. IP {IP} UA {UA}", username, ip, userAgent);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
@@ -330,7 +339,7 @@ public static class AuthService
             claims.Add(new Claim("scope", string.Join(' ', scopes)));
 
         // Issue JWT
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: client);
+        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
         UserService.WriteSessionToDb(tokenInfo, config, clientIdent);
 
         // Optionally generate refresh token
@@ -359,7 +368,7 @@ public static class AuthService
             ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
             Jti = tokenInfo.Jti,
             RefreshToken = refreshToken,
-            Audience = client
+            Audience = audience
         });
     }
 
@@ -374,12 +383,13 @@ public static class AuthService
     /// <param name="config">The application configuration used to issue the new access token.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> with the new access token,  or an error
     /// result if the refresh token is invalid, expired, or revoked.</returns>
-    public static ApiResult<TokenResponse> RefreshAccessToken(RefreshRequest req, AppConfig config)
+    public static ApiResult<TokenResponse> RefreshAccessToken(IFormCollection form, AppConfig config)
     {
-        if (string.IsNullOrWhiteSpace(req.RefreshToken))
-            return ApiResult<TokenResponse>.Fail("InvalidCredentials", 400);
+        var raw = form["refresh_token"].ToString();
+        if (string.IsNullOrWhiteSpace(raw))
+            return ApiResult<TokenResponse>.Fail("Missing refresh token", 400);
 
-        var sha256 = Utils.Sha256Base64(req.RefreshToken);
+        var sha256 = Utils.Sha256Base64(raw);
 
         var tokenRow = Db.WithConnection(conn =>
         {
@@ -412,7 +422,7 @@ public static class AuthService
         if (!VerifyEncoded(
                 Argon2Algorithm.Argon2id,
                 tokenRow.Hash,
-                Encoding.UTF8.GetBytes(req.RefreshToken)))
+                Encoding.UTF8.GetBytes(raw)))
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
 
         // Revoke the old token
@@ -458,14 +468,21 @@ public static class AuthService
 
         var audience = Db.WithConnection(conn =>
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT audience FROM clients
-                WHERE client_identifier = $cid LIMIT 1;
-            """;
-            cmd.Parameters.AddWithValue("$cid", tokenRow.ClientIdentifier);
-            using var reader = cmd.ExecuteReader();
-            return reader.Read() ? reader.GetString(0) : null;
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    SELECT audience FROM clients
+                    WHERE client_identifier = $cid LIMIT 1;
+                """;
+                cmd.Parameters.AddWithValue("$cid", tokenRow.ClientIdentifier);
+                using var reader = cmd.ExecuteReader();
+                return reader.Read() ? reader.GetString(0) : null;
+            }
+            catch
+            {
+                return "microauthd";
+            }
         }) ?? "microauthd";
 
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
@@ -515,7 +532,7 @@ public static class AuthService
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
                     SELECT client_secret_hash FROM clients
-                    WHERE client_id = $cid AND is_active = 1;
+                    WHERE client_identifier = $cid AND is_active = 1;
                 """;
             cmd.Parameters.AddWithValue("$cid", clientId);
 
@@ -828,13 +845,13 @@ public static class AuthService
         var clientSecret = form["client_secret"].ToString();
 
         if (string.IsNullOrWhiteSpace(grantType) || grantType != "client_credentials")
-            return ApiResult<TokenResponse>.Fail("Unsupported grant_type", 400);
+            return ApiResult<TokenResponse>.Fail("Invalid credentials", 403);
 
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
-            return ApiResult<TokenResponse>.Fail("Missing client credentials", 401);
+            return ApiResult<TokenResponse>.Fail("Invalid credentials", 403);
 
         if (!ValidateOidcClient(clientId, clientSecret, config))
-            return ApiResult<TokenResponse>.Fail("Invalid client credentials", 401);
+            return ApiResult<TokenResponse>.Fail("Invalid credentials", 403);
 
         var scopes = Db.WithConnection(conn =>
         {
@@ -844,7 +861,7 @@ public static class AuthService
                 FROM client_scopes cs
                 JOIN scopes s ON cs.scope_id = s.id
                 JOIN clients c ON cs.client_id = c.id
-                WHERE c.client_id = $cid AND cs.is_active = 1 AND s.is_active = 1 AND c.is_active = 1;
+                WHERE c.client_identifier = $cid AND cs.is_active = 1 AND s.is_active = 1 AND c.is_active = 1;
             """;
             cmd.Parameters.AddWithValue("$cid", clientId);
 
@@ -856,24 +873,32 @@ public static class AuthService
         });
 
         var claims = new List<Claim>
-    {
-        new(JwtRegisteredClaimNames.Sub, clientId),
-        new("token_use", "client")
-    };
+        {
+            new(JwtRegisteredClaimNames.Sub, clientId),
+            new("client_id", clientId),
+            new("token_use", "client")
+        };
 
         if (scopes.Count > 0)
             claims.Add(new Claim("scope", string.Join(' ', scopes)));
 
         var audience = Db.WithConnection(conn =>
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT audience FROM clients
-                WHERE client_identifier = $cid LIMIT 1;
-            """;
-            cmd.Parameters.AddWithValue("$cid", clientId);
-            using var reader = cmd.ExecuteReader();
-            return reader.Read() ? reader.GetString(0) : null;
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    SELECT audience FROM clients
+                    WHERE client_identifier = $cid LIMIT 1;
+                """;
+                cmd.Parameters.AddWithValue("$cid", clientId);
+                using var reader = cmd.ExecuteReader();
+                return reader.Read() ? reader.GetString(0) : null;
+            }
+            catch
+            {
+                return "microauthd";
+            }
         }) ?? "microauthd";
 
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);

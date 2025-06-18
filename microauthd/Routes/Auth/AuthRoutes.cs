@@ -110,48 +110,33 @@ public static class AuthRoutes
                     .ToHttpResult();
 
             var form = await ctx.Request.ReadFormAsync();
-
-            var request = new TokenRequest
-            {
-                Username = form["username"],
-                Password = form["password"],
-                ClientIdentifier = form["client_id"]
-            };
-
-            if (string.IsNullOrWhiteSpace(request.Username) ||
-                string.IsNullOrWhiteSpace(request.Password) ||
-                string.IsNullOrWhiteSpace(request.ClientIdentifier))
-            {
-                return ApiResult<TokenResponse>
-                    .Fail("Invalid credentials", 400)
-                    .ToHttpResult();
-            }
-
+            var grantType = form["grant_type"].ToString().Trim();
+                            
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
 
-            return AuthService.IssueUserToken(request, config, ip, ua).ToHttpResult();
+            return grantType switch
+            {
+                "password" => AuthService.IssueUserToken(
+                    form, 
+                    config, 
+                    ip, 
+                    ua)
+                .ToHttpResult(),
+                
+                "refresh_token" => AuthService.RefreshAccessToken(
+                    form, 
+                    config)
+                .ToHttpResult(),
+                
+                _ => ApiResult<TokenResponse>.Fail("Unsupported grant_type", 400).ToHttpResult()
+            };            
         })
         .WithName("IssueToken")
         .Produces<TokenResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .WithTags("Auth")
         .WithOpenApi();
-
-
-        // refresh token request endpoint (if enabled)**********************************************
-        if (config.EnableTokenRefresh)
-        {
-            group.MapPost("/token/refresh", (RefreshRequest req, AppConfig config) =>
-            {
-                return AuthService.RefreshAccessToken(req, config).ToHttpResult();
-            })
-            .WithName("RefreshToken")
-            .Produces<TokenResponse>(StatusCodes.Status200OK)
-            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-            .WithTags("Refresh Token")
-            .WithOpenApi();
-        }
 
         // user logout endpoint*********************************************************************
         group.MapPost("/logout", (ClaimsPrincipal user, AppConfig config) =>
@@ -331,14 +316,12 @@ public static class AuthRoutes
         .WithOpenApi();
 
         // OIDC token introspection endpoint********************************************************
-        // OIDC token introspection endpoint (machine-to-machine only)
         group.MapPost("/introspect", async (HttpContext ctx, AppConfig config) =>
         {
-            // Require valid form
             if (!ctx.Request.HasFormContentType)
             {
                 AuditLogger.AuditLog(
-                    config: config,
+                    config,
                     userId: null,
                     action: "token.introspect.failure",
                     target: $"client=invalid reason=invalid_form",
@@ -352,15 +335,17 @@ public static class AuthRoutes
             }
 
             var form = await ctx.Request.ReadFormAsync();
-            var token = form["token"].FirstOrDefault();
+            var token = form["token"].ToString();
+            var clientId = form["client_id"].ToString();
+            var clientSecret = form["client_secret"].ToString();
 
-            if (string.IsNullOrWhiteSpace(token))
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             {
                 AuditLogger.AuditLog(
-                    config: config,
+                    config,
                     userId: null,
                     action: "token.introspect.failure",
-                    target: $"client=unknown reason=null_token",
+                    target: $"client={clientId} reason=missing_fields",
                     ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
                     userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
                 );
@@ -370,32 +355,14 @@ public static class AuthRoutes
                     .ToHttpResult();
             }
 
-            // Require client credentials via HTTP Basic Auth
-            var authHeader = ctx.Request.Headers.Authorization.ToString();
-            if (!AuthHelpers.TryParseBasicAuth(authHeader, out var clientId, out var clientSecret))
-            {
-                AuditLogger.AuditLog(
-                    config: config,
-                    userId: null,
-                    action: "token.introspect.failure",
-                    target: $"client={clientId} reason=unable_to_parse_auth",
-                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
-                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
-                );
-                return ApiResult<Dictionary<string, object>>
-                    .Fail("Authorization Failed", 403)
-                    .ToHttpResult();
-            }
-
-            // Authenticate the client (supports both in-memory and DB clients)
             var client = AuthService.AuthenticateClient(clientId, clientSecret, config);
             if (client is null)
             {
                 AuditLogger.AuditLog(
-                    config: config,
+                    config,
                     userId: null,
                     action: "token.introspect.failure",
-                    target: $"client={clientId} reason=failed_basic_auth",
+                    target: $"client={clientId} reason=invalid_client_credentials",
                     ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
                     userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
                 );
@@ -405,7 +372,6 @@ public static class AuthRoutes
                     .ToHttpResult();
             }
 
-            // Delegate to token introspection logic
             return AuthService.IntrospectToken(
                 token,
                 client.ClientId,

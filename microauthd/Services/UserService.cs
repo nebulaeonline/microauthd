@@ -339,7 +339,12 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> object.  If the user is successfully
     /// deleted, the result is <see cref="ApiResult{T}.Ok"/> with a success message.  If the user is not found, the
     /// result is <see cref="ApiResult{T}.NotFound"/> with an error message.</returns>
-    public static ApiResult<MessageResponse> DeleteUser(string id)
+    public static ApiResult<MessageResponse> DeleteUser(
+        string id,
+        AppConfig config,
+        string? userId = null,
+        string? ip = null,
+        string? ua = null)
     {
         var rows = Db.WithConnection(conn =>
         {
@@ -348,6 +353,8 @@ public static class UserService
             cmd.Parameters.AddWithValue("$id", id);
             return cmd.ExecuteNonQuery();
         });
+
+        AuditLogger.AuditLog(config, userId, "delete_user", id, ip, ua);
 
         return rows > 0
             ? ApiResult<MessageResponse>.Ok(new(true, $"Deleted user {id}"))

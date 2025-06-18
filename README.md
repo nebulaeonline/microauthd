@@ -22,6 +22,10 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 ## microauthd Status Updates
 
+2025-06-18
+
+Things are a bit in flux at the moment. Some things are broken. Namely token introspection and token revocation. We are working dilligently to fix these issues. Please be patient, we should have fixes out today.
+
 2025-06-17
 
 CRUD operations are now implemented for our 5 main data types: users, roles, permissions, clients, and scopes. The API is now consistent across all endpoints, with uniform response structures and error handling. The `mad` CLI tool has also been significantly improved to support these operations.

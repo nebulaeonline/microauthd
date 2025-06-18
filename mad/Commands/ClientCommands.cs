@@ -35,6 +35,7 @@ internal static class ClientCommands
         var secret = new Option<string?>("--secret", "Client secret to use (omit to auto-generate)");
         var genLen = new Option<int?>("--gen-password", "Generate a random secret of the given length");
         var name = new Option<string?>("--display-name", () => string.Empty);
+        var audience = new Option<string?>("--audience", "Audience for the client (optional. Defaults to 'microauthd'") { IsRequired = false };
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
@@ -46,9 +47,10 @@ internal static class ClientCommands
         cmd.AddOption(name);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(audience);
         cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string id, string? s, int? gen, string? disp, bool jsonOut) =>
+        cmd.SetHandler(async (string url, string? token, string id, string? s, int? gen, string? disp, string? aud, bool jsonOut) =>
         {
             try
             {
@@ -87,7 +89,8 @@ internal static class ClientCommands
                 {
                     ClientId = id,
                     ClientSecret = actualSecret,
-                    DisplayName = disp
+                    DisplayName = disp,
+                    Audience = aud ?? "microauthd"
                 });
 
                 if (result is null)
@@ -120,7 +123,7 @@ internal static class ClientCommands
                     Console.Error.WriteLine(ex.Message);
                 }
             }
-        }, adminUrl, adminToken, clientId, secret, genLen, name, jsonOut);
+        }, adminUrl, adminToken, clientId, secret, genLen, name, audience, jsonOut);
 
         return cmd;
     }
@@ -133,6 +136,7 @@ internal static class ClientCommands
         var clientId = new Option<string?>("--client-id", "New client identifier");
         var displayName = new Option<string?>("--display-name", "New display name");
         var active = new Option<bool?>("--is-active", "Set active status (true/false)");
+        var audience = new Option<string?>("--audience", "New audience for the client (optional, defaults to 'microauthd')");
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
@@ -145,10 +149,11 @@ internal static class ClientCommands
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
         cmd.AddOption(jsonOut);
+        cmd.AddOption(audience);
 
         cmd.SetHandler(async (
             string url, string? token, string id,
-            string? newClientId, string? newName, bool? newStatus, bool json) =>
+            string? newClientId, string? newName, bool? newStatus, string? aud, bool json) =>
         {
             try
             {
@@ -160,7 +165,7 @@ internal static class ClientCommands
                     return;
                 }
 
-                if (newClientId is null && newName is null && newStatus is null)
+                if (newClientId is null && newName is null && newStatus is null && audience is null)
                 {
                     var err = new ErrorResponse(false, "You must provide at least one field to update.");
                     Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
@@ -182,7 +187,8 @@ internal static class ClientCommands
                     ClientId = newClientId ?? existing.ClientId,
                     DisplayName = newName ?? existing.DisplayName,
                     IsActive = newStatus ?? existing.IsActive,
-                    CreatedAt = existing.CreatedAt
+                    CreatedAt = existing.CreatedAt,
+                    Audience = aud ?? existing.Audience
                 };
 
                 var updated = await client.UpdateClient(id, updatedInput);
@@ -207,7 +213,7 @@ internal static class ClientCommands
                 var err = new ErrorResponse(false, $"Unexpected error: {ex.Message}");
                 Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
             }
-        }, adminUrl, adminToken, id, clientId, displayName, active, jsonOut);
+        }, adminUrl, adminToken, id, clientId, displayName, active, audience, jsonOut);
 
         return cmd;
     }

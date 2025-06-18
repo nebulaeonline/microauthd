@@ -14,4 +14,6 @@ public sealed class ClientObject
     public bool IsActive { get; init; }
     [JsonPropertyName("created_at")]
     public string CreatedAt { get; init; } = string.Empty;
+    [JsonPropertyName("audience")]
+    public string Audience { get; init; } = "microauthd";
 }
