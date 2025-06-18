@@ -951,7 +951,7 @@ public static class AdminRoutes
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithOpenApi();
 
-        // remove scope from user endpoing**********************************************************
+        // remove scope from user endpoint**********************************************************
         group.MapDelete("/users/{userId}/scopes/{scopeId}", (
             string userId,
             string scopeId,
@@ -975,7 +975,7 @@ public static class AdminRoutes
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithOpenApi();
 
-        // get audit logs endpoing******************************************************************
+        // get audit logs endpoint******************************************************************
         group.MapGet("/audit-logs", (
             [FromQuery] string? userId,
             [FromQuery] string? action,
