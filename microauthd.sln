@@ -17,6 +17,18 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mad", "mad\mad.csproj", "{6
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "madTypes", "madTypes\madTypes.csproj", "{718CEA13-F9D4-4BC8-B922-92540797BF26}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\mad_testing\tests\mad_testlib.py = ..\..\mad_testing\tests\mad_testlib.py
+		..\..\mad_testing\tests\test_00_users.py = ..\..\mad_testing\tests\test_00_users.py
+		..\..\mad_testing\tests\test_01_roles.py = ..\..\mad_testing\tests\test_01_roles.py
+		..\..\mad_testing\tests\test_02_role_assignments.py = ..\..\mad_testing\tests\test_02_role_assignments.py
+		..\..\mad_testing\tests\test_03_permissions.py = ..\..\mad_testing\tests\test_03_permissions.py
+		..\..\mad_testing\tests\test_04_scopes.py = ..\..\mad_testing\tests\test_04_scopes.py
+		..\..\mad_testing\tests\test_05_clients.py = ..\..\mad_testing\tests\test_05_clients.py
+		..\..\mad_testing\tests\test_06_cleanup.py = ..\..\mad_testing\tests\test_06_cleanup.py
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

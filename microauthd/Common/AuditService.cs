@@ -124,7 +124,7 @@ namespace microauthd.Common
                 return cmd.ExecuteNonQuery();
             });
 
-            return ApiResult<MessageResponse>.Ok(new MessageResponse($"Purged {purged} audit log(s)."));
+            return ApiResult<MessageResponse>.Ok(new MessageResponse(true, $"Purged {purged} audit log(s)."));
         }
     }
 

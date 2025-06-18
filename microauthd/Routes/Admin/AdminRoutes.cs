@@ -12,6 +12,7 @@ using Serilog;
 
 using static nebulae.dotArgon2.Argon2;
 using microauthd.Tokens;
+using madTypes.Api.Common;
 
 namespace microauthd.Routes.Admin;
 
@@ -62,7 +63,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreateUser")
-        .Produces<UserResponse>(StatusCodes.Status200OK)
+        .Produces<UserObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Users")
         .WithOpenApi();
@@ -75,7 +76,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("ListUsers")
-        .Produces<List<UserResponse>>(StatusCodes.Status200OK)
+        .Produces<List<UserObject>>(StatusCodes.Status200OK)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -87,8 +88,26 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("GetUser")
-        .Produces<UserResponse>(StatusCodes.Status200OK)
+        .Produces<UserObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .WithTags("Users")
+        .WithOpenApi();
+
+        // update user endpoint*********************************************************************
+        group.MapPut("/users/{id}", (
+            string id,
+            UserObject updated,
+            AppConfig config,
+            HttpContext ctx
+        ) =>
+        {
+            var result = UserService.UpdateUser(id, updated, config);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("UpdateUser")
+        .Produces<UserObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -348,7 +367,24 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreateRole")
-        .Produces<RoleResponse>(StatusCodes.Status200OK)
+        .Produces<RoleObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Roles")
+        .WithOpenApi();
+
+        // update role endpoint*********************************************************************
+        group.MapPut("/roles/{id}", (
+            string id,
+            RoleObject updated,
+            AppConfig config
+        ) =>
+        {
+            var result = RoleService.UpdateRole(id, updated, config);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("UpdateRole")
+        .Produces<RoleObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Roles")
         .WithOpenApi();
@@ -361,7 +397,23 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("ListRoles")
-        .Produces<List<RoleResponse>>(StatusCodes.Status200OK)
+        .Produces<List<RoleObject>>(StatusCodes.Status200OK)
+        .WithTags("Roles")
+        .WithOpenApi();
+
+        // get role endpoint************************************************************************
+        group.MapGet("/roles/{id}", (
+            string id,
+            AppConfig config
+        ) =>
+        {
+            var result = RoleService.GetRoleById(id);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetRoleById")
+        .Produces<RoleObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -446,7 +498,24 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreatePermission")
-        .Produces<PermissionResponse>(StatusCodes.Status200OK)
+        .Produces<PermissionObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Permissions")
+        .WithOpenApi();
+
+        // update permission endpoint***************************************************************
+        group.MapPut("/permissions/{id}", (
+            string id,
+            PermissionObject updated,
+            AppConfig config
+        ) =>
+        {
+            var result = RoleService.UpdatePermission(id, updated, config);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("UpdatePermission")
+        .Produces<PermissionObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Permissions")
         .WithOpenApi();
@@ -459,7 +528,20 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("ListPermissions")
-        .Produces<List<PermissionResponse>>(StatusCodes.Status200OK)
+        .Produces<List<PermissionObject>>(StatusCodes.Status200OK)
+        .WithTags("Permissions")
+        .WithOpenApi();
+
+        // get permission endpoint******************************************************************
+        group.MapGet("/permissions/{id}", (string id, AppConfig config) =>
+        {
+            var result = RoleService.GetPermissionById(id);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetPermissionById")
+        .Produces<PermissionObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -540,7 +622,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("GetPermissionsForUser")
-        .Produces<List<PermissionResponse>>(StatusCodes.Status200OK)
+        .Produces<List<PermissionObject>>(StatusCodes.Status200OK)
         .WithTags("Permissions")
         .WithTags("Users")
         .WithOpenApi();
@@ -558,29 +640,6 @@ public static class AdminRoutes
         .WithTags("Permissions")
         .WithOpenApi();
 
-        // create client endpoint*******************************************************************
-        group.MapPost("/clients", (
-            CreateClientRequest req,
-            AppConfig config,
-            HttpContext ctx
-) =>
-        {
-            var result = RoleService.TryCreateClient(
-                req,
-                config,
-                ctx.User.GetUserId(),
-                ctx.Connection.RemoteIpAddress?.ToString(),
-                ctx.Request.Headers.UserAgent.ToString()
-            );
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("CreateClient")
-        .Produces<ClientResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .WithTags("Clients")
-        .WithOpenApi();
-
         // get permissions for role endpoint********************************************************
         group.MapGet("/roles/{roleId}/permissions", (string roleId) =>
         {
@@ -589,28 +648,15 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("GetPermissionsForRole")
-        .Produces<List<PermissionResponse>>(StatusCodes.Status200OK)
+        .Produces<List<PermissionObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Permissions")
         .WithTags("Roles")
         .WithOpenApi();
 
-        // list scopes endpoint*********************************************************************
-        group.MapGet("/scopes", () =>
-        {
-            var result = RoleService.ListAllScopes();
-            return result.ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithName("ListScopes")
-        .Produces<List<ScopeResponse>>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .WithTags("Scopes")
-        .WithOpenApi();
-
         // create scope endpoint********************************************************************
         group.MapPost("/scopes", (
-            ScopeResponse req,
+            ScopeObject req,
             HttpContext ctx,
             AppConfig config
         ) =>
@@ -626,8 +672,51 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("CreateScope")
-        .Produces<ScopeResponse>(StatusCodes.Status200OK)
+        .Produces<ScopeObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Scopes")
+        .WithOpenApi();
+
+        // update scope endpoint********************************************************************
+        group.MapPut("/scopes/{id}", (
+            string id,
+            ScopeObject updated,
+            AppConfig config
+        ) =>
+        {
+            var result = RoleService.UpdateScope(id, updated, config);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("UpdateScope")
+        .Produces<ScopeObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Scopes")
+        .WithOpenApi();
+
+        // list scopes endpoint*********************************************************************
+        group.MapGet("/scopes", () =>
+        {
+            var result = RoleService.ListAllScopes();
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("ListScopes")
+        .Produces<List<ScopeObject>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Scopes")
+        .WithOpenApi();
+
+        // get scope endpoint***********************************************************************
+        group.MapGet("/scopes/{id}", (string id) =>
+        {
+            var result = RoleService.GetScopeById(id);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetScopeById")
+        .Produces<ScopeObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .WithTags("Scopes")
         .WithOpenApi();
 
@@ -654,6 +743,46 @@ public static class AdminRoutes
         .WithTags("Scopes")
         .WithOpenApi();
 
+        // create client endpoint*******************************************************************
+        group.MapPost("/clients", (
+            CreateClientRequest req,
+            AppConfig config,
+            HttpContext ctx
+) =>
+        {
+            var result = RoleService.TryCreateClient(
+                req,
+                config,
+                ctx.User.GetUserId(),
+                ctx.Connection.RemoteIpAddress?.ToString(),
+                ctx.Request.Headers.UserAgent.ToString()
+            );
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("CreateClient")
+        .Produces<ClientObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Clients")
+        .WithOpenApi();
+
+        // update client endpoint*******************************************************************
+        group.MapPut("/clients/{id}", (
+            string id,
+            ClientObject updated,
+            AppConfig config
+        ) =>
+        {
+            var result = RoleService.UpdateClient(id, updated, config);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("UpdateClient")
+        .Produces<ClientObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Clients")
+        .WithOpenApi();
+
         // get clients endpoint********************************************************************
         group.MapGet("/clients", () =>
         {
@@ -662,8 +791,21 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("ListClients")
-        .Produces<List<ClientResponse>>(StatusCodes.Status200OK)
+        .Produces<List<ClientObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Clients")
+        .WithOpenApi();
+
+        // get client endpoint**********************************************************************
+        group.MapGet("/clients/{id}", (string id) =>
+        {
+            var result = RoleService.GetClientById(id);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetClientById")
+        .Produces<ClientObject>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -723,7 +865,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("ListClientScopes")
-        .Produces<List<ScopeResponse>>(StatusCodes.Status200OK)
+        .Produces<List<ScopeObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Clients")
         .WithTags("Scopes")
@@ -764,7 +906,7 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithName("ListUserScopes")
-        .Produces<List<ScopeResponse>>(StatusCodes.Status200OK)
+        .Produces<List<ScopeObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .WithTags("Scopes")
         .WithTags("Users")

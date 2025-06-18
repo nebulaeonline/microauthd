@@ -34,6 +34,7 @@ public static class DbInitializer
             password_hash TEXT NOT NULL,
             email TEXT,
             created_at TEXT NOT NULL,
+            modified_at TEXT,
             last_login TEXT,
             failed_logins INTEGER DEFAULT 0,
             last_failed_login TEXT,
@@ -54,6 +55,7 @@ public static class DbInitializer
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             created_at TEXT NOT NULL,
+            modified_at TEXT,
             is_active INTEGER NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS role_permissions (

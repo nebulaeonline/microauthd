@@ -2,7 +2,8 @@
 
 using madTypes.Api.Responses;
 using madTypes.Api.Requests;
-    
+using madTypes.Api.Common;
+
 namespace mad.Common;
 
 [JsonSourceGenerationOptions(
@@ -13,24 +14,24 @@ namespace mad.Common;
 [JsonSerializable(typeof(TokenResponse))]
 [JsonSerializable(typeof(TokenRequest))]
 [JsonSerializable(typeof(CreateUserRequest))]
-[JsonSerializable(typeof(UserResponse))]
-[JsonSerializable(typeof(List<UserResponse>))]
+[JsonSerializable(typeof(UserObject))]
+[JsonSerializable(typeof(List<UserObject>))]
 [JsonSerializable(typeof(CreateRoleRequest))]
 [JsonSerializable(typeof(AssignRoleRequest))]
-[JsonSerializable(typeof(ScopeResponse))]
-[JsonSerializable(typeof(List<ScopeResponse>))]
+[JsonSerializable(typeof(ScopeObject))]
+[JsonSerializable(typeof(List<ScopeObject>))]
 [JsonSerializable(typeof(AssignScopesRequest))]
 [JsonSerializable(typeof(CreatePermissionRequest))]
 [JsonSerializable(typeof(AssignPermissionRequest))]
 [JsonSerializable(typeof(CheckAccessRequest))]
 [JsonSerializable(typeof(AccessCheckResponse))]
 [JsonSerializable(typeof(CreateClientRequest))]
-[JsonSerializable(typeof(ClientResponse))]
-[JsonSerializable(typeof(List<ClientResponse>))]
-[JsonSerializable(typeof(RoleResponse))]
-[JsonSerializable(typeof(List<RoleResponse>))]
-[JsonSerializable(typeof(PermissionResponse))]
-[JsonSerializable(typeof(List<PermissionResponse>))]
+[JsonSerializable(typeof(ClientObject))]
+[JsonSerializable(typeof(List<ClientObject>))]
+[JsonSerializable(typeof(RoleObject))]
+[JsonSerializable(typeof(List<RoleObject>))]
+[JsonSerializable(typeof(PermissionObject))]
+[JsonSerializable(typeof(List<PermissionObject>))]
 [JsonSerializable(typeof(SessionResponse))]
 [JsonSerializable(typeof(List<SessionResponse>))]
 [JsonSerializable(typeof(CreatedResponse))]
@@ -41,4 +42,7 @@ namespace mad.Common;
 [JsonSerializable(typeof(PurgeTokensRequest))]
 [JsonSerializable(typeof(RefreshTokenResponse))]
 [JsonSerializable(typeof(List<RefreshTokenResponse>))]
+[JsonSerializable(typeof(MessageResponse))]
+[JsonSerializable(typeof(SessionStatusResponse))]
+[JsonSerializable(typeof(LoginResponse))]
 public partial class MadJsonContext : JsonSerializerContext { }

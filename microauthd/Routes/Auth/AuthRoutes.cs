@@ -1,4 +1,5 @@
-﻿using madTypes.Api.Requests;
+﻿using madTypes.Api.Common;
+using madTypes.Api.Requests;
 using madTypes.Api.Responses;
 using madTypes.Common;
 using microauthd.Common;
@@ -302,7 +303,7 @@ public static class AuthRoutes
         })
         .RequireAuthorization()
         .WithName("ReadUserScoped")
-        .Produces<UserResponse>(StatusCodes.Status200OK)
+        .Produces<UserObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .WithTags("Auth")
@@ -323,7 +324,7 @@ public static class AuthRoutes
         })
         .RequireAuthorization()
         .WithName("ListUsersScoped")
-        .Produces<List<UserResponse>>(StatusCodes.Status200OK)
+        .Produces<List<UserObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .WithTags("Auth")
         .WithOpenApi();

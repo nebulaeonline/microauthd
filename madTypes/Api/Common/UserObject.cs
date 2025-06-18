@@ -1,7 +1,7 @@
 ﻿using System.Text.Json.Serialization;
-namespace madTypes.Api.Responses;
+namespace madTypes.Api.Common;
 
-public class UserResponse
+public class UserObject
 {
     [JsonPropertyName("id")]
     public required string Id { get; set; }

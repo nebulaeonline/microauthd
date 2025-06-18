@@ -197,7 +197,7 @@ internal static class OobePrompts
     {
         while (string.IsNullOrWhiteSpace(state.OidcClientId))
         {
-            state.OidcClientId = Prompt("OIDC Client ID", string.Empty);
+            state.OidcClientId = Prompt("OIDC Client ID", "app");
             if (string.IsNullOrWhiteSpace(state.OidcClientId))
                 Console.WriteLine("Client ID cannot be empty!\n");
         }
@@ -205,7 +205,7 @@ internal static class OobePrompts
         var secretLen = PromptInt("OIDC Client Secret length", 32, 16, 64);
         state.OidcClientSecret = AuthService.GeneratePassword(secretLen);
 
-        Console.WriteLine($"\nClient created successfully.\nClient ID:     {state.OidcClientId}\nClient Secret: {state.OidcClientSecret}\n(press any key to continue)");
+        Console.WriteLine($"\nClient created successfully.\nClient ID:     {state.OidcClientId}\nClient Secret: {state.OidcClientSecret}\nThis client secret will not be shown again, so please save it securely (press any key to continue)");
         Console.ReadKey(true);
     }
 

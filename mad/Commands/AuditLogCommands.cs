@@ -59,7 +59,16 @@ internal static class AuditLogCommands
 
                 if (json)
                 {
-                    Console.WriteLine(JsonSerializer.Serialize(entries, MadJsonContext.Default.ListAuditLogResponse));
+                    if (entries.Count == 0)
+                    {
+                        Console.WriteLine(JsonSerializer.Serialize(
+                            new MessageResponse(true, "No audit log entries found"),
+                            MadJsonContext.Default.MessageResponse));
+                    }
+                    else
+                    {
+                        Console.WriteLine(JsonSerializer.Serialize(entries, MadJsonContext.Default.ListAuditLogResponse));
+                    }
                     return;
                 }
 
@@ -88,11 +97,14 @@ internal static class AuditLogCommands
         var adminToken = SharedOptions.AdminToken;
         var id = new Option<string>("--id") { IsRequired = true };
 
+        var jsonOut = SharedOptions.OutputJson;
+
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
         cmd.AddOption(id);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string entryId) =>
+        cmd.SetHandler(async (string url, string? token, string entryId, bool json) =>
         {
             try
             {
@@ -108,18 +120,42 @@ internal static class AuditLogCommands
 
                 if (entry == null)
                 {
-                    Console.Error.WriteLine($"Audit entry {entryId} not found.");
+                    if (json)
+                    {
+                        Console.WriteLine(JsonSerializer.Serialize(
+                            new ErrorResponse(false, $"Audit entry {entryId} not found."),
+                            MadJsonContext.Default.ErrorResponse));
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"Audit entry {entryId} not found.");
+                    }
                     return;
                 }
 
-                Console.WriteLine(JsonSerializer.Serialize(entry, MadJsonContext.Default.AuditLogResponse));
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(entry, MadJsonContext.Default.AuditLogResponse));
+                }
+                else
+                {
+                    Console.WriteLine("Audit Log Entry");
+                    Console.WriteLine(new string('-', 80));
+                    Console.WriteLine($"Id:         {entry.Id}");
+                    Console.WriteLine($"UserId:     {entry.UserId}");
+                    Console.WriteLine($"Action:     {entry.Action}");
+                    Console.WriteLine($"Target:     {entry.Target}");
+                    Console.WriteLine($"Timestamp:  {entry.Timestamp:u}");
+                    Console.WriteLine($"IP Address: {entry.IpAddress ?? "(none)"}");
+                    Console.WriteLine($"User Agent: {entry.UserAgent ?? "(none)"}");
+                }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Failed to retrieve audit log entry {entryId}.");
                 Console.Error.WriteLine(ex.Message);
             }
-        }, adminUrl, adminToken, id);
+        }, adminUrl, adminToken, id, jsonOut);
 
         return cmd;
     }
@@ -136,7 +172,10 @@ internal static class AuditLogCommands
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
 
-        cmd.SetHandler(async (int daysOld, string url, string? token) =>
+        var jsonOut = SharedOptions.OutputJson;
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (int daysOld, string url, string? token, bool json) =>
         {
             try
             {
@@ -156,16 +195,30 @@ internal static class AuditLogCommands
                 var client = new MadApiClient(url, token);
                 var ok = await client.PurgeAuditLogs(daysOld);
 
-                Console.WriteLine(ok
-                    ? $"Purged audit logs older than {daysOld} days."
-                    : "Purge failed.");
+                if (json)
+                {
+                    if (ok)
+                        Console.WriteLine(JsonSerializer.Serialize(
+                            new MessageResponse(true, $"Purged audit logs older than {daysOld} days."),
+                            MadJsonContext.Default.MessageResponse));
+                    else
+                        Console.WriteLine(JsonSerializer.Serialize(
+                            new ErrorResponse(false, "Purge failed."),
+                            MadJsonContext.Default.ErrorResponse));
+                }
+                else
+                {
+                    Console.WriteLine(ok
+                        ? $"Purged audit logs older than {daysOld} days."
+                        : "Purge failed.");
+                }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine("Failed to purge audit logs.");
                 Console.Error.WriteLine(ex.Message);
             }
-        }, days, adminUrl, adminToken);
+        }, days, adminUrl, adminToken, jsonOut);
 
         return cmd;
     }

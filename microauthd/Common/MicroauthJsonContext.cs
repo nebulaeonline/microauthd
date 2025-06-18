@@ -3,6 +3,7 @@
 using microauthd.Config;
 using madTypes.Api.Requests;
 using madTypes.Api.Responses;
+using madTypes.Api.Common;
 
 namespace microauthd.Common;
 
@@ -37,23 +38,23 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(OidcDiscoveryResponse))]
 [JsonSerializable(typeof(JwksResponse))]
-[JsonSerializable(typeof(ClientResponse))]
-[JsonSerializable(typeof(List<ClientResponse>))]
-[JsonSerializable(typeof(ScopeResponse))]
-[JsonSerializable(typeof(List<ScopeResponse>))]
+[JsonSerializable(typeof(ClientObject))]
+[JsonSerializable(typeof(List<ClientObject>))]
+[JsonSerializable(typeof(ScopeObject))]
+[JsonSerializable(typeof(List<ScopeObject>))]
 [JsonSerializable(typeof(AssignScopesRequest))]
 [JsonSerializable(typeof(CreateClientRequest))]
 [JsonSerializable(typeof(CreateUserRequest))]
-[JsonSerializable(typeof(UserResponse))]
-[JsonSerializable(typeof(List<UserResponse>))]
+[JsonSerializable(typeof(UserObject))]
+[JsonSerializable(typeof(List<UserObject>))]
 [JsonSerializable(typeof(AuditLogResponse))]
 [JsonSerializable(typeof(List<AuditLogResponse>))]
 [JsonSerializable(typeof(PurgeAuditLogRequest))]
 [JsonSerializable(typeof(ResetPasswordRequest))]
-[JsonSerializable(typeof(RoleResponse))]
-[JsonSerializable(typeof(List<RoleResponse>))]
-[JsonSerializable(typeof(PermissionResponse))]
-[JsonSerializable(typeof(List<PermissionResponse>))]
+[JsonSerializable(typeof(RoleObject))]
+[JsonSerializable(typeof(List<RoleObject>))]
+[JsonSerializable(typeof(PermissionObject))]
+[JsonSerializable(typeof(List<PermissionObject>))]
 [JsonSerializable(typeof(TokenIntrospectionRequest))]
 [JsonSerializable(typeof(CreatedResponse))]
 [JsonSerializable(typeof(List<CreatedResponse>))]

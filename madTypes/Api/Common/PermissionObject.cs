@@ -1,7 +1,7 @@
 ﻿using System.Text.Json.Serialization;
-namespace madTypes.Api.Responses;
+namespace madTypes.Api.Common;
 
-public class PermissionResponse
+public class PermissionObject
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = default!;

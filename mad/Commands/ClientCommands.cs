@@ -1,6 +1,8 @@
 ﻿using mad.Common;
 using mad.Http;
+using madTypes.Api.Common;
 using madTypes.Api.Requests;
+using madTypes.Api.Responses;
 using System.CommandLine;
 using System.Text.Json;
 
@@ -13,7 +15,9 @@ internal static class ClientCommands
         var cmd = new Command("client", "Manage OIDC clients");
 
         cmd.AddCommand(CreateClientCommand());
+        cmd.AddCommand(UpdateClientCommand());
         cmd.AddCommand(ListClientsCommand());
+        cmd.AddCommand(GetClientByIdCommand());
         cmd.AddCommand(DeleteClientCommand());
 
         cmd.AddCommand(AssignScopesCommand());
@@ -51,7 +55,11 @@ internal static class ClientCommands
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token. Use --admin-token or run `mad session login`.");
+                    var error = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    if (jsonOut)
+                        Console.WriteLine(JsonSerializer.Serialize(error, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(error.Message);
                     return;
                 }
 
@@ -60,12 +68,17 @@ internal static class ClientCommands
                 if (gen.HasValue)
                 {
                     actualSecret = AuthUtils.GeneratePassword(gen.Value);
-                    Console.WriteLine($"Generated client secret: {actualSecret}");
+                    if (!jsonOut)
+                        Console.WriteLine($"Generated client secret: {actualSecret}");
                 }
 
                 if (string.IsNullOrWhiteSpace(actualSecret))
                 {
-                    Console.Error.WriteLine("Client secret is required (use --secret or --gen-password).");
+                    var error = new ErrorResponse(false, "Client secret is required (use --secret or --gen-password).");
+                    if (jsonOut)
+                        Console.WriteLine(JsonSerializer.Serialize(error, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(error.Message);
                     return;
                 }
 
@@ -79,13 +92,17 @@ internal static class ClientCommands
 
                 if (result is null)
                 {
-                    Console.Error.WriteLine("Client creation failed.");
+                    var error = new ErrorResponse(false, "Client creation failed.");
+                    if (jsonOut)
+                        Console.WriteLine(JsonSerializer.Serialize(error, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(error.Message);
                     return;
                 }
 
                 if (jsonOut)
                 {
-                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.ClientResponse));
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.ClientObject));
                 }
                 else
                 {
@@ -94,10 +111,103 @@ internal static class ClientCommands
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Error creating client.");
-                Console.Error.WriteLine(ex.Message);
+                var error = new ErrorResponse(false, $"Unhandled exception: {ex.Message}");
+                if (jsonOut)
+                    Console.WriteLine(JsonSerializer.Serialize(error, MadJsonContext.Default.ErrorResponse));
+                else
+                {
+                    Console.Error.WriteLine("Error creating client.");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
         }, adminUrl, adminToken, clientId, secret, genLen, name, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command UpdateClientCommand()
+    {
+        var cmd = new Command("update", "Update a client");
+
+        var id = new Option<string>("--id") { IsRequired = true };
+        var clientId = new Option<string?>("--client-id", "New client identifier");
+        var displayName = new Option<string?>("--display-name", "New display name");
+        var active = new Option<bool?>("--is-active", "Set active status (true/false)");
+
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(id);
+        cmd.AddOption(clientId);
+        cmd.AddOption(displayName);
+        cmd.AddOption(active);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (
+            string url, string? token, string id,
+            string? newClientId, string? newName, bool? newStatus, bool json) =>
+        {
+            try
+            {
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    var err = new ErrorResponse(false, "No token.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                if (newClientId is null && newName is null && newStatus is null)
+                {
+                    var err = new ErrorResponse(false, "You must provide at least one field to update.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var existing = await client.GetClientById(id);
+                if (existing is null)
+                {
+                    var err = new ErrorResponse(false, $"Client '{id}' not found.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var updatedInput = new ClientObject
+                {
+                    Id = existing.Id,
+                    ClientId = newClientId ?? existing.ClientId,
+                    DisplayName = newName ?? existing.DisplayName,
+                    IsActive = newStatus ?? existing.IsActive,
+                    CreatedAt = existing.CreatedAt
+                };
+
+                var updated = await client.UpdateClient(id, updatedInput);
+                if (updated is null)
+                {
+                    var err = new ErrorResponse(false, "Update failed.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(updated, MadJsonContext.Default.ClientObject));
+                }
+                else
+                {
+                    Console.WriteLine($"Client updated: {updated.ClientId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, $"Unexpected error: {ex.Message}");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, adminUrl, adminToken, id, clientId, displayName, active, jsonOut);
 
         return cmd;
     }
@@ -121,7 +231,11 @@ internal static class ClientCommands
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token. Use --admin-token or `mad session login`.");
+                    var error = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(error, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(error.Message);
                     return;
                 }
 
@@ -130,13 +244,16 @@ internal static class ClientCommands
 
                 if (clients is null || clients.Count == 0)
                 {
-                    Console.WriteLine(json ? "[]" : "(no clients)");
+                    if (json)
+                        Console.WriteLine("[]");
+                    else
+                        Console.WriteLine("(no clients)");
                     return;
                 }
 
                 if (json)
                 {
-                    Console.WriteLine(JsonSerializer.Serialize(clients, MadJsonContext.Default.ListClientResponse));
+                    Console.WriteLine(JsonSerializer.Serialize(clients, MadJsonContext.Default.ListClientObject));
                 }
                 else
                 {
@@ -150,10 +267,75 @@ internal static class ClientCommands
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Failed to retrieve client list.");
-                Console.Error.WriteLine(ex.Message);
+                var error = new ErrorResponse(false, $"Exception while listing clients: {ex.Message}");
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(error, MadJsonContext.Default.ErrorResponse));
+                else
+                {
+                    Console.Error.WriteLine("Failed to retrieve client list.");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
         }, adminUrl, adminToken, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command GetClientByIdCommand()
+    {
+        var cmd = new Command("get", "Get client by ID");
+
+        var id = new Option<string>("--id") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(id);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string id, bool json) =>
+        {
+            try
+            {
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    var err = new ErrorResponse(false, "No token.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var obj = await client.GetClientById(id);
+
+                if (obj is null)
+                {
+                    var err = new ErrorResponse(false, $"Client '{id}' not found.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(obj, MadJsonContext.Default.ClientObject));
+                }
+                else
+                {
+                    Console.WriteLine($"Id:           {obj.Id}");
+                    Console.WriteLine($"ClientId:     {obj.ClientId}");
+                    Console.WriteLine($"Display Name: {obj.DisplayName}");
+                    Console.WriteLine($"Active:       {obj.IsActive}");
+                    Console.WriteLine($"Created At:   {obj.CreatedAt}");
+                }
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, $"Unexpected error: {ex.Message}");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, adminUrl, adminToken, id, jsonOut);
 
         return cmd;
     }
@@ -161,40 +343,64 @@ internal static class ClientCommands
     private static Command DeleteClientCommand()
     {
         var cmd = new Command("delete", "Delete a client");
-        var id = new Option<string>("--id") { IsRequired = true };
-        cmd.AddOption(id);
 
+        var id = new Option<string>("--id") { IsRequired = true };
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
+        cmd.AddOption(id);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string id) =>
+        cmd.SetHandler(async (string url, string? token, string id, bool json) =>
         {
             try
             {
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token.");
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
                     return;
                 }
 
                 var client = new MadApiClient(url, token);
                 var ok = await client.DeleteClient(id);
 
-                Console.WriteLine(ok
-                    ? $"Deleted client id {id}"
-                    : $"Failed to delete client id {id}");
+                if (ok)
+                {
+                    var msg = new MessageResponse(true, $"Deleted client id {id}");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(msg, MadJsonContext.Default.MessageResponse));
+                    else
+                        Console.WriteLine(msg.Message);
+                }
+                else
+                {
+                    var err = new ErrorResponse(false, $"Failed to delete client id {id}");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
+                }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error deleting client id {id}.");
-                Console.Error.WriteLine(ex.Message);
+                var err = new ErrorResponse(false, $"Exception deleting client id {id}: {ex.Message}");
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                else
+                {
+                    Console.Error.WriteLine($"Error deleting client id {id}.");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
-        }, adminUrl, adminToken, id);
-
+        }, adminUrl, adminToken, id, jsonOut);
 
         return cmd;
     }
@@ -204,40 +410,69 @@ internal static class ClientCommands
         var cmd = new Command("assign-scope", "Assign scopes to a client");
 
         var clientId = new Option<string>("--client-id") { IsRequired = true };
-        var scopeIds = new Option<List<string>>("--scope-id") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
+        var scopeIds = new Option<List<string>>("--scope-id")
+        {
+            IsRequired = true,
+            AllowMultipleArgumentsPerToken = true
+        };
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(clientId);
         cmd.AddOption(scopeIds);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string cid, List<string> sids) =>
+        cmd.SetHandler(async (string url, string? token, string cid, List<string> sids, bool json) =>
         {
             try
             {
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token.");
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
                     return;
                 }
 
                 var client = new MadApiClient(url, token);
                 var ok = await client.AssignScopesToClient(cid, sids);
 
-                Console.WriteLine(ok
-                    ? "Scopes assigned."
-                    : "Failed to assign scopes.");
+                if (ok)
+                {
+                    var msg = new MessageResponse(true, "Scopes assigned.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(msg, MadJsonContext.Default.MessageResponse));
+                    else
+                        Console.WriteLine(msg.Message);
+                }
+                else
+                {
+                    var err = new ErrorResponse(false, "Failed to assign scopes.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
+                }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Error assigning scopes to client.");
-                Console.Error.WriteLine(ex.Message);
+                var err = new ErrorResponse(false, $"Exception while assigning scopes: {ex.Message}");
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                else
+                {
+                    Console.Error.WriteLine("Error assigning scopes to client.");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
-        }, adminUrl, adminToken, clientId, scopeIds);
+        }, adminUrl, adminToken, clientId, scopeIds, jsonOut);
 
         return cmd;
     }
@@ -245,23 +480,29 @@ internal static class ClientCommands
     private static Command ListScopesCommand()
     {
         var cmd = new Command("list-scopes", "List scopes for a client");
-        var clientId = new Option<string>("--client-id") { IsRequired = true };
 
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(clientId);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string cid) =>
+        cmd.SetHandler(async (string url, string? token, string cid, bool json) =>
         {
             try
             {
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token.");
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
                     return;
                 }
 
@@ -270,23 +511,34 @@ internal static class ClientCommands
 
                 if (scopes is null || scopes.Count == 0)
                 {
-                    Console.WriteLine("(no scopes)");
+                    Console.WriteLine(json ? "[]" : "(no scopes)");
                     return;
                 }
 
-                Console.WriteLine($"{"Id",-36} {"Name",-20} Description");
-                Console.WriteLine(new string('-', 100));
-
-                foreach (var s in scopes)
-                    Console.WriteLine($"{s.Id,-36} {s.Name,-20} {s.Description}");
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(scopes, MadJsonContext.Default.ListScopeObject));
+                }
+                else
+                {
+                    Console.WriteLine($"{"Id",-36} {"Name",-20} Description");
+                    Console.WriteLine(new string('-', 100));
+                    foreach (var s in scopes)
+                        Console.WriteLine($"{s.Id,-36} {s.Name,-20} {s.Description}");
+                }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to list scopes for client {cid}.");
-                Console.Error.WriteLine(ex.Message);
+                var err = new ErrorResponse(false, $"Exception while listing scopes: {ex.Message}");
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                else
+                {
+                    Console.Error.WriteLine($"Failed to list scopes for client {cid}.");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
-        }, adminUrl, adminToken, clientId);
-
+        }, adminUrl, adminToken, clientId, jsonOut);
 
         return cmd;
     }
@@ -300,33 +552,62 @@ internal static class ClientCommands
 
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(clientId);
         cmd.AddOption(scopeId);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string cid, string sid) =>
+        cmd.SetHandler(async (string url, string? token, string cid, string sid, bool json) =>
         {
             try
             {
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token.");
+                    var err = new ErrorResponse(false, "No token.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
                     return;
                 }
 
                 var client = new MadApiClient(url, token);
                 var ok = await client.RemoveScopeFromClient(cid, sid);
-                Console.WriteLine(ok ? "Scope removed." : "Failed to remove.");
+
+                if (json)
+                {
+                    if (ok)
+                    {
+                        var result = new MessageResponse(true, "Scope removed.");
+                        Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.MessageResponse));
+                    }
+                    else
+                    {
+                        var result = new ErrorResponse(false, "Failed to remove scope.");
+                        Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.ErrorResponse));
+                    }
+                }
+                else
+                {
+                    Console.WriteLine(ok ? "Scope removed." : "Failed to remove.");
+                }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error removing scope {sid} from client {cid}.");
-                Console.Error.WriteLine(ex.Message);
+                var err = new ErrorResponse(false, $"Error removing scope {sid} from client {cid}: {ex.Message}");
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                else
+                {
+                    Console.Error.WriteLine($"Error removing scope {sid} from client {cid}.");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
-        }, adminUrl, adminToken, clientId, scopeId);
+        }, adminUrl, adminToken, clientId, scopeId, jsonOut);
 
         return cmd;
     }

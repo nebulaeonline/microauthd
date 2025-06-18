@@ -1,5 +1,6 @@
 ﻿using mad.Common;
 using mad.Http;
+using madTypes.Api.Responses;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
@@ -35,27 +36,31 @@ namespace mad.Commands
             cmd.AddOption(adminToken);
             cmd.AddOption(jsonOut);
 
-            cmd.SetHandler(async (string url, string? token, bool asJson) =>
+            cmd.SetHandler(async (string url, string? token, bool json) =>
             {
                 try
                 {
                     token ??= AuthUtils.TryLoadToken();
                     if (string.IsNullOrWhiteSpace(token))
                     {
-                        Console.Error.WriteLine("No token.");
+                        var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                        if (json)
+                            Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                        else
+                            Console.Error.WriteLine(err.Message);
                         return;
                     }
 
                     var client = new MadApiClient(url, token);
                     var tokens = await client.ListRefreshTokens();
 
-                    if (tokens is null)
+                    if (tokens is null || tokens.Count == 0)
                     {
-                        Console.WriteLine("Failed to retrieve refresh tokens.");
+                        Console.WriteLine(json ? "[]" : "(no refresh tokens)");
                         return;
                     }
 
-                    if (asJson)
+                    if (json)
                     {
                         Console.WriteLine(JsonSerializer.Serialize(tokens, MadJsonContext.Default.ListRefreshTokenResponse));
                     }
@@ -69,8 +74,13 @@ namespace mad.Commands
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine("Error retrieving refresh tokens.");
-                    Console.Error.WriteLine(ex.Message);
+                    var err = new ErrorResponse(false, $"Error retrieving refresh tokens: {ex.Message}");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                    {
+                        Console.Error.WriteLine(err.Message);
+                    }
                 }
             }, adminUrl, adminToken, jsonOut);
 
@@ -91,27 +101,31 @@ namespace mad.Commands
             cmd.AddOption(adminToken);
             cmd.AddOption(jsonOut);
 
-            cmd.SetHandler(async (string uid, string url, string? token, bool asJson) =>
+            cmd.SetHandler(async (string uid, string url, string? token, bool json) =>
             {
                 try
                 {
                     token ??= AuthUtils.TryLoadToken();
                     if (string.IsNullOrWhiteSpace(token))
                     {
-                        Console.Error.WriteLine("No token.");
+                        var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                        if (json)
+                            Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                        else
+                            Console.Error.WriteLine(err.Message);
                         return;
                     }
 
                     var client = new MadApiClient(url, token);
                     var tokens = await client.ListRefreshTokensForUser(uid);
 
-                    if (tokens is null)
+                    if (tokens is null || tokens.Count == 0)
                     {
-                        Console.WriteLine("Failed to retrieve refresh tokens.");
+                        Console.WriteLine(json ? "[]" : "(no refresh tokens)");
                         return;
                     }
 
-                    if (asJson)
+                    if (json)
                     {
                         Console.WriteLine(JsonSerializer.Serialize(tokens, MadJsonContext.Default.ListRefreshTokenResponse));
                     }
@@ -125,8 +139,13 @@ namespace mad.Commands
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"Error retrieving refresh tokens for user {uid}.");
-                    Console.Error.WriteLine(ex.Message);
+                    var err = new ErrorResponse(false, $"Error retrieving refresh tokens for user {uid}: {ex.Message}");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                    {
+                        Console.Error.WriteLine(err.Message);
+                    }
                 }
             }, userId, adminUrl, adminToken, jsonOut);
 
@@ -147,14 +166,18 @@ namespace mad.Commands
             cmd.AddOption(adminToken);
             cmd.AddOption(jsonOut);
 
-            cmd.SetHandler(async (string rid, string url, string? token, bool asJson) =>
+            cmd.SetHandler(async (string rid, string url, string? token, bool json) =>
             {
                 try
                 {
                     token ??= AuthUtils.TryLoadToken();
                     if (string.IsNullOrWhiteSpace(token))
                     {
-                        Console.Error.WriteLine("No token.");
+                        var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                        if (json)
+                            Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                        else
+                            Console.Error.WriteLine(err.Message);
                         return;
                     }
 
@@ -163,11 +186,19 @@ namespace mad.Commands
 
                     if (tokenInfo is null)
                     {
-                        Console.WriteLine("Not found.");
+                        if (json)
+                        {
+                            var err = new ErrorResponse(false, $"Refresh token {rid} not found.");
+                            Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                        }
+                        else
+                        {
+                            Console.WriteLine("Not found.");
+                        }
                         return;
                     }
 
-                    if (asJson)
+                    if (json)
                     {
                         Console.WriteLine(JsonSerializer.Serialize(tokenInfo, MadJsonContext.Default.RefreshTokenResponse));
                     }
@@ -183,8 +214,13 @@ namespace mad.Commands
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"Error retrieving refresh token {rid}.");
-                    Console.Error.WriteLine(ex.Message);
+                    var err = new ErrorResponse(false, $"Error retrieving refresh token {rid}: {ex.Message}");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                    {
+                        Console.Error.WriteLine(err.Message);
+                    }
                 }
             }, id, adminUrl, adminToken, jsonOut);
 
@@ -200,34 +236,64 @@ namespace mad.Commands
             var purgeRevoked = new Option<bool>("--revoked", "Include revoked tokens") { IsRequired = false };
             var adminUrl = SharedOptions.AdminUrl;
             var adminToken = SharedOptions.AdminToken;
+            var jsonOut = SharedOptions.OutputJson;
 
             cmd.AddOption(seconds);
             cmd.AddOption(purgeExpired);
             cmd.AddOption(purgeRevoked);
             cmd.AddOption(adminUrl);
             cmd.AddOption(adminToken);
+            cmd.AddOption(jsonOut);
 
-            cmd.SetHandler(async (int older, bool expired, bool revoked, string url, string? token) =>
+            cmd.SetHandler(async (int older, bool expired, bool revoked, string url, string? token, bool json) =>
             {
                 try
                 {
                     token ??= AuthUtils.TryLoadToken();
                     if (string.IsNullOrWhiteSpace(token))
                     {
-                        Console.Error.WriteLine("No token.");
+                        var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                        if (json)
+                            Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                        else
+                            Console.Error.WriteLine(err.Message);
                         return;
                     }
 
                     var client = new MadApiClient(url, token);
                     var ok = await client.PurgeRefreshTokens(older, expired, revoked);
-                    Console.WriteLine(ok ? "Refresh token purge completed." : "Refresh token purge failed.");
+
+                    if (json)
+                    {
+                        if (ok)
+                        {
+                            var result = new MessageResponse(true, "Refresh token purge completed.");
+                            Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.MessageResponse));
+                        }
+                        else
+                        {
+                            var result = new ErrorResponse(false, "Refresh token purge failed.");
+                            Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.ErrorResponse));
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine(ok
+                            ? "Refresh token purge completed."
+                            : "Refresh token purge failed.");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine("Error purging refresh tokens.");
-                    Console.Error.WriteLine(ex.Message);
+                    var err = new ErrorResponse(false, $"Error purging refresh tokens: {ex.Message}");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                    {
+                        Console.Error.WriteLine(err.Message);
+                    }
                 }
-            }, seconds, purgeExpired, purgeRevoked, adminUrl, adminToken);
+            }, seconds, purgeExpired, purgeRevoked, adminUrl, adminToken, jsonOut);
 
             return cmd;
         }

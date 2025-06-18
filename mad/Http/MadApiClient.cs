@@ -4,6 +4,7 @@ using mad.Common;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using madTypes.Api.Common;
 
 namespace mad.Http;
 
@@ -67,7 +68,7 @@ internal class MadApiClient
         }
     }
 
-    public async Task<UserResponse?> CreateUser(CreateUserRequest request)
+    public async Task<UserObject?> CreateUser(CreateUserRequest request)
     {
         var content = JsonContent.Create(
             request,
@@ -79,19 +80,39 @@ internal class MadApiClient
             return null;
 
         return await res.Content.ReadFromJsonAsync(
-            MadJsonContext.Default.UserResponse
+            MadJsonContext.Default.UserObject
         );
     }
 
-    public async Task<List<UserResponse>?> ListUsers()
+    public async Task<UserObject?> UpdateUser(string id, UserObject updated)
+    {
+        var content = JsonContent.Create(updated, MadJsonContext.Default.UserObject);
+        var res = await _http.PutAsync($"{BaseUrl}/users/{id}", content);
+
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.UserObject);
+    }
+
+    public async Task<List<UserObject>?> ListUsers()
     {
         var res = await _http.GetAsync($"{BaseUrl}/users");
         if (!res.IsSuccessStatusCode)
             return null;
 
         return await res.Content.ReadFromJsonAsync(
-            MadJsonContext.Default.ListUserResponse
+            MadJsonContext.Default.ListUserObject
         );
+    }
+
+    public async Task<UserObject?> GetUserById(string id)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/users/{id}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.UserObject);
     }
 
     public async Task<bool> DeactivateUser(string userId)
@@ -175,7 +196,7 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<RoleResponse?> CreateRole(CreateRoleRequest request)
+    public async Task<RoleObject?> CreateRole(CreateRoleRequest request)
     {
         var content = JsonContent.Create(
             request,
@@ -186,17 +207,36 @@ internal class MadApiClient
         if (!res.IsSuccessStatusCode)
             return null;
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.RoleResponse);
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.RoleObject);
     }
 
-    public async Task<List<RoleResponse>?> ListRoles()
+    public async Task<RoleObject?> UpdateRole(string id, RoleObject updated)
+    {
+        var content = JsonContent.Create(updated, MadJsonContext.Default.RoleObject);
+        var res = await _http.PutAsync($"{BaseUrl}/roles/{id}", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.RoleObject);
+    }
+
+    public async Task<RoleObject?> GetRoleById(string id)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/roles/{id}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.RoleObject);
+    }
+
+    public async Task<List<RoleObject>?> ListRoles()
     {
         var res = await _http.GetAsync($"{BaseUrl}/roles");
         if (!res.IsSuccessStatusCode)
             return null;
 
         return await res.Content.ReadFromJsonAsync(
-            MadJsonContext.Default.ListRoleResponse
+            MadJsonContext.Default.ListRoleObject
         );
     }
 
@@ -240,24 +280,44 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<ScopeResponse?> CreateScope(ScopeResponse scope)
+    public async Task<ScopeObject?> CreateScope(ScopeObject scope)
     {
-        var content = JsonContent.Create(scope, MadJsonContext.Default.ScopeResponse);
+        var content = JsonContent.Create(scope, (System.Text.Json.Serialization.Metadata.JsonTypeInfo<ScopeObject>)MadJsonContext.Default.ScopeObject);
         var res = await _http.PostAsync($"{BaseUrl}/scopes", content);
         if (!res.IsSuccessStatusCode)
             return null;
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ScopeResponse);
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ScopeObject);
     }
 
-    public async Task<List<ScopeResponse>> ListScopes()
+    public async Task<ScopeObject?> UpdateScope(string id, ScopeObject updated)
+    {
+        var content = JsonContent.Create(updated, MadJsonContext.Default.ScopeObject);
+        var res = await _http.PutAsync($"{BaseUrl}/scopes/{id}", content);
+
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ScopeObject);
+    }
+
+    public async Task<List<ScopeObject>> ListScopes()
     {
         var res = await _http.GetAsync($"{BaseUrl}/scopes");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListScopeResponse)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListScopeObject)
                ?? new();
+    }
+
+    public async Task<ScopeObject?> GetScopeById(string id)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/scopes/{id}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ScopeObject);
     }
 
     public async Task<bool> DeleteScope(string scopeId)
@@ -274,13 +334,13 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<List<ScopeResponse>> ListScopesForUser(string userId)
+    public async Task<List<ScopeObject>> ListScopesForUser(string userId)
     {
         var res = await _http.GetAsync($"{BaseUrl}/users/{userId}/scopes");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListScopeResponse)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListScopeObject)
                ?? new();
     }
 
@@ -298,13 +358,13 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<List<ScopeResponse>> ListScopesForClient(string clientId)
+    public async Task<List<ScopeObject>> ListScopesForClient(string clientId)
     {
         var res = await _http.GetAsync($"{BaseUrl}/clients/{clientId}/scopes");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListScopeResponse)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListScopeObject)
                ?? new();
     }
 
@@ -314,24 +374,43 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<PermissionResponse?> CreatePermission(CreatePermissionRequest request)
+    public async Task<PermissionObject?> CreatePermission(CreatePermissionRequest request)
     {
         var content = JsonContent.Create(request, MadJsonContext.Default.CreatePermissionRequest);
         var res = await _http.PostAsync($"{BaseUrl}/permissions", content);
         if (!res.IsSuccessStatusCode)
             return null;
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.PermissionResponse);
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.PermissionObject);
     }
 
-    public async Task<List<PermissionResponse>> ListPermissions()
+    public async Task<PermissionObject?> UpdatePermission(string id, PermissionObject updated)
+    {
+        var content = JsonContent.Create(updated, MadJsonContext.Default.PermissionObject);
+        var res = await _http.PutAsync($"{BaseUrl}/permissions/{id}", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.PermissionObject);
+    }
+
+    public async Task<List<PermissionObject>> ListPermissions()
     {
         var res = await _http.GetAsync($"{BaseUrl}/permissions");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionResponse)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionObject)
                ?? new();
+    }
+
+    public async Task<PermissionObject?> GetPermissionById(string id)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/permissions/{id}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.PermissionObject);
     }
 
     public async Task<bool> DeletePermission(string permissionId)
@@ -354,23 +433,23 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<List<PermissionResponse>> ListPermissionsForRole(string roleId)
+    public async Task<List<PermissionObject>> ListPermissionsForRole(string roleId)
     {
         var res = await _http.GetAsync($"{BaseUrl}/roles/{roleId}/permissions");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionResponse)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionObject)
                ?? new();
     }
 
-    public async Task<List<PermissionResponse>> ListPermissionsForUser(string userId)
+    public async Task<List<PermissionObject>> ListPermissionsForUser(string userId)
     {
         var res = await _http.GetAsync($"{BaseUrl}/permissions/user/{userId}");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionResponse)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListPermissionObject)
                ?? new();
     }
 
@@ -392,24 +471,44 @@ internal class MadApiClient
         return result?.Allowed ?? false;
     }
 
-    public async Task<ClientResponse?> CreateClient(CreateClientRequest request)
+    public async Task<ClientObject?> CreateClient(CreateClientRequest request)
     {
         var content = JsonContent.Create(request, MadJsonContext.Default.CreateClientRequest);
         var res = await _http.PostAsync($"{BaseUrl}/clients", content);
         if (!res.IsSuccessStatusCode)
             return null;
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ClientResponse);
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ClientObject);
     }
 
-    public async Task<List<ClientResponse>> ListClients()
+    public async Task<ClientObject?> UpdateClient(string id, ClientObject updated)
+    {
+        var content = JsonContent.Create(updated, MadJsonContext.Default.ClientObject);
+        var res = await _http.PutAsync($"{BaseUrl}/clients/{id}", content);
+
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ClientObject);
+    }
+
+    public async Task<List<ClientObject>> ListClients()
     {
         var res = await _http.GetAsync($"{BaseUrl}/clients");
         if (!res.IsSuccessStatusCode)
             return new();
 
-        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListClientResponse)
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListClientObject)
                ?? new();
+    }
+
+    public async Task<ClientObject?> GetClientById(string id)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/clients/{id}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ClientObject);
     }
 
     public async Task<bool> DeleteClient(string clientId)

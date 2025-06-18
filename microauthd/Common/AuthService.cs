@@ -208,7 +208,7 @@ public static class AuthService
 
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: true);
 
-        UserService.WriteSessionToDb(tokenInfo, config, req.ClientIdentifier ?? "unknown");
+        UserService.WriteSessionToDb(tokenInfo, config, req.ClientIdentifier ?? "admin");
 
         Log.Information("Admin Token issued for user {UserId}", r.UserId);
 
@@ -614,7 +614,7 @@ public static class AuthService
         );
 
         return ApiResult<MessageResponse>.Ok(
-            new MessageResponse($"User '{userId}' logged out of client '{clientIdentifier}'")
+            new MessageResponse(true, $"User '{userId}' logged out of client '{clientIdentifier}'")
         );
     }
 
@@ -656,7 +656,7 @@ public static class AuthService
         );
 
         return ApiResult<MessageResponse>.Ok(
-            new MessageResponse($"All sessions and refresh tokens revoked for user '{userId}'")
+            new MessageResponse(true, $"All sessions and refresh tokens revoked for user '{userId}'")
         );
     }
 

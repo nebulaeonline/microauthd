@@ -1,8 +1,8 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace madTypes.Api.Responses;
+namespace madTypes.Api.Common;
 
-public class RoleResponse
+public class RoleObject
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = default!;

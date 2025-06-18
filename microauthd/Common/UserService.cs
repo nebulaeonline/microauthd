@@ -1,4 +1,5 @@
-﻿using madTypes.Api.Requests;
+﻿using madTypes.Api.Common;
+using madTypes.Api.Requests;
 using madTypes.Api.Responses;
 using madTypes.Common;
 using microauthd.Config;
@@ -41,7 +42,7 @@ public static class UserService
     /// <param name="email">The email address for the new user. Must be a valid email format and unique.</param>
     /// <param name="password">The password for the new user. This will be securely hashed before storage.</param>
     /// <param name="config">The application configuration used to determine password hashing settings.</param>
-    public static ApiResult<UserResponse> CreateUser(
+    public static ApiResult<UserObject> CreateUser(
         string username,
         string email,
         string password,
@@ -54,7 +55,7 @@ public static class UserService
             string.IsNullOrWhiteSpace(email) ||
             string.IsNullOrWhiteSpace(password))
         {
-            return ApiResult<UserResponse>.Fail("Username, email, and password are required", 400);
+            return ApiResult<UserObject>.Fail("Username, email, and password are required", 400);
         }
 
         var userId = Guid.NewGuid().ToString();
@@ -86,7 +87,7 @@ public static class UserService
 
                 if (reader.Read())
                 {
-                    return new UserResponse
+                    return new UserObject
                     {
                         Id = reader.GetString(0),
                         Username = reader.GetString(1),
@@ -112,14 +113,14 @@ public static class UserService
 
             if (user is null)
             {
-                return ApiResult<UserResponse>.Fail("User creation failed, user not found after insert", 400);
+                return ApiResult<UserObject>.Fail("User creation failed, user not found after insert", 400);
             }
 
-            return ApiResult<UserResponse>.Ok(user);
+            return ApiResult<UserObject>.Ok(user);
         }
         catch
         {
-            return ApiResult<UserResponse>.Fail("User creation failed (maybe duplicate username?)", 400);
+            return ApiResult<UserObject>.Fail("User creation failed (maybe duplicate username?)", 400);
         }        
     }
 
@@ -196,17 +197,107 @@ public static class UserService
             userAgent: userAgent
         );
 
-        return ApiResult<MessageResponse>.Ok(new($"User '{request.Username}' created."));
+        return ApiResult<MessageResponse>.Ok(new(true, $"User '{request.Username}' created."));
+    }
+
+    /// <summary>
+    /// Updates the details of an existing user in the database.
+    /// </summary>
+    /// <remarks>The method performs the following validations and operations: <list type="bullet"> <item>
+    /// <description>Ensures that the <paramref name="updated"/> object contains a non-empty username and
+    /// email.</description> </item> <item> <description>Checks for conflicts with existing users based on username or
+    /// email.</description> </item> <item> <description>Updates the user's details in the database if no conflicts are
+    /// found.</description> </item> <item> <description>Returns the updated user object if the operation is successful,
+    /// or an error message if it fails.</description> </item> </list></remarks>
+    /// <param name="id">The unique identifier of the user to update.</param>
+    /// <param name="updated">An object containing the updated user details, including username, email, and active status.</param>
+    /// <param name="config">The application configuration used for database access and other settings.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing the updated <see cref="UserObject"/> if the operation succeeds;
+    /// otherwise, an error message indicating the reason for failure.</returns>
+    public static ApiResult<UserObject> UpdateUser(
+        string id,
+        UserObject updated,
+        AppConfig config
+    )
+    {
+        if (string.IsNullOrWhiteSpace(updated.Username) || string.IsNullOrWhiteSpace(updated.Email))
+            return ApiResult<UserObject>.Fail("Username and email are required.");
+
+        // Check for duplicate username/email
+        var conflict = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            SELECT COUNT(*) FROM users
+            WHERE (username = $u OR email = $e) AND id != $id;
+        """;
+            cmd.Parameters.AddWithValue("$u", updated.Username);
+            cmd.Parameters.AddWithValue("$e", updated.Email);
+            cmd.Parameters.AddWithValue("$id", id);
+            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+        });
+
+        if (conflict)
+            return ApiResult<UserObject>.Fail("Username or email already in use by another user.");
+
+        var success = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            UPDATE users
+            SET username = $u,
+                email = $e,
+                is_active = $a,
+                modified_at = datetime('now')
+            WHERE id = $id;
+        """;
+            cmd.Parameters.AddWithValue("$u", updated.Username);
+            cmd.Parameters.AddWithValue("$e", updated.Email);
+            cmd.Parameters.AddWithValue("$a", updated.IsActive ? 1 : 0);
+            cmd.Parameters.AddWithValue("$id", id);
+            return cmd.ExecuteNonQuery() == 1;
+        });
+
+        if (!success)
+            return ApiResult<UserObject>.Fail("Update failed or user not found.");
+
+        // Re-read and return updated row
+        var user = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            SELECT id, username, email, created_at, is_active
+            FROM users
+            WHERE id = $id;
+        """;
+            cmd.Parameters.AddWithValue("$id", id);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new UserObject
+            {
+                Id = reader.GetString(0),
+                Username = reader.GetString(1),
+                Email = reader.GetString(2),
+                CreatedAt = reader.GetString(3),
+                IsActive = reader.GetBoolean(4)
+            };
+        });
+
+        return user is not null
+            ? ApiResult<UserObject>.Ok(user)
+            : ApiResult<UserObject>.Fail("User updated but could not be retrieved.");
     }
 
     /// <summary>
     /// Retrieves all user objects from the database, ordered by username in ascending order.
     /// </summary>
     /// <remarks>The method queries the database to fetch all user records and maps them to <see
-    /// cref="UserResponse"/> objects. The returned list will be empty if no users are found in the database.</remarks>
-    /// <returns>A list of <see cref="UserResponse"/> objects, where each object represents a user with their associated details
+    /// cref="UserObject"/> objects. The returned list will be empty if no users are found in the database.</remarks>
+    /// <returns>A list of <see cref="UserObject"/> objects, where each object represents a user with their associated details
     /// such as ID, username, email, creation date, and active status.</returns>
-    public static ApiResult<List<UserResponse>> GetAllUsers()
+    public static ApiResult<List<UserObject>> GetAllUsers()
     {
         var users = Db.WithConnection(conn =>
         {
@@ -218,11 +309,11 @@ public static class UserService
         """;
 
             using var reader = cmd.ExecuteReader();
-            var list = new List<UserResponse>();
+            var list = new List<UserObject>();
 
             while (reader.Read())
             {
-                list.Add(new UserResponse
+                list.Add(new UserObject
                 {
                     Id = reader.GetString(0),
                     Username = reader.GetString(1),
@@ -235,7 +326,7 @@ public static class UserService
             return list;
         });
 
-        return ApiResult<List<UserResponse>>.Ok(users);
+        return ApiResult<List<UserObject>>.Ok(users);
     }
 
     /// <summary>
@@ -249,16 +340,16 @@ public static class UserService
     /// <param name="ipAddress">The IP address of the client making the request. This value is used for auditing purposes and can be null.</param>
     /// <param name="userAgent">The user agent string of the client making the request. This value is used for auditing purposes and can be
     /// null.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="UserResponse"/> objects representing the users. If
+    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="UserObject"/> objects representing the users. If
     /// the caller lacks the required scope, the result will indicate a "Forbidden" status.</returns>
-    public static ApiResult<List<UserResponse>> ListUsersScoped(
+    public static ApiResult<List<UserObject>> ListUsersScoped(
     ClaimsPrincipal actingUser,
     AppConfig config,
     string? ipAddress,
     string? userAgent)
     {
         if (!actingUser.HasScope(Constants.ListUsers))
-            return ApiResult<List<UserResponse>>.Forbidden("Permission denied");
+            return ApiResult<List<UserObject>>.Forbidden("Permission denied");
 
         var users = Db.WithConnection(conn =>
         {
@@ -270,11 +361,11 @@ public static class UserService
             """;
 
             using var reader = cmd.ExecuteReader();
-            var list = new List<UserResponse>();
+            var list = new List<UserObject>();
 
             while (reader.Read())
             {
-                list.Add(new UserResponse
+                list.Add(new UserObject
                 {
                     Id = reader.GetString(0),
                     Username = reader.GetString(1),
@@ -295,22 +386,22 @@ public static class UserService
             userAgent: userAgent
         );
 
-        return ApiResult<List<UserResponse>>.Ok(users);
+        return ApiResult<List<UserObject>>.Ok(users);
     }
 
     /// <summary>
     /// Retrieves a user by their unique identifier.
     /// </summary>
     /// <remarks>The method queries the database for a user with the specified ID. If the user exists, their
-    /// details are returned in a <see cref="UserResponse"/> object. If the user does not exist, a "Not Found" result is
+    /// details are returned in a <see cref="UserObject"/> object. If the user does not exist, a "Not Found" result is
     /// returned.</remarks>
     /// <param name="userId">The unique identifier of the user to retrieve. Cannot be null, empty, or whitespace.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing the user details if found.  Returns a failure result with an
     /// appropriate error message and status code if the user ID is invalid or the user is not found.</returns>
-    public static ApiResult<UserResponse> GetUserById(string userId)
+    public static ApiResult<UserObject> GetUserById(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<UserResponse>.Fail("User ID is required", 400);
+            return ApiResult<UserObject>.Fail("User ID is required", 400);
 
         return Db.WithConnection(conn =>
         {
@@ -324,9 +415,9 @@ public static class UserService
 
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
-                return ApiResult<UserResponse>.NotFound("User not found");
+                return ApiResult<UserObject>.NotFound("User not found");
 
-            return ApiResult<UserResponse>.Ok(new UserResponse
+            return ApiResult<UserObject>.Ok(new UserObject
             {
                 Id = reader.GetString(0),
                 Username = reader.GetString(1),
@@ -348,10 +439,10 @@ public static class UserService
     /// <param name="targetUserId">The unique identifier of the user to retrieve. This value cannot be null or empty.</param>
     /// <param name="ipAddress">The IP address of the client making the request. This value is optional and may be null.</param>
     /// <param name="userAgent">The user agent string of the client making the request. This value is optional and may be null.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing the <see cref="UserResponse"/> object if the user is found and
+    /// <returns>An <see cref="ApiResult{T}"/> containing the <see cref="UserObject"/> object if the user is found and
     /// accessible. Returns a "Forbidden" result if the acting user lacks the required scope, or a "Not Found" result if
     /// the user does not exist.</returns>
-    public static ApiResult<UserResponse> GetUserByIdScoped(
+    public static ApiResult<UserObject> GetUserByIdScoped(
         ClaimsPrincipal actingUser,
         string targetUserId,
         AppConfig config,
@@ -359,7 +450,7 @@ public static class UserService
         string? userAgent)
     {
         if (!actingUser.HasScope(Constants.ReadUser))
-            return ApiResult<UserResponse>.Forbidden("Permission denied");
+            return ApiResult<UserObject>.Forbidden("Permission denied");
 
         var user = Db.WithConnection(conn =>
         {
@@ -375,7 +466,7 @@ public static class UserService
             if (!reader.Read())
                 return null;
 
-            return new UserResponse
+            return new UserObject
             {
                 Id = reader.GetString(0),
                 Username = reader.GetString(1),
@@ -386,7 +477,7 @@ public static class UserService
         });
 
         if (user is null)
-            return ApiResult<UserResponse>.NotFound("User not found");
+            return ApiResult<UserObject>.NotFound("User not found");
 
         AuditLogger.AuditLog(
             config: config,
@@ -397,7 +488,7 @@ public static class UserService
             userAgent: userAgent
         );
 
-        return ApiResult<UserResponse>.Ok(user);
+        return ApiResult<UserObject>.Ok(user);
     }
 
     /// <summary>
@@ -439,7 +530,7 @@ public static class UserService
         );
 
         return ApiResult<MessageResponse>.Ok(
-            new MessageResponse($"User '{userId}' deactivated.")
+            new MessageResponse(true, $"User '{userId}' deactivated.")
         );
     }
 
@@ -495,7 +586,7 @@ public static class UserService
             userAgent: userAgent
         );
 
-        return ApiResult<MessageResponse>.Ok(new($"User '{targetUserId}' deactivated."));
+        return ApiResult<MessageResponse>.Ok(new(true, $"User '{targetUserId}' deactivated."));
     }
 
     /// <summary>
@@ -538,7 +629,7 @@ public static class UserService
         );
 
         return ApiResult<MessageResponse>.Ok(
-            new MessageResponse($"User '{userId}' reactivated.")
+            new MessageResponse(true, $"User '{userId}' reactivated.")
         );
     }
 
@@ -595,7 +686,7 @@ public static class UserService
         );
 
         return ApiResult<MessageResponse>.Ok(
-            new MessageResponse($"Password for user '{userId}' has been reset")
+            new MessageResponse(true, $"Password for user '{userId}' has been reset")
         );
     }
 
@@ -658,7 +749,7 @@ public static class UserService
             userAgent: userAgent
         );
 
-        return ApiResult<MessageResponse>.Ok(new($"Password for user '{targetUserId}' has been reset."));
+        return ApiResult<MessageResponse>.Ok(new(true, $"Password for user '{targetUserId}' has been reset."));
     }
 
     /// <summary>
@@ -1049,7 +1140,7 @@ public static class UserService
             conditions.Add("is_revoked = 1");
 
         if (conditions.Count == 0)
-            return ApiResult<MessageResponse>.Ok(new("Nothing to purge."));
+            return ApiResult<MessageResponse>.Ok(new(true, "Nothing to purge."));
 
         var whereClause = string.Join(" OR ", conditions);
 
@@ -1073,7 +1164,7 @@ public static class UserService
             userAgent: ua
         );
 
-        return ApiResult<MessageResponse>.Ok(new($"Purged {purged} session(s)."));
+        return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} session(s)."));
     }
 
 
@@ -1317,7 +1408,7 @@ public static class UserService
             conditions.Add("is_revoked = 1");
 
         if (conditions.Count == 0)
-            return ApiResult<MessageResponse>.Ok(new("Nothing to purge."));
+            return ApiResult<MessageResponse>.Ok(new(true, "Nothing to purge."));
 
         string whereClause = string.Join(" OR ", conditions);
 
@@ -1341,7 +1432,7 @@ public static class UserService
             userAgent: ua
         );
 
-        return ApiResult<MessageResponse>.Ok(new($"Purged {purged} refresh token(s)."));
+        return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} refresh token(s)."));
     }
 
 }

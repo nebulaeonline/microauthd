@@ -1,3 +1,12 @@
-﻿namespace madTypes.Api.Responses;
+﻿using System.Text.Json.Serialization;
 
-public record ErrorResponse(string Error);
+namespace madTypes.Api.Responses;
+
+public record ErrorResponse(
+
+    [property: JsonPropertyName("success")]
+    bool Success,
+
+    [property: JsonPropertyName("message")]
+    string Message
+);

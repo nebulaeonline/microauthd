@@ -1,15 +1,14 @@
 ﻿using System.Text.Json.Serialization;
+namespace madTypes.Api.Common;
 
-namespace madTypes.Api.Responses;
-
-public sealed class ClientResponse
+public sealed class ScopeObject
 {
     [JsonPropertyName("id")]
     public string Id { get; init; } = string.Empty;
-    [JsonPropertyName("client_id")]
-    public string ClientId { get; init; } = string.Empty;
-    [JsonPropertyName("display_name")]
-    public string DisplayName { get; init; } = string.Empty;
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("desc")]
+    public string? Description { get; init; }
     [JsonPropertyName("is_active")]
     public bool IsActive { get; init; }
     [JsonPropertyName("created_at")]

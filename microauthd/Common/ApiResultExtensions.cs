@@ -1,4 +1,5 @@
-﻿using madTypes.Api.Responses;
+﻿using madTypes.Api.Common;
+using madTypes.Api.Responses;
 using madTypes.Common;
 using System.Text.Json.Serialization.Metadata;
 
@@ -10,7 +11,7 @@ namespace microauthd.Common
         {
             return result.Success
                 ? Results.Json(result.Value!, ApiResultExtensions.GetJsonTypeInfo<T>(), statusCode: result.StatusCode)
-                : Results.Json(new ErrorResponse(result.Error ?? "An error occurred"), MicroauthJsonContext.Default.ErrorResponse, statusCode: result.StatusCode);
+                : Results.Json(new ErrorResponse(false, result.Error ?? "An error occurred"), MicroauthJsonContext.Default.ErrorResponse, statusCode: result.StatusCode);
         }
 
         public static JsonTypeInfo<T> GetJsonTypeInfo<T>()
@@ -29,17 +30,17 @@ namespace microauthd.Common
                 var t when t == typeof(List<AuditLogResponse>) =>
                     MicroauthJsonContext.Default.ListAuditLogResponse,
 
-                var t when t == typeof(ClientResponse) =>
-                    MicroauthJsonContext.Default.ClientResponse,
+                var t when t == typeof(ClientObject) =>
+                    MicroauthJsonContext.Default.ClientObject,
+
+                var t when t == typeof(List<ClientObject>) =>
+                    MicroauthJsonContext.Default.ListClientObject,
 
                 var t when t == typeof(CreatedResponse) =>
                     MicroauthJsonContext.Default.CreatedResponse,
 
                 var t when t == typeof(List<CreatedResponse>) =>
                     MicroauthJsonContext.Default.ListCreatedResponse,
-
-                var t when t == typeof(List<ClientResponse>) =>
-                    MicroauthJsonContext.Default.ListClientResponse,
 
                 var t when t == typeof(ErrorResponse) =>
                     MicroauthJsonContext.Default.ErrorResponse,
@@ -56,11 +57,11 @@ namespace microauthd.Common
                 var t when t == typeof(OidcDiscoveryResponse) =>
                     MicroauthJsonContext.Default.OidcDiscoveryResponse,
 
-                var t when t == typeof(PermissionResponse) =>
-                    MicroauthJsonContext.Default.PermissionResponse,
+                var t when t == typeof(PermissionObject) =>
+                    MicroauthJsonContext.Default.PermissionObject,
 
-                var t when t == typeof(List<PermissionResponse>) =>
-                    MicroauthJsonContext.Default.ListPermissionResponse,
+                var t when t == typeof(List<PermissionObject>) =>
+                    MicroauthJsonContext.Default.ListPermissionObject,
 
                 var t when t == typeof(PingResponse) =>
                     MicroauthJsonContext.Default.PingResponse,
@@ -74,17 +75,17 @@ namespace microauthd.Common
                 var t when t == typeof(RevokeResponse) =>
                     MicroauthJsonContext.Default.RevokeResponse,
 
-                var t when t == typeof(RoleResponse) =>
-                    MicroauthJsonContext.Default.RoleResponse,
+                var t when t == typeof(RoleObject) =>
+                    MicroauthJsonContext.Default.RoleObject,
 
-                var t when t == typeof(List<RoleResponse>) =>
-                    MicroauthJsonContext.Default.ListRoleResponse,
+                var t when t == typeof(List<RoleObject>) =>
+                    MicroauthJsonContext.Default.ListRoleObject,
 
-                var t when t == typeof(ScopeResponse) =>
-                    MicroauthJsonContext.Default.ScopeResponse,
+                var t when t == typeof(ScopeObject) =>
+                    MicroauthJsonContext.Default.ScopeObject,
 
-                var t when t == typeof(List<ScopeResponse>) =>
-                    MicroauthJsonContext.Default.ListScopeResponse,
+                var t when t == typeof(List<ScopeObject>) =>
+                    MicroauthJsonContext.Default.ListScopeObject,
 
                 var t when t == typeof(SessionResponse) =>
                     MicroauthJsonContext.Default.SessionResponse,
@@ -95,11 +96,11 @@ namespace microauthd.Common
                 var t when t == typeof(TokenResponse) =>
                     MicroauthJsonContext.Default.TokenResponse,
 
-                var t when t == typeof(UserResponse) =>
-                    MicroauthJsonContext.Default.UserResponse,
+                var t when t == typeof(UserObject) =>
+                    MicroauthJsonContext.Default.UserObject,
 
-                var t when t == typeof(List<UserResponse>) =>
-                    MicroauthJsonContext.Default.ListUserResponse,
+                var t when t == typeof(List<UserObject>) =>
+                    MicroauthJsonContext.Default.ListUserObject,
 
                 var t when t == typeof(WhoamiResponse) =>
                     MicroauthJsonContext.Default.WhoamiResponse,

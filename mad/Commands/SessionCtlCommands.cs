@@ -72,7 +72,6 @@ internal static class SessionCtlCommands
             }
         }, adminUrl, adminToken, jsonOut);
 
-
         return cmd;
     }
 
@@ -140,35 +139,62 @@ internal static class SessionCtlCommands
         var jti = new Option<string>("--id") { IsRequired = true };
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(jti);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string jti) =>
+        cmd.SetHandler(async (string url, string? token, string jti, bool json) =>
         {
             try
             {
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token.");
+                    var err = new ErrorResponse(false, "No token.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
                     return;
                 }
 
                 var client = new MadApiClient(url, token);
                 var ok = await client.RevokeSession(jti);
 
-                Console.WriteLine(ok
-                    ? $"Revoked session '{jti}'"
-                    : $"Failed to revoke session '{jti}'");
+                if (json)
+                {
+                    if (ok)
+                    {
+                        var msg = new MessageResponse(true, $"Revoked session '{jti}'");
+                        Console.WriteLine(JsonSerializer.Serialize(msg, MadJsonContext.Default.MessageResponse));
+                    }
+                    else
+                    {
+                        var err = new ErrorResponse(false, $"Failed to revoke session '{jti}'");
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    }
+                }
+                else
+                {
+                    Console.WriteLine(ok
+                        ? $"Revoked session '{jti}'"
+                        : $"Failed to revoke session '{jti}'");
+                }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error while revoking session '{jti}':");
-                Console.Error.WriteLine(ex.Message);
+                if (json)
+                {
+                    var err = new ErrorResponse(false, ex.Message);
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                }
+                else
+                {
+                    Console.Error.WriteLine($"Error while revoking session '{jti}':");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
-        }, adminUrl, adminToken, jti);
+        }, adminUrl, adminToken, jti, jsonOut);
 
         return cmd;
     }
@@ -182,35 +208,63 @@ internal static class SessionCtlCommands
         var purgeRevoked = new Option<bool>("--revoked", "Include revoked sessions") { IsRequired = false };
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(seconds);
         cmd.AddOption(purgeExpired);
         cmd.AddOption(purgeRevoked);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (int older, bool expired, bool revoked, string url, string? token) =>
+        cmd.SetHandler(async (int older, bool expired, bool revoked, string url, string? token, bool json) =>
         {
             try
             {
                 token ??= AuthUtils.TryLoadToken();
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    Console.Error.WriteLine("No token.");
+                    var err = new ErrorResponse(false, "No token.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
                     return;
                 }
 
                 var client = new MadApiClient(url, token);
                 var ok = await client.PurgeSessions(older, expired, revoked);
-                Console.WriteLine(ok ? "Session purge completed." : "Session purge failed.");
+
+                if (json)
+                {
+                    if (ok)
+                    {
+                        var msg = new MessageResponse(true, "Session purge completed.");
+                        Console.WriteLine(JsonSerializer.Serialize(msg, MadJsonContext.Default.MessageResponse));
+                    }
+                    else
+                    {
+                        var err = new ErrorResponse(false, "Session purge failed.");
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    }
+                }
+                else
+                {
+                    Console.WriteLine(ok ? "Session purge completed." : "Session purge failed.");
+                }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("An error occurred during session purge:");
-                Console.Error.WriteLine(ex.Message);
+                if (json)
+                {
+                    var err = new ErrorResponse(false, ex.Message);
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                }
+                else
+                {
+                    Console.Error.WriteLine("An error occurred during session purge:");
+                    Console.Error.WriteLine(ex.Message);
+                }
             }
-        }, seconds, purgeExpired, purgeRevoked, adminUrl, adminToken);
+        }, seconds, purgeExpired, purgeRevoked, adminUrl, adminToken, jsonOut);
 
         return cmd;
-    }        
+    }
 }
