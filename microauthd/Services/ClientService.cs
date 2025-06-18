@@ -304,6 +304,34 @@ namespace microauthd.Services
             string? ip = null,
             string? ua = null)
         {
+            // Revoke sessions
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE client_identifier = $cid;";
+                cmd.Parameters.AddWithValue("$cid", clientId);
+                cmd.ExecuteNonQuery();
+            });
+
+            // Revoke refresh tokens
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE client_identifier = $cid;";
+                cmd.Parameters.AddWithValue("$cid", clientId);
+                cmd.ExecuteNonQuery();
+            });
+
+            // Delete from client_scopes
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "DELETE FROM client_scopes WHERE client_id = $cid;";
+                cmd.Parameters.AddWithValue("$cid", clientId);
+                cmd.ExecuteNonQuery();
+            });
+
+            // Finally delete the client
             var deleted = Db.WithConnection(conn =>
             {
                 using var cmd = conn.CreateCommand();
@@ -325,7 +353,8 @@ namespace microauthd.Services
                 return ApiResult<MessageResponse>.Fail("Failed to delete client");
 
             AuditLogger.AuditLog(config, actorUserId, "delete_client", clientId, ip, ua);
+
             return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientId}' deleted"));
-        }        
+        }
     }
 }

@@ -354,6 +354,24 @@ public static class UserService
             return cmd.ExecuteNonQuery();
         });
 
+        // Revoke sessions
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE user_id = $uid;";
+            cmd.Parameters.AddWithValue("$uid", id);
+            cmd.ExecuteNonQuery();
+        });
+
+        // Revoke refresh tokens
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE user_id = $uid;";
+            cmd.Parameters.AddWithValue("$uid", id);
+            cmd.ExecuteNonQuery();
+        });
+
         AuditLogger.AuditLog(config, userId, "delete_user", id, ip, ua);
 
         return rows > 0
@@ -549,8 +567,27 @@ public static class UserService
             return cmd.ExecuteNonQuery();
         });
 
+        
         if (affected == 0)
             return ApiResult<MessageResponse>.Fail("User not found or already inactive", 400);
+
+        // Revoke sessions
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE user_id = $uid;";
+            cmd.Parameters.AddWithValue("$uid", userId);
+            cmd.ExecuteNonQuery();
+        });
+
+        // Revoke refresh tokens
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE user_id = $uid;";
+            cmd.Parameters.AddWithValue("$uid", userId);
+            cmd.ExecuteNonQuery();
+        });
 
         AuditLogger.AuditLog(
             config: config,
@@ -608,6 +645,24 @@ public static class UserService
 
         if (affected == 0)
             return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
+
+        // Revoke sessions
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE user_id = $uid;";
+            cmd.Parameters.AddWithValue("$uid", targetUserId);
+            cmd.ExecuteNonQuery();
+        });
+
+        // Revoke refresh tokens
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE user_id = $uid;";
+            cmd.Parameters.AddWithValue("$uid", targetUserId);
+            cmd.ExecuteNonQuery();
+        });
 
         AuditLogger.AuditLog(
             config: config,

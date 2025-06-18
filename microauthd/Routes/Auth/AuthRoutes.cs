@@ -318,26 +318,25 @@ public static class AuthRoutes
         // OIDC token introspection endpoint********************************************************
         group.MapPost("/introspect", async (HttpContext ctx, AppConfig config) =>
         {
-            if (!ctx.Request.HasFormContentType)
-            {
-                AuditLogger.AuditLog(
-                    config,
-                    userId: null,
-                    action: "token.introspect.failure",
-                    target: $"client=invalid reason=invalid_form",
-                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
-                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
-                );
+            // Parse Authorization header (Basic)
+            var authHeader = ctx.Request.Headers["Authorization"].FirstOrDefault();
+            var basicAuthResult = AuthHelpers.TryParseBasicAuth(authHeader, out string basicClientId, out string basicSecret);
 
-                return ApiResult<Dictionary<string, object>>
-                    .Fail("Authorization Failed", 403)
-                    .ToHttpResult();
+            if (authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                Log.Warning("Bearer token provided to /introspect endpoint; Basic or form authentication is expected.");
             }
 
             var form = await ctx.Request.ReadFormAsync();
             var token = form["token"].ToString();
             var clientId = form["client_id"].ToString();
             var clientSecret = form["client_secret"].ToString();
+
+            // Prefer Basic auth values
+            if (!string.IsNullOrWhiteSpace(basicClientId))
+                clientId = basicClientId;
+            if (!string.IsNullOrWhiteSpace(basicSecret))
+                clientSecret = basicSecret;
 
             if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             {
@@ -382,6 +381,49 @@ public static class AuthRoutes
         .WithName("TokenIntrospection")
         .WithTags("OIDC")
         .Produces<Dictionary<string, object>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+        .WithOpenApi();
+
+        // revoke OIDC token endpoint***************************************************************
+        group.MapPost("/revoke", async (HttpContext ctx, AppConfig config) =>
+        {
+            var authHeader = ctx.Request.Headers["Authorization"].FirstOrDefault();
+            var basicAuthResult = AuthHelpers.TryParseBasicAuth(authHeader, out string basicClientId, out string basicSecret);
+            var form = await ctx.Request.ReadFormAsync();
+
+            if (authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                Log.Warning("Bearer token provided to /introspect endpoint; Basic or form authentication is expected.");
+            }
+
+            var token = form["token"].ToString();
+            var clientId = form["client_id"].ToString();
+            var clientSecret = form["client_secret"].ToString();
+
+            // Prefer Basic auth
+            if (!string.IsNullOrWhiteSpace(basicClientId))
+                clientId = basicClientId;
+            if (!string.IsNullOrWhiteSpace(basicSecret))
+                clientSecret = basicSecret;
+
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+            {
+                return ApiResult<MessageResponse>.Fail("Missing token or credentials", 400).ToHttpResult();
+            }
+
+            var client = AuthService.AuthenticateClient(clientId, clientSecret, config);
+            if (client is null)
+            {
+                return ApiResult<MessageResponse>.Fail("Invalid client credentials", 403).ToHttpResult();
+            }
+
+            return AuthService.RevokeToken(token).ToHttpResult();
+        })
+        .WithName("RevokeTokenPublic")
+        .WithTags("OIDC")
+        .Accepts<IFormCollection>("application/x-www-form-urlencoded")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .WithOpenApi();
 
