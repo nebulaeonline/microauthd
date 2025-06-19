@@ -22,6 +22,10 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 ## microauthd Status Updates
 
+2025-06-19
+
+So the cli tool `mad` is now in a pretty good state, but it is **slow**. And not just a little slow, but *really* slow. That is fine for the time being, because it is a cli bootstrapping tool mostly, it is not expected that heavy scripting will be done using it. I figure most people will code against the JSON HTTP APIs directly, and those are plenty fast. I just wanted to give people a heads up that the CLI is not fast. Know that it is not microauthd itself.
+
 2025-06-18
 
 ~~Things are a bit in flux at the moment. Some things are broken.~~ Token introspection and token revocation should be solid again.
