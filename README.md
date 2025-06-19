@@ -26,6 +26,10 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 ~~Things are a bit in flux at the moment. Some things are broken.~~ Token introspection and token revocation should be solid again.
 
+We are going to be implementing TOTP-based login in the next day or so, so the repo might be in flux for a bit. 0.7.1.4 is a stable release for testing purposes.
+
+Remember please that the database schema is still in flux, and we do not provide migrations yet, so you will need to drop the database and re-run the OOBE wizard. When we go stable, we will begin providing db migrations.
+
 2025-06-17
 
 CRUD operations are now implemented for our 5 main data types: users, roles, permissions, clients, and scopes. The API is now consistent across all endpoints, with uniform response structures and error handling. The `mad` CLI tool has also been significantly improved to support these operations.
