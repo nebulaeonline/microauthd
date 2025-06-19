@@ -28,7 +28,7 @@ def run_mad(args, expect_json=True, fail_ok=False):
 
     except subprocess.CalledProcessError as e:
         if not fail_ok:
-            print(f"\n❌ mad command failed: {' '.join(shlex.quote(a) for a in cmd)}")
+            print(f"\nmad command failed: {' '.join(shlex.quote(a) for a in cmd)}")
             print("STDOUT:\n", e.stdout)
             print("STDERR:\n", e.stderr)
             raise
