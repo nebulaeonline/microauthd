@@ -13,7 +13,10 @@ internal static class SessionCtlCommands
         var cmd = new Command("sessionctl", "Manage active user sessions");
 
         cmd.AddCommand(ListAllCommand());
+        cmd.AddCommand(IntrospectTokenCommand());
+        cmd.AddCommand(GetByIdCommand());
         cmd.AddCommand(ListByUserCommand());
+
         cmd.AddCommand(RevokeCommand());
         cmd.AddCommand(PurgeCommand());
         
@@ -71,6 +74,129 @@ internal static class SessionCtlCommands
                 Console.Error.WriteLine(ex.Message);
             }
         }, adminUrl, adminToken, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command GetByIdCommand()
+    {
+        var cmd = new Command("get", "Get a session by ID");
+
+        var sessionId = new Option<string>("--id") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(sessionId);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string id, bool json) =>
+        {
+            try
+            {
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.Error.WriteLine("No token.");
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var session = await client.GetSessionById(id);
+
+                if (session is null)
+                {
+                    Console.WriteLine(json ? "null" : "(session not found)");
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(session, MadJsonContext.Default.SessionResponse));
+                    return;
+                }
+
+                Console.WriteLine("Session Details:");
+                Console.WriteLine($"Id         : {session.Id}");
+                Console.WriteLine($"UserId     : {session.UserId}");
+                Console.WriteLine($"Client     : {session.ClientIdentifier}");
+                Console.WriteLine($"Use        : {session.TokenUse}");
+                Console.WriteLine($"Revoked    : {session.IsRevoked}");
+                Console.WriteLine($"Expires At : {session.ExpiresAt:u}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to retrieve session {id}.");
+                Console.Error.WriteLine(ex.Message);
+            }
+        }, adminUrl, adminToken, sessionId, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command IntrospectTokenCommand()
+    {
+        var cmd = new Command("introspect", "Introspect a token via the admin introspection endpoint");
+
+        var tokenValue = new Option<string>("--token") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(tokenValue);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? bearer, string tokenToInspect, bool json) =>
+        {
+            try
+            {
+                bearer ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(bearer))
+                {
+                    Console.Error.WriteLine("No admin token available.");
+                    return;
+                }
+
+                var client = new MadApiClient(url, bearer);
+                var result = await client.IntrospectTokenAsAdmin(tokenToInspect);
+
+                if (result is null)
+                {
+                    Console.Error.WriteLine("No response or token invalid.");
+                    return;
+                }
+
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.DictionaryStringObject));
+                    return;
+                }
+
+                // Pretty-print
+                Console.WriteLine("Token Claims:");
+                Console.WriteLine(new string('-', 50));
+                foreach (var kvp in result)
+                {
+                    if (kvp.Value is JsonElement j && j.ValueKind == JsonValueKind.Array)
+                    {
+                        Console.WriteLine($"{kvp.Key,-20}: [ {string.Join(", ", j.EnumerateArray().Select(x => x.ToString()))} ]");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"{kvp.Key,-20}: {kvp.Value}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Failed to introspect token.");
+                Console.Error.WriteLine(ex.Message);
+            }
+        }, adminUrl, adminToken, tokenValue, jsonOut);
 
         return cmd;
     }

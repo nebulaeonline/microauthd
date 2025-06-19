@@ -1,7 +1,14 @@
-﻿namespace madTypes.Api.Responses;
+﻿using System.Text.Json.Serialization;
+
+namespace madTypes.Api.Responses;
 
 public record MeResponse(
+    [property: JsonPropertyName("sub")]
     string Subject,
+    [property: JsonPropertyName("email")]
     string? Email,
-    List<string> Roles
+    [property: JsonPropertyName("roles")]
+    List<string> Roles,
+    [property: JsonPropertyName("scopes")]
+    List<string> Scopes
 );

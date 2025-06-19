@@ -203,6 +203,13 @@ internal static class OobePrompts
                 Console.WriteLine("Client ID cannot be empty!\n");
         }
 
+        while (string.IsNullOrWhiteSpace(state.OidcAudience))
+        {
+            state.OidcAudience = Prompt("OIDC Audience (default is microauthd)", "microauthd");
+            if (string.IsNullOrWhiteSpace(state.OidcAudience))
+                Console.WriteLine("OIDC Audience cannot be empty!\n");
+        }
+
         var secretLen = PromptInt("OIDC Client Secret length", 32, 16, 64);
         state.OidcClientSecret = AuthService.GeneratePassword(secretLen);
 

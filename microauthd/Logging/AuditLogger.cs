@@ -23,15 +23,24 @@ public static class AuditLogger
         var id = Guid.NewGuid().ToString();
         var timestamp = DateTime.UtcNow.ToString("o");
 
+        // If this is an oidc token, we might not have a userId,
+        // so we should make sure that we don't pass a non-GUID value
+        // to the database, because it will fail. Audit logging 
+        // should never fail.
+        if (!Guid.TryParse(userId, out var guid))
+        {
+            userId = null;
+        }
+
         Db.WithConnection(conn =>
         {
             try
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
-                INSERT INTO audit_logs (id, user_id, action, target, timestamp, ip_address, user_agent)
-                VALUES ($id, $uid, $action, $target, $ts, $ip, $ua);
-            """;
+                    INSERT INTO audit_logs (id, user_id, action, target, timestamp, ip_address, user_agent)
+                    VALUES ($id, $uid, $action, $target, $ts, $ip, $ua);
+                """;
                 cmd.Parameters.AddWithValue("$id", id);
                 cmd.Parameters.AddWithValue("$uid", (object?)userId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$action", action);

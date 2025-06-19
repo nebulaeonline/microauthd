@@ -45,4 +45,10 @@ namespace mad.Common;
 [JsonSerializable(typeof(MessageResponse))]
 [JsonSerializable(typeof(SessionStatusResponse))]
 [JsonSerializable(typeof(LoginResponse))]
+[JsonSerializable(typeof(Dictionary<string, object>))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(double))]
+[JsonSerializable(typeof(DateTime))]
 public partial class MadJsonContext : JsonSerializerContext { }

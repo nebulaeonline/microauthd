@@ -55,7 +55,12 @@ public static class AuthRoutes
                             .Select(r => r.Value)
                             .ToList();
 
-            var me = new MeResponse(sub, email, roles);
+            var scopeClaim = user.Claims.FirstOrDefault(c => c.Type == "scope")?.Value;
+            var scopes = string.IsNullOrEmpty(scopeClaim)
+                ? Array.Empty<string>()
+                : scopeClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            var me = new MeResponse(sub, email, roles, scopes.ToList());
             return Results.Json(me, MicroauthJsonContext.Default.MeResponse);
         })
         .RequireAuthorization()

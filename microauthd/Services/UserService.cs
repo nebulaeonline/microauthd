@@ -936,7 +936,7 @@ public static class UserService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, issued_at, expires_at, is_revoked, token_use
+                SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use
                 FROM sessions
                 WHERE id = $jti;
             """;
@@ -950,10 +950,11 @@ public static class UserService
             {
                 Id = reader.GetString(0),
                 UserId = reader.GetString(1),
-                IssuedAt = DateTime.Parse(reader.GetString(2)),
-                ExpiresAt = DateTime.Parse(reader.GetString(3)),
-                IsRevoked = reader.GetInt64(4) == 1,
-                TokenUse = reader.GetString(5)
+                ClientIdentifier = reader.GetString(2),
+                IssuedAt = DateTime.Parse(reader.GetString(3)),
+                ExpiresAt = DateTime.Parse(reader.GetString(4)),
+                IsRevoked = reader.GetInt64(5) == 1,
+                TokenUse = reader.GetString(6)
             });
         });
     }

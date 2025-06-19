@@ -143,6 +143,29 @@ internal class MadApiClient
                ?? new();
     }
 
+    public async Task<Dictionary<string, object>?> IntrospectTokenAsAdmin(string token)
+    {
+        var req = new Dictionary<string, string>
+        {
+            ["token"] = token
+        };
+
+        var res = await _http.PostAsync($"{BaseUrl}/introspect", new FormUrlEncodedContent(req));
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.DictionaryStringObject);
+    }
+
+    public async Task<SessionResponse?> GetSessionById(string sessionId)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/sessions/{sessionId}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.SessionResponse);
+    }
+
     public async Task<List<SessionResponse>> ListSessionsForUser(string userId)
     {
         var res = await _http.GetAsync($"{BaseUrl}/sessions/user/{userId}");

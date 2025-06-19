@@ -55,6 +55,7 @@ internal class OobeState
     public string OidcIssuer = string.Empty;
     public string OidcClientId = string.Empty;
     public string OidcClientSecret = string.Empty;
+    public string OidcAudience = string.Empty;
 
     public bool AuditLoggingEnabled = false;
     public int AuditLogRetentionDays = 0;

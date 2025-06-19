@@ -47,7 +47,8 @@ namespace microauthd.Config
                 AdminEmail = state.AdminEmail,
                 AdminPassword = state.AdminPass,
                 InitialOidcClientId = state.OidcClientId,
-                InitialOidcClientSecret = state.OidcClientSecret
+                InitialOidcClientSecret = state.OidcClientSecret,
+                InitialOidcAudience = state.OidcAudience
             };
 
             return postConfig;
@@ -95,12 +96,14 @@ namespace microauthd.Config
         }
 
         // For creating the initial OIDC client immediately post-OOBE
-        public static void CreateOobeClientRaw(string clientId, string clientSecret, AppConfig config)
+        public static void CreateOobeClientRaw(string clientId, string clientSecret, string audience, AppConfig config)
         {
             if (string.IsNullOrWhiteSpace(clientId))
                 throw new ArgumentException("Client ID must not be empty", nameof(clientId));
             if (string.IsNullOrWhiteSpace(clientSecret))
                 throw new ArgumentException("Client secret must not be empty", nameof(clientSecret));
+            if (string.IsNullOrWhiteSpace(audience))
+                throw new ArgumentException("Audience must not be empty", nameof(audience));
 
             var id = Guid.NewGuid().ToString();
             var hash = Argon2.Argon2HashEncodedToString(
@@ -117,11 +120,12 @@ namespace microauthd.Config
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
-                    INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, created_at, modified_at, is_active)
-                    VALUES ($id, $cid, $hash, '', datetime('now'), datetime('now'), 1);
+                    INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, audience, created_at, modified_at, is_active)
+                    VALUES ($id, $cid, $hash, $cid, $aud, datetime('now'), datetime('now'), 1);
                 """;
                 cmd.Parameters.AddWithValue("$id", id);
                 cmd.Parameters.AddWithValue("$cid", clientId);
+                cmd.Parameters.AddWithValue("$aud", audience);
                 cmd.Parameters.AddWithValue("$hash", hash);
                 cmd.ExecuteNonQuery();
             });
