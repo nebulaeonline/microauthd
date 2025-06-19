@@ -100,7 +100,7 @@ public static class AuthService
         var user = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, password_hash, email FROM users WHERE username = $u AND is_active = 1";
+            cmd.CommandText = "SELECT id, password_hash, email, lockout_until FROM users WHERE username = $u AND is_active = 1";
             cmd.Parameters.AddWithValue("$u", username);
             using var reader = cmd.ExecuteReader();
 
@@ -111,12 +111,19 @@ public static class AuthService
             {
                 Id = reader.GetString(0),
                 Hash = reader.GetString(1),
-                Email = reader.IsDBNull(2) ? null : reader.GetString(2)
+                Email = reader.IsDBNull(2) ? null : reader.GetString(2),
+                LockoutUntil = reader.IsDBNull(3) ? (DateTime?)null : DateTime.Parse(reader.GetString(3))
             };
         });
 
         if (user == null)
             return null;
+
+        // Check if the user is locked out
+        if (user.LockoutUntil.HasValue && user.LockoutUntil.Value > DateTime.UtcNow)
+        {
+            return null;
+        }
 
         var passwordBytes = Encoding.UTF8.GetBytes(password);
         if (!VerifyEncoded(Argon2Algorithm.Argon2id, user.Hash, passwordBytes))
