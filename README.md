@@ -24,6 +24,8 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 2025-06-19
 
+Bindings are up for Python, Go, and JS/TS. Please consider all of them a work in progress, but the should be usable for most operations (both AUTH & ADMIN).
+
 So the cli tool `mad` is now in a pretty good state, but it is **slow**. And not just a little slow, but *really* slow. That is fine for the time being, because it is a cli bootstrapping tool mostly, it is not expected that heavy scripting will be done using it. I figure most people will code against the JSON HTTP APIs directly, and those are plenty fast. I just wanted to give people a heads up that the CLI is not fast. Know that it is not microauthd itself.
 
 2025-06-18
@@ -153,7 +155,7 @@ microauthd is **not** a complete access platform. It is meant to:
 - Run **embedded in appliances or edge systems** with minimal setup
 - Provide **authenticated backend control panels** via `mad` or custom tooling
 
-Future bindings will be released for common languages (C#, Go, Python, Rust, JavaScript) to simplify integration.
+Future bindings will be released for common languages (C#, ~~Go~~ (Done), ~~Python~~ (Done), Rust, ~~JavaScript~~ (Done)) to simplify integration.
 
 ---
 
@@ -187,7 +189,7 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 - **Does not enforce fine-graned resource ownership or external ACLs** - leaves this to calling systems
 - OOBE is helpful, but **not quite production-ready** for large deployments (much better in v2 of OOBE now)
 - OTP-based loginis not yet implemented (on roadmap)
-- **Bindings for other languages are not yet published**
+- **Bindings for Python, Go, and JS/TS are in the repo; other languages are not yet published**
 
 ### Project Roadmap
 
@@ -196,7 +198,7 @@ Future bindings will be released for common languages (C#, Go, Python, Rust, Jav
 3. Replace shared DB connection with per-request pooling (WAL-mode safe)
 4. ~~Clean up API DTOs (uniform `MessageResponse`, consistent `id + name`)~~ Done.
 5. ~~Launch test harness using `mad` + Python bindings (in progress)~~ Done.
-6. Ship bindings for C#, Go, Python, Rust, and JavaScript (TS, Axios, Node)
+6. Ship bindings for C# & Rust
 7. More robust failed password mechanisms (~~rate limiting~~ (done) / exponential backoff)
 8. OTP login flow
 ---
