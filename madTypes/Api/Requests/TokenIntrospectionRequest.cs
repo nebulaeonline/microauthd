@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text.Json.Serialization;
 
-namespace madTypes.Api.Requests
+namespace madTypes.Api.Requests;
+
+public class TokenIntrospectionRequest
 {
-    public class TokenIntrospectionRequest
-    {
-        public string Token { get; set; } = string.Empty;
-    }
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = string.Empty;
 }

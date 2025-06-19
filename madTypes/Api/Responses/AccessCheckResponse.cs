@@ -1,3 +1,12 @@
-﻿namespace madTypes.Api.Responses;
+﻿using System.Text.Json.Serialization;
 
-public record AccessCheckResponse(string UserId, string PermissionId, bool Allowed);
+namespace madTypes.Api.Responses;
+
+public record AccessCheckResponse(
+    [property: JsonPropertyName("user_id")]
+    string UserId,
+    [property: JsonPropertyName("permission_id")]
+    string PermissionId,
+    [property: JsonPropertyName("allowed")]
+    bool Allowed
+);

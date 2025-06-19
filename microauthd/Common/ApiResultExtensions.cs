@@ -93,6 +93,9 @@ namespace microauthd.Common
                 var t when t == typeof(SessionResponse) =>
                     MicroauthJsonContext.Default.SessionResponse,
 
+                var t when t == typeof(string) =>
+                    MicroauthJsonContext.Default.String,
+
                 var t when t == typeof(List<SessionResponse>) =>
                     MicroauthJsonContext.Default.ListSessionResponse,
 
@@ -110,6 +113,9 @@ namespace microauthd.Common
 
                 var t when t == typeof(VerifyPasswordResponse) =>
                     MicroauthJsonContext.Default.VerifyPasswordResponse,
+
+                var t when t == typeof(VersionResponse) =>
+                    MicroauthJsonContext.Default.VersionResponse,
 
                 var t when t == typeof(WhoamiResponse) =>
                     MicroauthJsonContext.Default.WhoamiResponse,

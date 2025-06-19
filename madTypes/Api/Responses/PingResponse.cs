@@ -1,3 +1,8 @@
-﻿namespace madTypes.Api.Responses;
+﻿using System.Text.Json.Serialization;
 
-public record PingResponse(string Message);
+namespace madTypes.Api.Responses;
+
+public record PingResponse(
+    [property: JsonPropertyName("message")]
+    string Message
+);

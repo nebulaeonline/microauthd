@@ -1,3 +1,8 @@
-﻿namespace madTypes.Api.Responses;
+﻿using System.Text.Json.Serialization;
 
-public record WhoamiResponse(string Message);
+namespace madTypes.Api.Responses;
+
+public record WhoamiResponse(
+    [property: JsonPropertyName("message")]
+    string Message
+);

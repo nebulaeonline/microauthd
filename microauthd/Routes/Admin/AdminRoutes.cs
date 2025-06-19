@@ -48,10 +48,12 @@ public static class AdminRoutes
         // version endpoint*************************************************************************
         group.MapGet("/version", () =>
         {
-            var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown";
-            return Results.Ok(new { version });
+            var response = new VersionResponse();
+            return Results.Json(response, MicroauthJsonContext.Default.VersionResponse);
 
-        }).WithTags("Info")
+        })
+        .WithTags("Info")
+        .Produces<VersionResponse>(StatusCodes.Status200OK)
         .WithOpenApi();
 
         // create user endpoint*********************************************************************

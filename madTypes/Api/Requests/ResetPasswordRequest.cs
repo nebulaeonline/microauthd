@@ -1,7 +1,9 @@
-﻿namespace madTypes.Api.Requests
+﻿using System.Text.Json.Serialization;
+
+namespace madTypes.Api.Requests;
+
+public class ResetPasswordRequest
 {
-    public class ResetPasswordRequest
-    {
-        public required string NewPassword { get; set; }
-    }
+    [JsonPropertyName("new_password")]
+    public required string NewPassword { get; set; }
 }

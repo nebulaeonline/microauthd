@@ -35,8 +35,8 @@ public static class AuthRoutes
         // version endpoint*************************************************************************
         group.MapGet("/version", () =>
         {
-            var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown";
-            return Results.Ok(new { version });
+            var response = new VersionResponse();
+            return Results.Json(response, MicroauthJsonContext.Default.VersionResponse);
         })
         .WithTags("Info")
         .WithOpenApi();
