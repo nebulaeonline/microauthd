@@ -42,7 +42,7 @@ class AdminClient:
             payload["email"] = email
         if is_active is not None:
             payload["is_active"] = is_active
-        resp = requests.patch(url, json=payload, headers=self._headers())
+        resp = requests.put(url, json=payload, headers=self._headers())
         resp.raise_for_status()
         return UserObject.from_dict(resp.json())
 
@@ -82,7 +82,7 @@ class AdminClient:
     def update_role(self, role_id: str, description: Optional[str] = None) -> RoleObject:
         url = f"{self.admin_url}/roles/{role_id}"
         payload = {"description": description} if description is not None else {}
-        resp = requests.patch(url, json=payload, headers=self._headers())
+        resp = requests.put(url, json=payload, headers=self._headers())
         resp.raise_for_status()
         return RoleObject.from_dict(resp.json())
 
@@ -139,7 +139,7 @@ class AdminClient:
     def update_permission(self, perm_id: str, name: str) -> PermissionObject:
         url = f"{self.admin_url}/permissions/{perm_id}"
         payload = {"name": name}
-        resp = requests.patch(url, json=payload, headers=self._headers())
+        resp = requests.put(url, json=payload, headers=self._headers())
         resp.raise_for_status()
         return PermissionObject.from_dict(resp.json())
 
@@ -205,7 +205,7 @@ class AdminClient:
     def update_scope(self, scope_id: str, description: Optional[str] = None) -> ScopeObject:
         url = f"{self.admin_url}/scopes/{scope_id}"
         payload = {"description": description} if description is not None else {}
-        resp = requests.patch(url, json=payload, headers=self._headers())
+        resp = requests.put(url, json=payload, headers=self._headers())
         resp.raise_for_status()
         return ScopeObject.from_dict(resp.json())
 
@@ -303,7 +303,7 @@ class AdminClient:
             payload["display_name"] = display_name
         if audience is not None:
             payload["audience"] = audience
-        resp = requests.patch(url, json=payload, headers=self._headers())
+        resp = requests.put(url, json=payload, headers=self._headers())
         resp.raise_for_status()
         return ClientObject.from_dict(resp.json())
 
@@ -451,7 +451,7 @@ class AdminClient:
 
     # Audit Logs
     def get_audit_logs(self) -> List[AuditLogResponse]:
-        res = requests.get(f"{self.admin_url}/audit")
+        res = requests.get(f"{self.admin_url}/audit-logs")
         res.raise_for_status()
         return [AuditLogResponse(**log) for log in res.json()]
 
@@ -463,7 +463,7 @@ class AdminClient:
 
     def purge_audit_logs(self, older_than_days: int) -> MessageResponse:
         body = {"older_than_days": older_than_days}
-        res = requests.post(f"{self.admin_url}/audit/purge", json=body)
+        res = requests.post(f"{self.admin_url}/audit-logs/purge", json=body)
         res.raise_for_status()
         return MessageResponse(**res.json())
 

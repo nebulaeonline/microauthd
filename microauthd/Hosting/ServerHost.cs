@@ -14,7 +14,6 @@ using microauthd.Tokens;
 using microauthd.Services;
 
 using System.Security.Claims;
-using Microsoft.IdentityModel.Tokens;
 
 namespace microauthd.Hosting;
 

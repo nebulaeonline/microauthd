@@ -1,4 +1,4 @@
-from microauthd.client import AdminClient
+from python.microauthd.admin_client import AdminClient
 
 client = AdminClient.login_admin("http://localhost:9041", "admin", "adminpass")
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Optional, Any, List
 from datetime import datetime
 
 @dataclass
@@ -160,8 +160,16 @@ class AuditLogResponse:
 
 @dataclass
 class MessageResponse:
-    success: bool
-    message: str
+    def __init__(self, success: bool, message: str):
+        self.success = success
+        self.message = message
+
+    @staticmethod
+    def from_dict(obj: dict) -> "MessageResponse":
+        return MessageResponse(
+            success=obj.get("success", False),
+            message=obj.get("message", "")
+        )
 
 @dataclass
 class PurgeAuditLogRequest:
@@ -186,3 +194,20 @@ class VerifyTotpRequest:
 @dataclass
 class TotpQrResponse:
     qr_code_filename: str
+
+@dataclass  
+class MeResponse:
+    def __init__(self, sub: str, email: Optional[str], roles: List[str], scopes: List[str]):
+        self.sub = sub
+        self.email = email
+        self.roles = roles
+        self.scopes = scopes
+
+    @staticmethod
+    def from_dict(data: dict) -> "MeResponse":
+        return MeResponse(
+            sub=data["sub"],
+            email=data.get("email"),
+            roles=data.get("roles", []),
+            scopes=data.get("scopes", [])
+        )

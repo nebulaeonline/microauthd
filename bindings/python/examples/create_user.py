@@ -4,7 +4,7 @@ import os
 # Add the parent dir of 'microauthd' to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from microauthd.client import AdminClient
+from python.microauthd.admin_client import AdminClient
 from microauthd.models import UserObject, TokenResponse
 
 ADMIN_URL = "http://localhost:9041"
