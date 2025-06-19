@@ -1,77 +1,17 @@
-﻿# microauthd
-
+# microauthd
+---
+## Configuration Mechanism
 ---
 
-## INTRODUCTION
+### Introduction
 
-Microauthd is a lightweight authentication daemon for managing users, sessions, and tokens. It supports multiple 
-authentication methods including password-based, token-based, and one-time password (OTP).
+microauthd tries to be as flexible as possible with its configuration options. Options are consistent across the three ways of setting them. The first place is the configuration file (`mad.conf` by default). The configuration file is just a simple .ini style file with `key = value` pairs. 
 
-Clients can interact with microauthd via HTTP, making it compatible with any language or platform. It supports 
-JWT (JSON Web Tokens), optional OpenID Connect (OIDC), and is backed by an embedded SQLite database with optional 
-SQLCipher support for encrypted credentials.
+Values can also be set via environment variables for installations that prefer that method. The names of the environment variables are exactly the same as the options in the configuration file, only uppercased and with underscores `_` instead of dashes, and prefixed by default `MAD_` (the prefix is overridable in the config file or on the command line) an example would be `MAD_DB_FILE` or `MAD_DB_PASS`. Variables that are feature flags will accept being set to 1 or true.
 
-While SSL termination is supported for both authentication and administration endpoints, it's strongly recommended 
-to run microauthd behind a reverse proxy like Nginx, Apache, or Caddy for TLS handling.
+Values can also be set on the command line, and these mirror the configuration file verbatim- so `--db-file=xxx.db3` or `--db-pass=1234`.
 
-The service is designed to be:
-
-- Secure (Argon2id password hashing, JWT signing)
-- Minimal (low memory and CPU usage)
-- Deployable (single binary, cross-platform, AOT support)
-- Configurable (CLI, environment, config file)
-
-Microauthd supports user roles for fine-grained access control. The only built-in role is `MadAdmin`, which grants 
-administrative access. Custom roles can be created through the admin interface, CLI, or API.
-
----
-
-## GETTING STARTED
-
-Microauthd is available as:
-
-- AOT-compiled binaries (Windows, Linux, macOS)
-- A .NET 8 portable build for environments without AOT
-- A Docker image (`linux/amd64`) for containerized deployments
-
-Source code is available on GitHub:  
-**https://github.com/nebulaeonline/microauthd**
-
-License: MIT
-
----
-
-##CONFIGURATION
-
-Microauthd can be configured via:
-
-1. Command-line options
-2. Environment variables (prefixed, e.g., `MAD_`)
-3. INI-style configuration file (e.g., `mad.conf`)
-
-**Order of precedence:**
-
-1. Command-line overrides everything  
-2. Environment variables override config file  
-3. Configuration file provides defaults
-
-**Configuration File Notes:**
-
-- Default file: `mad.conf` in the working directory
-- Format: simple `key = value`, with `#` or `;` for comments
-- Permissions: recommended `0600` on production systems
-
----
-
-##ENVIRONMENT VARIABLE PREFIXING
-
-Use `--env-var-prefix` to isolate instances on the same host.  
-Default prefix is `MAD_`.
-
-Example:
-
-export ENV1_MAD_DB_FILE=instance1.db3
-microauthd --env-var-prefix ENV1_MAD_
+The order of precedence from least to greatest is config file -> environment variable -> command line switch. So environment variables override the config file, and command line switches override both the config file and any environment variables.
 
 ---
 
@@ -144,5 +84,3 @@ microauthd --env-var-prefix ENV1_MAD_
 | max-login-failures              | Lockout threshold                        | 5       |
 | seconds-to-reset-login-failures | Reset failure counter after X seconds    | 300     |
 | failed-password-lockout-duration| Lockout duration (in seconds)            | 300     |
-
----
