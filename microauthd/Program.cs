@@ -60,7 +60,7 @@ public class Program
 
                 // Set up the initial OIDC client
                 if (postConfig.NeedsOidcClientCreation)
-                    OobeDos.CreateOobeClientRaw(postConfig.InitialOidcClientId, postConfig.InitialOidcClientSecret, config);
+                    OobeDos.CreateOobeClientRaw(postConfig.InitialOidcClientId, postConfig.InitialOidcClientSecret, postConfig.InitialOidcAudience, config);
             }
             else
             {

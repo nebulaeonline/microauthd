@@ -10,6 +10,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using QRCoder;
+using OtpNet;
 using static microauthd.Tokens.TokenIssuer;
 using static nebulae.dotArgon2.Argon2;
 
@@ -1521,6 +1523,168 @@ public static class UserService
         );
 
         return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} refresh token(s)."));
+    }
+
+    /// <summary>
+    /// Generates a Time-based One-Time Password (TOTP) secret for the specified user and creates a QR code in SVG
+    /// format for the user to scan with an authenticator app.
+    /// </summary>
+    /// <remarks>This method performs the following steps: <list type="bullet"> <item>Validates that the user
+    /// exists and is active in the database.</item> <item>Generates a new TOTP secret for the user.</item>
+    /// <item>Creates a QR code in SVG format containing the TOTP secret and saves it to the specified output
+    /// path.</item> <item>Updates the user's record in the database with the new TOTP secret.</item> </list> The
+    /// generated QR code can be scanned by the user using an authenticator app (e.g., Google Authenticator) to set up
+    /// TOTP-based authentication.</remarks>
+    /// <param name="userId">The unique identifier of the user for whom the TOTP secret is being generated. Must refer to an active user.</param>
+    /// <param name="outputPath">The directory path where the generated QR code SVG file will be saved. Must be a valid, writable path.</param>
+    /// <param name="config">The application configuration object containing necessary settings for the operation.</param>
+    /// <returns>An <see cref="ApiResult{TotpQrResponse}"/> containing the result of the operation. If successful, the result
+    /// includes the filename of the generated QR code. If the user is not found, the result indicates a "Not Found"
+    /// status.</returns>
+    public static ApiResult<TotpQrResponse> GenerateTotpForUser(
+        string userId,
+        string outputPath,
+        AppConfig config)
+    {
+        var user = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT username FROM users WHERE id = $id AND is_active = 1";
+            cmd.Parameters.AddWithValue("$id", userId);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return reader.GetString(0); // username
+        });
+
+        if (user is null)
+            return ApiResult<TotpQrResponse>.NotFound("User not found");
+
+        // Generate new TOTP secret
+        var secret = Utils.GenerateBase32Secret();
+        var uri = $"otpauth://totp/microauthd:{user}?secret={secret}&issuer=microauthd";
+
+        // Generate filename
+        var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
+        var fullPath = Path.Combine(outputPath, filename);
+
+        // Create SVG QR
+        var qrGen = new QRCodeGenerator();
+        var data = qrGen.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
+        var svgQr = new SvgQRCode(data).GetGraphic(5);
+        File.WriteAllText(fullPath, svgQr);
+
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE users
+                SET otp_secret = $secret
+                WHERE id = $id AND is_active = 1;
+            """;
+            cmd.Parameters.AddWithValue("$secret", secret);
+            cmd.Parameters.AddWithValue("$id", userId);
+            cmd.ExecuteNonQuery();
+        });
+
+        return ApiResult<TotpQrResponse>.Ok(new TotpQrResponse
+        {
+            Success = true,
+            Filename = filename
+        });
+    }
+
+    /// <summary>
+    /// Verifies a Time-based One-Time Password (TOTP) code for a user and enables TOTP for the user if the code is
+    /// valid.
+    /// </summary>
+    /// <remarks>This method performs the following steps: <list type="bullet"> <item><description>Validates
+    /// the input parameters.</description></item> <item><description>Retrieves the user's TOTP secret from the database
+    /// if the user is active.</description></item> <item><description>Verifies the provided TOTP code against the
+    /// user's secret.</description></item> <item><description>Enables TOTP for the user in the database if the code is
+    /// valid.</description></item> </list> Possible failure scenarios include: <list type="bullet">
+    /// <item><description>Missing or invalid input parameters.</description></item> <item><description>User not found,
+    /// inactive, or missing a TOTP secret.</description></item> <item><description>Invalid TOTP
+    /// code.</description></item> <item><description>Database update failure when enabling TOTP.</description></item>
+    /// </list></remarks>
+    /// <param name="userId">The unique identifier of the user. Cannot be null, empty, or whitespace.</param>
+    /// <param name="code">The TOTP code to verify. Cannot be null, empty, or whitespace.</param>
+    /// <param name="config">The application configuration object used for database and other settings.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. Returns a success response if the TOTP code is valid and TOTP is successfully enabled for the user.
+    /// Returns a failure response with an appropriate status code and message if the operation fails.</returns>
+    public static ApiResult<MessageResponse> VerifyTotpCode(string userId, string code, AppConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(code))
+            return ApiResult<MessageResponse>.Fail("totp failure", 403);
+
+        var otpSecret = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT otp_secret FROM users WHERE id = $id AND is_active = 1";
+            cmd.Parameters.AddWithValue("$id", userId);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? reader.GetString(0) : null;
+        });
+
+        if (string.IsNullOrWhiteSpace(otpSecret))
+            return ApiResult<MessageResponse>.Fail("totp failure", 403);
+
+        var totp = new OtpNet.Totp(Base32Encoding.ToBytes(otpSecret));
+        if (!totp.VerifyTotp(code, out _, new VerificationWindow(1, 1)))
+            return ApiResult<MessageResponse>.Fail("totp failure", 403);
+
+        var affected = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE users SET totp_enabled = 1 WHERE id = $id";
+            cmd.Parameters.AddWithValue("$id", userId);
+            return cmd.ExecuteNonQuery();
+        });
+
+        if (affected > 0)
+            return ApiResult<MessageResponse>.Ok(new(true, "TOTP enabled for user"));
+
+        return ApiResult<MessageResponse>.Fail("totp failure", 403);
+    }
+
+    /// <summary>
+    /// Disables Time-based One-Time Password (TOTP) authentication for the specified user.
+    /// </summary>
+    /// <remarks>This method updates the user's record in the database to disable TOTP authentication by
+    /// setting the `totp_enabled` field to 0  and clearing the `totp_secret`. If the user is not found or is already
+    /// inactive, the method returns a failure response with a 404 status code. An audit log entry is created for the
+    /// operation.</remarks>
+    /// <param name="userId">The unique identifier of the user for whom TOTP authentication will be disabled. Cannot be null, empty, or
+    /// whitespace.</param>
+    /// <param name="config">The application configuration used for logging and other operations. Must not be null.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. Returns a success response if TOTP was successfully disabled, or a failure response with an
+    /// appropriate error message and status code.</returns>
+    public static ApiResult<MessageResponse> DisableTotpForUser(string userId, AppConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return ApiResult<MessageResponse>.Fail("Missing user_id", 400);
+
+        var affected = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE users
+                SET totp_enabled = 0,
+                    totp_secret = NULL
+                WHERE id = $id AND is_active = 1;
+            """;
+            cmd.Parameters.AddWithValue("$id", userId);
+            return cmd.ExecuteNonQuery();
+        });
+
+        if (affected == 0)
+            return ApiResult<MessageResponse>.Fail("User not found or already inactive", 404);
+
+        AuditLogger.AuditLog(config, userId, "disable_totp", userId);
+        return ApiResult<MessageResponse>.Ok(new(true, "TOTP disabled for user"));
     }
 
 }

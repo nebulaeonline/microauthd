@@ -4,6 +4,7 @@ using madTypes.Api.Requests;
 using madTypes.Api.Responses;
 using System.CommandLine;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace mad.Commands;
 
@@ -13,6 +14,9 @@ internal static class UserCommands
     {
         var cmd = new Command("user", "Manage users");
         cmd.AddCommand(CreateUserCommand());
+        cmd.AddCommand(TotpQr());
+        cmd.AddCommand(TotpVerifyCommand());
+        cmd.AddCommand(DisableTotpCommand());
         cmd.AddCommand(UpdateUserCommand());
         cmd.AddCommand(ListUsersCommand());
         cmd.AddCommand(GetUserByIdCommand());
@@ -109,6 +113,151 @@ internal static class UserCommands
                 }
             }
         }, adminUrl, adminToken, username, email, password, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command TotpQr()
+    {
+        var cmd = new Command("totp-qr", "Generate TOTP QR for a user");
+
+        var userId = new Option<string>("--id") { IsRequired = true };
+        var pathOpt = new Option<string>("--output-path", () => ".") { Description = "Where to save the QR SVG" };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(userId);
+        cmd.AddOption(pathOpt);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string uid, string path, bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.Error.WriteLine("No token.");
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var result = await client.GenerateTotpQrCode(new TotpQrRequest
+            {
+                UserId = uid,
+                QrOutputPath = path
+            });
+
+            if (json)
+            {
+#pragma warning disable CS8619 // Nullability of reference types doesn't match target type
+                var typeInfo = (JsonTypeInfo<TotpQrResponse?>)MadJsonContext.Default.TotpQrResponse;
+                Console.WriteLine(JsonSerializer.Serialize(result, typeInfo));
+            }
+            else if (result?.Success == true)
+            {
+                Console.WriteLine($"TOTP QR generated: {result.Filename}");
+            }
+            else
+            {
+                Console.Error.WriteLine("Failed to generate TOTP QR.");
+            }
+
+        }, adminUrl, adminToken, userId, pathOpt, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command TotpVerifyCommand()
+    {
+        var cmd = new Command("totp-verify", "Verify a TOTP code for a user");
+
+        var userId = new Option<string>("--user-id") { IsRequired = true };
+        var code = new Option<string>("--code") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(userId);
+        cmd.AddOption(code);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string uid, string code, bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.Error.WriteLine("No token.");
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var result = await client.VerifyTotpCode(new VerifyTotpRequest
+            {
+                UserId = uid,
+                Code = code
+            });
+
+            if (result == null)
+            {
+                Console.Error.WriteLine("Failed to verify TOTP.");
+                return;
+            }
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.MessageResponse));
+            }
+            else
+            {
+                Console.WriteLine(result.Success ? "TOTP verified and enabled" : $"Failed: {result.Message}");
+            }
+        }, adminUrl, adminToken, userId, code, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command DisableTotpCommand()
+    {
+        var cmd = new Command("disable-totp", "Disable TOTP for a user");
+
+        var userId = new Option<string>("--user-id") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(userId);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string uid, bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.Error.WriteLine("No token.");
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var result = await client.DisableTotpForUser(uid);
+
+            if (result is null)
+            {
+                Console.Error.WriteLine("Failed to disable TOTP.");
+                return;
+            }
+
+            if (json)
+                Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.MessageResponse));
+            else
+                Console.WriteLine(result.Message);
+
+        }, adminUrl, adminToken, userId, jsonOut);
 
         return cmd;
     }

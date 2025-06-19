@@ -51,4 +51,7 @@ namespace mad.Common;
 [JsonSerializable(typeof(long))]
 [JsonSerializable(typeof(double))]
 [JsonSerializable(typeof(DateTime))]
+[JsonSerializable(typeof(TotpQrRequest))]
+[JsonSerializable(typeof(TotpQrResponse))]
+[JsonSerializable(typeof(VerifyTotpRequest))]
 public partial class MadJsonContext : JsonSerializerContext { }

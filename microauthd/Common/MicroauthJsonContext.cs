@@ -67,6 +67,11 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(DateTime))]
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(object[]))]
+[JsonSerializable(typeof(TotpQrRequest))]
+[JsonSerializable(typeof(TotpQrResponse))]
+[JsonSerializable(typeof(VerifyPasswordRequest))]
+[JsonSerializable(typeof(VerifyPasswordResponse))]
+[JsonSerializable(typeof(VerifyTotpRequest))]
 public partial class MicroauthJsonContext : JsonSerializerContext
 {
 }

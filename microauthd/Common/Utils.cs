@@ -157,6 +157,79 @@ namespace microauthd.Common
         {
             return !string.IsNullOrWhiteSpace(input)
                 && input.All(c => !char.IsWhiteSpace(c));
-        }        
+        }
+
+        /// <summary>
+        /// Generates a random Base32-encoded secret.
+        /// </summary>
+        /// <remarks>This method uses a cryptographically secure random number generator to produce the
+        /// random bytes. The resulting string is encoded using the Base32 encoding scheme, which is commonly used for
+        /// secrets in applications such as two-factor authentication.</remarks>
+        /// <param name="numBytes">The number of random bytes to generate. Must be a positive integer. Defaults to 20.</param>
+        /// <returns>A Base32-encoded string representing the generated random bytes.</returns>
+        public static string GenerateBase32Secret(int numBytes = 20)
+        {
+            var bytes = new byte[numBytes];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(bytes);
+
+            return Base32Encode(bytes);
+        }
+
+        /// <summary>
+        /// Encodes the specified byte array into a Base32 string representation.
+        /// </summary>
+        /// <remarks>This method uses the standard Base32 alphabet (A-Z, 2-7) without padding.  The
+        /// resulting string is case-insensitive and suitable for use in scenarios  where a compact, human-readable
+        /// encoding is required.</remarks>
+        /// <param name="data">The byte array to encode. Cannot be null or empty.</param>
+        /// <returns>A Base32-encoded string representation of the input byte array.</returns>
+        private static string Base32Encode(byte[] data)
+        {
+            const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+            var result = new StringBuilder();
+            int buffer = data[0];
+            int next = 1;
+            int bitsLeft = 8;
+
+            while (bitsLeft > 0 || next < data.Length)
+            {
+                if (bitsLeft < 5)
+                {
+                    if (next < data.Length)
+                    {
+                        buffer <<= 8;
+                        buffer |= data[next++] & 0xff;
+                        bitsLeft += 8;
+                    }
+                    else
+                    {
+                        int pad = 5 - bitsLeft;
+                        buffer <<= pad;
+                        bitsLeft += pad;
+                    }
+                }
+
+                int index = (buffer >> (bitsLeft - 5)) & 0x1f;
+                bitsLeft -= 5;
+                result.Append(alphabet[index]);
+            }
+
+            return result.ToString(); // no padding
+        }
+
+        /// <summary>
+        /// Generates a random hexadecimal string of the specified length in bytes.
+        /// </summary>
+        /// <param name="numBytes">The number of random bytes to generate. Must be a non-negative integer.</param>
+        /// <returns>A lowercase hexadecimal string representing the generated random bytes.</returns>
+        public static string RandHex(int numBytes)
+        {
+            var bytes = new byte[numBytes];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(bytes);
+            return Convert.ToHexString(bytes).ToLowerInvariant();
+        }
     }
 }

@@ -84,6 +84,47 @@ internal class MadApiClient
         );
     }
 
+    public async Task<TotpQrResponse?> GenerateTotpQrCode(TotpQrRequest request)
+    {
+        var content = JsonContent.Create(
+            request,
+            MadJsonContext.Default.TotpQrRequest
+        );
+
+        var res = await _http.PostAsync($"{BaseUrl}/users/{request.UserId}/totp/generate", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(
+            MadJsonContext.Default.TotpQrResponse
+        );
+    }
+
+    public async Task<MessageResponse?> VerifyTotpCode(VerifyTotpRequest request)
+    {
+        var content = JsonContent.Create(
+            request,
+            MadJsonContext.Default.VerifyTotpRequest
+        );
+
+        var res = await _http.PostAsync($"{BaseUrl}/users/totp/verify", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(
+            MadJsonContext.Default.MessageResponse
+        );
+    }
+
+    public async Task<MessageResponse?> DisableTotpForUser(string userId)
+    {
+        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/disable-totp", null);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse);
+    }
+
     public async Task<UserObject?> UpdateUser(string id, UserObject updated)
     {
         var content = JsonContent.Create(updated, MadJsonContext.Default.UserObject);

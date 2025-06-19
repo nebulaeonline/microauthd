@@ -40,7 +40,9 @@ public static class DbInitializer
             last_failed_login TEXT,
             lockout_until TEXT,
             is_active INTEGER DEFAULT 1,
-            email_verified INTEGER DEFAULT 0
+            email_verified INTEGER DEFAULT 0,
+            totp_enabled INTEGER DEFAULT 0,
+            totp_secret TEXT
         );
         CREATE TABLE IF NOT EXISTS roles (
             id TEXT PRIMARY KEY,

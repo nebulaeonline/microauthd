@@ -99,11 +99,17 @@ namespace microauthd.Common
                 var t when t == typeof(TokenResponse) =>
                     MicroauthJsonContext.Default.TokenResponse,
 
+                var t when t == typeof(TotpQrResponse) =>
+                    MicroauthJsonContext.Default.TotpQrResponse,
+
                 var t when t == typeof(UserObject) =>
                     MicroauthJsonContext.Default.UserObject,
 
                 var t when t == typeof(List<UserObject>) =>
                     MicroauthJsonContext.Default.ListUserObject,
+
+                var t when t == typeof(VerifyPasswordResponse) =>
+                    MicroauthJsonContext.Default.VerifyPasswordResponse,
 
                 var t when t == typeof(WhoamiResponse) =>
                     MicroauthJsonContext.Default.WhoamiResponse,

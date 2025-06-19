@@ -12,6 +12,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Net;
+using OtpNet;
 using static nebulae.dotArgon2.Argon2;
 using microauthd.Common;
 
@@ -307,6 +308,26 @@ public static class AuthService
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
+        // Check if TOTP is required for this user
+        var requiresTotp = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT totp_enabled FROM users WHERE id = $uid;";
+            cmd.Parameters.AddWithValue("$uid", r.UserId!);
+            var result = cmd.ExecuteScalar();
+            return result is long l && l == 1;
+        });
+
+        if (requiresTotp)
+        {
+            var totpCode = form["totp_code"].ToString();
+            if (string.IsNullOrWhiteSpace(totpCode) || !ValidateTotpCode(r.UserId!, totpCode))
+            {
+                Log.Warning("TOTP required and failed for user {UserId}", r.UserId);
+                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            }
+        }
+        
         // Assemble claims
         var claims = new List<Claim>
         {
@@ -1196,4 +1217,81 @@ public static class AuthService
             return reader.Read();
         });
     }
+
+    /// <summary>
+    /// Validates a Time-based One-Time Password (TOTP) code for a specified user.
+    /// </summary>
+    /// <remarks>This method retrieves the user's TOTP secret from the database and verifies the provided code
+    /// against it. The user must have TOTP enabled and be active for the validation to succeed.</remarks>
+    /// <param name="userId">The unique identifier of the user whose TOTP code is being validated. Cannot be null, empty, or whitespace.</param>
+    /// <param name="code">The TOTP code to validate. Cannot be null, empty, or whitespace.</param>
+    /// <returns><see langword="true"/> if the provided TOTP code is valid for the specified user; otherwise, <see
+    /// langword="false"/>.</returns>
+    public static bool ValidateTotpCode(string userId, string code)
+    {
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(code))
+            return false;
+
+        var secret = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT otp_secret FROM users WHERE id = $id AND is_active = 1 AND totp_enabled = 1";
+            cmd.Parameters.AddWithValue("$id", userId);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? reader.GetString(0) : null;
+        });
+
+        if (string.IsNullOrWhiteSpace(secret))
+            return false;
+
+        try
+        {
+            var bytes = Base32Encoding.ToBytes(secret);
+            var totp = new Totp(bytes); // SHA1, 30s, 6 digits
+            return totp.VerifyTotp(code, out _, new VerificationWindow(1, 1));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Verifies the provided username and password credentials and determines if additional authentication steps are
+    /// required.
+    /// </summary>
+    /// <remarks>This method checks the validity of the provided username and password against the
+    /// authentication service. If the credentials are valid, it also determines whether Time-based One-Time Password
+    /// (TOTP) authentication is required for the user. The result includes the user's ID, email, and TOTP requirement
+    /// status.</remarks>
+    /// <param name="req">The request containing the username and password to verify.</param>
+    /// <param name="config">The application configuration used for authentication.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="VerifyPasswordResponse"/> object if the credentials are
+    /// valid. If the credentials are invalid, the result will indicate the failure reason and status code.</returns>
+    public static ApiResult<VerifyPasswordResponse> VerifyPasswordOnly(VerifyPasswordRequest req, AppConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
+            return ApiResult<VerifyPasswordResponse>.Fail("Missing username or password", 400);
+
+        var result = AuthService.AuthenticateUser(req.Username, req.Password, config);
+        if (result is not { Success: true } r)
+            return ApiResult<VerifyPasswordResponse>.Forbidden("Invalid credentials");
+
+        var totpRequired = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT totp_enabled FROM users WHERE id = $id";
+            cmd.Parameters.AddWithValue("$id", r.UserId);
+            return cmd.ExecuteScalar() is long v && v == 1;
+        });
+
+        return ApiResult<VerifyPasswordResponse>.Ok(new VerifyPasswordResponse
+        {
+            Valid = true,
+            UserId = r.UserId,
+            Email = r.Email,
+            TotpRequired = totpRequired
+        });
+    }
+
 }
