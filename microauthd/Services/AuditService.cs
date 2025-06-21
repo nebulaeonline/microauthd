@@ -1,6 +1,8 @@
 ﻿using madTypes.Api.Responses;
 using madTypes.Common;
+using microauthd.Data;
 using Microsoft.AspNetCore.Http;
+using Serilog;
 
 namespace microauthd.Services
 {
@@ -20,46 +22,16 @@ namespace microauthd.Services
         /// specified filters. If no logs match the filters, the list will be empty.</returns>
         public static ApiResult<List<AuditLogResponse>> GetAuditLogs(string? userId = null, string? action = null, int limit = 100)
         {
-            var logs = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                var where = new List<string>();
-                if (!string.IsNullOrWhiteSpace(userId)) where.Add("user_id = $uid");
-                if (!string.IsNullOrWhiteSpace(action)) where.Add("action = $act");
-
-                cmd.CommandText = $"""
-                    SELECT id, user_id, action, target, timestamp, ip_address, user_agent
-                    FROM audit_logs
-                    {(where.Count > 0 ? $"WHERE {string.Join(" AND ", where)}" : "")}
-                    ORDER BY timestamp DESC
-                    LIMIT $limit;
-                """;
-
-                if (!string.IsNullOrWhiteSpace(userId))
-                    cmd.Parameters.AddWithValue("$uid", userId);
-                if (!string.IsNullOrWhiteSpace(action))
-                    cmd.Parameters.AddWithValue("$act", action);
-                cmd.Parameters.AddWithValue("$limit", limit);
-
-                using var reader = cmd.ExecuteReader();
-                var list = new List<AuditLogResponse>();
-                while (reader.Read())
-                {
-                    list.Add(new AuditLogResponse
-                    {
-                        Id = reader.GetString(0),
-                        UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
-                        Action = reader.GetString(2),
-                        Target = reader.IsDBNull(3) ? null : reader.GetString(3),
-                        Timestamp = reader.GetString(4),
-                        IpAddress = reader.IsDBNull(5) ? null : reader.GetString(5),
-                        UserAgent = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    });
-                }
-                return list;
-            });
-
-            return ApiResult<List<AuditLogResponse>>.Ok(logs);
+                var logs = AuditStore.GetAuditLogs(userId, action, limit);
+                return ApiResult<List<AuditLogResponse>>.Ok(logs);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving audit logs");
+                return ApiResult<List<AuditLogResponse>>.Fail("An error occurred while retrieving audit logs.", 500);
+            }
         }
 
         /// <summary>
@@ -73,34 +45,19 @@ namespace microauthd.Services
         /// otherwise, an <see cref="ApiResult{T}"/> indicating that the entry was not found.</returns>
         public static ApiResult<AuditLogResponse> GetAuditLogById(string id)
         {
-            var log = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT id, user_id, action, target, timestamp, ip_address, user_agent
-                    FROM audit_logs
-                    WHERE id = $id;
-                """;
-                cmd.Parameters.AddWithValue("$id", id);
+                var log = AuditStore.GetAuditLogById(id);
 
-                using var reader = cmd.ExecuteReader();
-                if (!reader.Read()) return null;
-
-                return new AuditLogResponse
-                {
-                    Id = reader.GetString(0),
-                    UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
-                    Action = reader.GetString(2),
-                    Target = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    Timestamp = reader.GetString(4),
-                    IpAddress = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    UserAgent = reader.IsDBNull(6) ? null : reader.GetString(6),
-                };
-            });
-
-            return log is not null
-                ? ApiResult<AuditLogResponse>.Ok(log)
-                : ApiResult<AuditLogResponse>.NotFound("Audit log not found");
+                return log is not null
+                    ? ApiResult<AuditLogResponse>.Ok(log)
+                    : ApiResult<AuditLogResponse>.NotFound("Audit log not found");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving audit log by ID: {Id}", id);
+                return ApiResult<AuditLogResponse>.Fail("An error occurred while retrieving the audit log.", 500);
+            }   
         }
 
         /// <summary>
@@ -115,16 +72,17 @@ namespace microauthd.Services
         /// logs purged.</returns>
         public static ApiResult<MessageResponse> PurgeLogsOlderThan(TimeSpan cutoff)
         {
-            var isoCutoff = DateTime.UtcNow.Subtract(cutoff).ToString("o");
-            var purged = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "DELETE FROM audit_logs WHERE timestamp < $ts;";
-                cmd.Parameters.AddWithValue("$ts", isoCutoff);
-                return cmd.ExecuteNonQuery();
-            });
-
-            return ApiResult<MessageResponse>.Ok(new MessageResponse(true, $"Purged {purged} audit log(s)."));
+                var isoCutoff = DateTime.UtcNow.Subtract(cutoff).ToString("o");
+                AuditStore.PurgeAuditLogs(isoCutoff);
+                return ApiResult<MessageResponse>.Ok(new MessageResponse(true, $"Purged {purged} audit log(s)."));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error purging audit logs older than {Cutoff}", cutoff);
+                return ApiResult<MessageResponse>.Fail("An error occurred while purging audit logs.", 500);
+            }
         }
     }
 

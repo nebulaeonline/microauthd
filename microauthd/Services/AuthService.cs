@@ -5,7 +5,6 @@ using microauthd.Config;
 using microauthd.Tokens;
 using microauthd.Data;
 using Microsoft.IdentityModel.Tokens;
-using nebulae.dotArgon2;
 using Serilog;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -97,60 +96,33 @@ public static class AuthService
     /// user does not exist, is inactive, or the password is invalid.</returns>
     public static (bool Success, string? UserId, string? Email, List<Claim> Claims)? AuthenticateUser(string username, string password, AppConfig config)
     {
-        var user = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, password_hash, email, lockout_until FROM users WHERE username = $u AND is_active = 1";
-            cmd.Parameters.AddWithValue("$u", username);
-            using var reader = cmd.ExecuteReader();
-
-            if (!reader.Read())
-                return null;
-
-            return new
-            {
-                Id = reader.GetString(0),
-                Hash = reader.GetString(1),
-                Email = reader.IsDBNull(2) ? null : reader.GetString(2),
-                LockoutUntil = reader.IsDBNull(3) ? (DateTime?)null : DateTime.Parse(reader.GetString(3))
-            };
-        });
-
+        // Get the user by username
+        var user = UserStore.GetUserByUsername(username);
+        
         if (user == null)
             return null;
 
         // Check if the user is locked out
-        if (user.LockoutUntil.HasValue && user.LockoutUntil.Value > DateTime.UtcNow)
+        var lockoutUntil = UserStore.GetUserLockoutUntil(user.Id);
+                
+        if (lockoutUntil != DateTime.MinValue && lockoutUntil > DateTime.UtcNow)
         {
             return null;
         }
 
+        // Verify the password using Argon2id
+        var userHash = UserStore.GetUserPasswordHash(user.Id);
         var passwordBytes = Encoding.UTF8.GetBytes(password);
-        if (!VerifyEncoded(Argon2Algorithm.Argon2id, user.Hash, passwordBytes))
+        if (!VerifyEncoded(Argon2Algorithm.Argon2id, userHash, passwordBytes))
         {
             RecordFailedLogin(user.Id, config);
             return null;
         }
 
-        var roles = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                    SELECT r.id FROM user_roles ur
-                    JOIN roles r ON ur.role_id = r.id
-                    WHERE ur.user_id = $uid AND ur.is_active = 1 AND r.is_active = 1
-                """;
-            cmd.Parameters.AddWithValue("$uid", user.Id);
-            using var reader = cmd.ExecuteReader();
+        // Get user claims (roles & scopes)
+        var claims = AuthStore.GetUserClaims(user.Id);
 
-            var claims = new List<Claim>();
-            while (reader.Read())
-                claims.Add(new Claim("role", reader.GetString(0)));
-
-            return claims;
-        });
-
-        return (true, user.Id, user.Email, roles);
+        return (true, user.Id, user.Email, claims);
     }
 
     /// <summary>
@@ -166,7 +138,7 @@ public static class AuthService
     public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
     {
         // Look up client in database
-        var client = ClientAccess.GetClientById(clientId);
+        var client = ClientStore.GetClientById(clientId);
         if (client is null || !client.IsActive)
             return null;
 
@@ -215,7 +187,7 @@ public static class AuthService
             new(JwtRegisteredClaimNames.Sub, r.UserId!),
             new(JwtRegisteredClaimNames.Email, r.Email ?? "")
         };
-        claims.AddRange(RoleService.GetRoleClaimsForUser(r.UserId!));
+        claims.AddRange(r.Claims);
 
         bool isAdmin = r.Claims.Any(c => c.Value == Constants.MadAdmin);
         if (!isAdmin)
@@ -261,143 +233,110 @@ public static class AuthService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> if the request is successful. Returns a
     /// forbidden result if the credentials or client information are invalid.</returns>
     public static ApiResult<TokenResponse> IssueUserToken(
-        IFormCollection form,
-        AppConfig config,
-        string ip,
-        string userAgent)
+    IFormCollection form,
+    AppConfig config,
+    string ip,
+    string userAgent)
     {
         var username = form["username"].ToString();
         var password = form["password"].ToString();
         var clientIdent = form["client_id"].ToString();
 
         if (string.IsNullOrWhiteSpace(username) ||
-        string.IsNullOrWhiteSpace(password) ||
-        string.IsNullOrWhiteSpace(clientIdent))
+            string.IsNullOrWhiteSpace(password) ||
+            string.IsNullOrWhiteSpace(clientIdent))
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
 
         // check the DB for the client identifier
-        var audience = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT audience
-                FROM clients
-                WHERE client_identifier = $cid AND is_active = 1
-                LIMIT 1;
-            """;
-            cmd.Parameters.AddWithValue("$cid", clientIdent);
-
-            try
-            {
-                using var reader = cmd.ExecuteReader();
-                if (!reader.Read())
-                    return null;
-
-                return reader.IsDBNull(0) ? "microauthd" : reader.GetString(0);
-            }
-            catch
-            {
-                return "microauthd";
-            }
-        });
-
         if (string.IsNullOrEmpty(clientIdent))
         {
             Log.Warning("Unknown or inactive client_identifier {ClientIdent}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
-        // Authenticate user
-        var result = AuthenticateUser(username, password, config);
-        if (result is not { Success: true } r)
+        try
         {
-            Log.Warning("Failed login attempt for {Username}. IP {IP} UA {UA}", username, ip, userAgent);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
-        }
+            // Get the audience for the client identifier
+            var audience = ClientStore.GetClientAudienceByIdentifier(clientIdent);
 
-        // Check if TOTP is required for this user
-        var requiresTotp = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT totp_enabled FROM users WHERE id = $uid;";
-            cmd.Parameters.AddWithValue("$uid", r.UserId!);
-            var result = cmd.ExecuteScalar();
-            return result is long l && l == 1;
-        });
-
-        if (requiresTotp)
-        {
-            var totpCode = form["totp_code"].ToString();
-            if (string.IsNullOrWhiteSpace(totpCode) || !ValidateTotpCode(r.UserId!, totpCode))
+            // Authenticate user
+            var result = AuthenticateUser(username, password, config);
+            if (result is not { Success: true } r)
             {
-                Log.Warning("TOTP required and failed for user {UserId}", r.UserId);
+                Log.Warning("Failed login attempt for {Username}. IP {IP} UA {UA}", username, ip, userAgent);
                 return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
             }
-        }
-        
-        // Assemble claims
-        var claims = new List<Claim>
+
+            // Check if TOTP is required for this user
+            var requiresTotp = UserStore.IsTotpEnabledForUserId(r.UserId!);
+            if (requiresTotp)
+            {
+                var totpCode = form["totp_code"].ToString();
+                if (string.IsNullOrWhiteSpace(totpCode) || !ValidateTotpCode(r.UserId!, totpCode))
+                {
+                    Log.Warning("TOTP required and failed for user {UserId}", r.UserId);
+                    return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+                }
+            }
+
+            // Assemble base claims
+            var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, r.UserId!),
             new(JwtRegisteredClaimNames.Email, r.Email ?? ""),
             new("client_id", clientIdent)
         };
-        claims.AddRange(RoleService.GetRoleClaimsForUser(r.UserId!));
 
-        var scopes = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT s.name
-                FROM user_scopes us
-                JOIN scopes s ON us.scope_id = s.id
-                WHERE us.user_id = $uid AND us.is_active = 1 AND s.is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$uid", r.UserId);
+            // Extract role + scope claims from r.Claims
+            var roleClaims = r.Claims.Where(c => c.Type == "role");
+            var scopeValues = r.Claims
+                .Where(c => c.Type == "scope")
+                .Select(c => c.Value)
+                .Distinct();
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<string>();
-            while (reader.Read())
-                list.Add(reader.GetString(0));
+            claims.AddRange(roleClaims);
 
-            return list;
-        });
+            if (scopeValues.Any())
+                claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
-        if (scopes.Count > 0)
-            claims.Add(new Claim("scope", string.Join(' ', scopes)));
+            // Issue JWT
+            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
+            UserService.WriteSessionToDb(tokenInfo, config, clientIdent);
 
-        // Issue JWT
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
-        UserService.WriteSessionToDb(tokenInfo, config, clientIdent);
+            // Optionally generate refresh token
+            string? refreshToken = null;
+            if (config.EnableTokenRefresh)
+            {
+                refreshToken = UserService.GenerateAndStoreRefreshToken(
+                    config, tokenInfo.UserId, tokenInfo.Jti, clientIdent);
+            }
 
-        // Optionally generate refresh token
-        string? refreshToken = null;
-        if (config.EnableTokenRefresh)
-        {
-            refreshToken = UserService.GenerateAndStoreRefreshToken(
-                config, tokenInfo.UserId, tokenInfo.Jti, clientIdent);
+            Log.Debug("Issued token for user {UserId} under client {ClientIdent}", r.UserId, clientIdent);
+
+            AuditLogger.AuditLog(
+                config: config,
+                userId: r.UserId,
+                action: "token_issued",
+                target: clientIdent,
+                ipAddress: ip,
+                userAgent: userAgent
+            );
+
+            return ApiResult<TokenResponse>.Ok(new TokenResponse
+            {
+                AccessToken = tokenInfo.Token,
+                TokenType = "bearer",
+                ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
+                Jti = tokenInfo.Jti,
+                RefreshToken = refreshToken,
+                Audience = audience
+            });
         }
-
-        Log.Debug("Issued token for user {UserId} under client {ClientIdent}", r.UserId, clientIdent);
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: r.UserId,
-            action: "token_issued",
-            target: clientIdent,
-            ipAddress: ip,
-            userAgent: userAgent
-        );
-
-        return ApiResult<TokenResponse>.Ok(new TokenResponse
+        catch (Exception ex)
         {
-            AccessToken = tokenInfo.Token,
-            TokenType = "bearer",
-            ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
-            Jti = tokenInfo.Jti,
-            RefreshToken = refreshToken,
-            Audience = audience
-        });
+            Log.Error(ex, "Error issuing user token for {Username}", username);
+            return ApiResult<TokenResponse>.Fail("Internal server error", 500);
+        }
     }
 
     /// <summary>
@@ -413,134 +352,89 @@ public static class AuthService
     /// result if the refresh token is invalid, expired, or revoked.</returns>
     public static ApiResult<TokenResponse> RefreshAccessToken(IFormCollection form, AppConfig config)
     {
-        var raw = form["refresh_token"].ToString();
-        if (string.IsNullOrWhiteSpace(raw))
-            return ApiResult<TokenResponse>.Fail("Missing refresh token", 400);
-
-        var sha256 = Utils.Sha256Base64(raw);
-
-        var tokenRow = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, user_id, session_id, refresh_token_hash, expires_at, is_revoked, client_identifier
-                FROM refresh_tokens
-                WHERE refresh_token_sha256 = $sha256;
-            """;
-            cmd.Parameters.AddWithValue("$sha256", sha256);
+            // Get the raw token and make sure it's not empty
+            var raw = form["refresh_token"].ToString();
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read()) return null;
+            if (string.IsNullOrWhiteSpace(raw))
+                return ApiResult<TokenResponse>.Fail("Missing refresh token", 400);
 
-            return new
-            {
-                Id = reader.GetString(0),
-                UserId = reader.GetString(1),
-                SessionId = reader.GetString(2),
-                Hash = reader.GetString(3),
-                ExpiresAt = DateTime.Parse(reader.GetString(4)),
-                IsRevoked = reader.GetInt64(5) == 1,
-                ClientIdentifier = reader.GetString(6)
-            };
-        });
+            // Lookup the refresh token by sha256 hash
+            var sha256 = Utils.Sha256Base64(raw);
+            var tokenRow = UserStore.GetRefreshTokenBySha256Hash(sha256);
 
-        if (tokenRow is null || tokenRow.IsRevoked || tokenRow.ExpiresAt < DateTime.UtcNow)
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            // If the refresh token is null, revoked, or expired, return forbidden
+            if (tokenRow is null || tokenRow.IsRevoked || tokenRow.ExpiresAt < DateTime.UtcNow)
+                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
 
-        if (!VerifyEncoded(
-                Argon2Algorithm.Argon2id,
-                tokenRow.Hash,
-                Encoding.UTF8.GetBytes(raw)))
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            // Verify the refresh token using Argon2id
+            if (!VerifyEncoded(
+                    Argon2Algorithm.Argon2id,
+                    tokenRow.Hash,
+                    Encoding.UTF8.GetBytes(raw)))
+                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
 
-        // Revoke the old token
-        Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE id = $id;";
-            cmd.Parameters.AddWithValue("$id", tokenRow.Id);
-            cmd.ExecuteNonQuery();
-        });
+            // Revoke the token to prevent reuse
+            UserStore.RevokeRefreshToken(tokenRow.Id);
 
-        // Build claims
-        var claims = new List<Claim>
+            // Build claims (initial set)
+            var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, tokenRow.UserId),
             new("client_id", tokenRow.ClientIdentifier)
         };
 
-        claims.AddRange(RoleService.GetRoleClaimsForUser(tokenRow.UserId));
+            // Retrieve roles and scopes
+            var userClaims = AuthStore.GetUserClaims(tokenRow.UserId);
+            var roleClaims = userClaims.Where(c => c.Type == "role");
+            var scopeClaims = userClaims.Where(c => c.Type == "scope").Select(c => c.Value).Distinct();
 
-        // Fix the Count problem by querying scopes directly:
-        var scopes = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT s.name
-                FROM user_scopes us
-                JOIN scopes s ON us.scope_id = s.id
-                WHERE us.user_id = $uid AND us.is_active = 1 AND s.is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$uid", tokenRow.UserId);
+            claims.AddRange(roleClaims);
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<string>();
-            while (reader.Read())
-                list.Add(reader.GetString(0));
+            // Add single OAuth2-style space-delimited scope claim
+            if (scopeClaims.Any())
+                claims.Add(new Claim("scope", string.Join(' ', scopeClaims)));
 
-            return list;
-        });
+            // Get the audience for the given client identifier
+            var audience = ClientStore.GetClientAudienceByIdentifier(tokenRow.ClientIdentifier);
 
-        if (scopes.Count > 0)
-            claims.Add(new Claim("scope", string.Join(' ', scopes)));
+            // Issue the new token and store it in the session table
+            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
+            UserService.WriteSessionToDb(tokenInfo, config, tokenRow.ClientIdentifier);
 
-        var audience = Db.WithConnection(conn =>
-        {
-            try
+            // Generate and store a new refresh token
+            var newRefreshToken = UserService.GenerateAndStoreRefreshToken(
+                config,
+                tokenRow.UserId,
+                tokenInfo.Jti,
+                tokenRow.ClientIdentifier
+            );
+
+            AuditLogger.AuditLog(
+                config: config,
+                userId: tokenRow.UserId,
+                action: "refresh_token_used",
+                target: tokenRow.ClientIdentifier,
+                ipAddress: null,
+                userAgent: null
+            );
+
+            return ApiResult<TokenResponse>.Ok(new TokenResponse
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT audience FROM clients
-                    WHERE client_identifier = $cid LIMIT 1;
-                """;
-                cmd.Parameters.AddWithValue("$cid", tokenRow.ClientIdentifier);
-                using var reader = cmd.ExecuteReader();
-                return reader.Read() ? reader.GetString(0) : null;
-            }
-            catch
-            {
-                return "microauthd";
-            }
-        }) ?? "microauthd";
-
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
-        UserService.WriteSessionToDb(tokenInfo, config, tokenRow.ClientIdentifier);
-
-        var newRefreshToken = UserService.GenerateAndStoreRefreshToken(
-            config,
-            tokenRow.UserId,
-            tokenInfo.Jti,
-            tokenRow.ClientIdentifier
-        );
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: tokenRow.UserId,
-            action: "refresh_token_used",
-            target: tokenRow.ClientIdentifier,
-            ipAddress: null,
-            userAgent: null
-        );
-
-        return ApiResult<TokenResponse>.Ok(new TokenResponse
+                AccessToken = tokenInfo.Token,
+                TokenType = "bearer",
+                ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
+                Jti = tokenInfo.Jti,
+                RefreshToken = newRefreshToken,
+                Audience = audience
+            });
+        }
+        catch (Exception ex)
         {
-            AccessToken = tokenInfo.Token,
-            TokenType = "bearer",
-            ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
-            Jti = tokenInfo.Jti,
-            RefreshToken = newRefreshToken,
-            Audience = audience
-        });
+            Log.Error(ex, "Error refreshing access token");
+            return ApiResult<TokenResponse>.Fail("Internal server error", 500);
+        }
     }
 
     /// <summary>
@@ -555,26 +449,25 @@ public static class AuthService
     /// langword="false"/>.</returns>
     public static bool ValidateOidcClient(string clientId, string clientSecret, AppConfig config)
     {
-        return Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                    SELECT client_secret_hash FROM clients
-                    WHERE client_identifier = $cid AND is_active = 1;
-                """;
-            cmd.Parameters.AddWithValue("$cid", clientId);
+            // Get the secret hash and verify it against the provided client secret
+            var clientSecretHash = ClientStore.GetClientSecretHashByIdentifier(clientId);
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
+            if (string.IsNullOrEmpty(clientSecretHash))
                 return false;
 
-            var hash = reader.GetString(0);
             return VerifyEncoded(
                 Argon2Algorithm.Argon2id,
-                hash,
+                clientSecretHash,
                 Encoding.UTF8.GetBytes(clientSecret)
             );
-        });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error validating OIDC client {ClientId}", clientId);
+            return false;
+        }
     }
 
     /// <summary>
@@ -582,24 +475,20 @@ public static class AuthService
     /// </summary>
     /// <remarks>The method queries the database to find the audience for the provided client identifier.  If
     /// no active client matches the identifier, the method returns <see langword="null"/>.</remarks>
-    /// <param name="clientId">The unique identifier of the client. This value is used to query the database for the associated audience.</param>
+    /// <param name="clientIdentifier">The unique identifier of the client. This value is used to query the database for the associated audience.</param>
     /// <returns>The audience associated with the specified client identifier if the client is active; otherwise, <see
     /// langword="null"/>.</returns>
-    public static string? GetExpectedAudienceForClient(string clientId)
+    public static string? GetExpectedAudienceForClient(string clientIdentifier)
     {
-        return Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT audience
-                FROM clients
-                WHERE client_identifier = $cid AND is_active = 1
-                LIMIT 1;
-            """;
-            cmd.Parameters.AddWithValue("$cid", clientId);
-            using var reader = cmd.ExecuteReader();
-            return reader.Read() ? reader.GetString(0) : null;
-        });
+            return ClientStore.GetClientAudienceByIdentifier(clientIdentifier);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving audience for client {ClientIdentifier}", clientIdentifier);
+            return null;
+        }
     }
 
     /// <summary>
@@ -613,57 +502,14 @@ public static class AuthService
     /// <param name="config">The application configuration containing thresholds and durations for login failure handling.</param>
     public static void RecordFailedLogin(string userId, AppConfig config)
     {
-        Db.WithConnection(conn =>
+        try
         {
-            // Get current failed attempt info
-            int failedLogins = 0;
-            DateTime? lastFailed = null;
-
-            using (var getCmd = conn.CreateCommand())
-            {
-                getCmd.CommandText = """
-                    SELECT failed_logins, last_failed_login
-                    FROM users
-                    WHERE id = $id AND is_active = 1;
-                """;
-                getCmd.Parameters.AddWithValue("$id", userId);
-                using var reader = getCmd.ExecuteReader();
-                if (!reader.Read())
-                    return;
-
-                failedLogins = reader.GetInt32(0);
-                if (!reader.IsDBNull(1))
-                    lastFailed = DateTime.Parse(reader.GetString(1));
-            }
-
-            var now = DateTime.UtcNow;
-            var resetWindow = TimeSpan.FromSeconds(config.SecondsToResetLoginFailures);
-
-            // Reset counter if last failure was too long ago
-            if (lastFailed == null || now - lastFailed > resetWindow)
-                failedLogins = 1;
-            else
-                failedLogins += 1;
-
-            // Compute lockout, if needed
-            DateTime? lockoutUntil = null;
-            if (failedLogins >= config.MaxLoginFailures)
-                lockoutUntil = now.AddSeconds(config.FailedPasswordLockoutDuration);
-
-            using var updateCmd = conn.CreateCommand();
-            updateCmd.CommandText = """
-            UPDATE users
-                SET failed_logins = $fails,
-                    last_failed_login = $last,
-                    lockout_until = $lock
-                WHERE id = $id;
-            """;
-            updateCmd.Parameters.AddWithValue("$fails", failedLogins);
-            updateCmd.Parameters.AddWithValue("$last", now.ToString("o"));
-            updateCmd.Parameters.AddWithValue("$lock", (object?)lockoutUntil?.ToString("o") ?? DBNull.Value);
-            updateCmd.Parameters.AddWithValue("$id", userId);
-            updateCmd.ExecuteNonQuery();
-        });
+            AuthStore.RecordFailedLogin(userId, config);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to record login attempt for user {UserId}", userId);
+        }
     }
 
     /// <summary>
@@ -678,39 +524,26 @@ public static class AuthService
     /// message includes the user ID and client identifier.</returns>
     public static ApiResult<MessageResponse> Logout(string userId, string clientIdentifier, AppConfig config)
     {
-        Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE sessions
-                SET is_revoked = 1
-                WHERE user_id = $uid AND client_identifier = $cid;
-            """;
-            cmd.Parameters.AddWithValue("$uid", userId);
-            cmd.Parameters.AddWithValue("$cid", clientIdentifier);
-            cmd.ExecuteNonQuery();
+            AuthStore.LogoutUser(userId, clientIdentifier);
 
-            using var refreshCmd = conn.CreateCommand();
-            refreshCmd.CommandText = """
-                UPDATE refresh_tokens
-                SET is_revoked = 1
-                WHERE user_id = $uid AND client_identifier = $cid;
-            """;
-            refreshCmd.Parameters.AddWithValue("$uid", userId);
-            refreshCmd.Parameters.AddWithValue("$cid", clientIdentifier);
-            refreshCmd.ExecuteNonQuery();
-        });
+            AuditLogger.AuditLog(
+                config: config,
+                userId: userId,
+                action: "logout",
+                target: clientIdentifier
+            );
 
-        AuditLogger.AuditLog(
-            config: config,
-            userId: userId,
-            action: "logout",
-            target: clientIdentifier
-        );
-
-        return ApiResult<MessageResponse>.Ok(
-            new MessageResponse(true, $"User '{userId}' logged out of client '{clientIdentifier}'")
-        );
+            return ApiResult<MessageResponse>.Ok(
+                new MessageResponse(true, $"User '{userId}' logged out of client '{clientIdentifier}'")
+            );
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to log out user {UserId} from client {ClientIdentifier}", userId, clientIdentifier);
+            return ApiResult<MessageResponse>.Fail("Internal server error", 500);
+        }
     }
 
     /// <summary>
@@ -723,36 +556,25 @@ public static class AuthService
     /// The message indicates that all sessions and refresh tokens for the specified user have been revoked.</returns>
     public static ApiResult<MessageResponse> LogoutAll(string userId, AppConfig config)
     {
-        Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE sessions
-                SET is_revoked = 1
-                WHERE user_id = $uid;
-            """;
-            cmd.Parameters.AddWithValue("$uid", userId);
-            cmd.ExecuteNonQuery();
+            AuthStore.LogoutUserAllClients(userId);
 
-            using var refreshCmd = conn.CreateCommand();
-            refreshCmd.CommandText = """
-                UPDATE refresh_tokens
-                SET is_revoked = 1
-                WHERE user_id = $uid;
-            """;
-            refreshCmd.Parameters.AddWithValue("$uid", userId);
-            refreshCmd.ExecuteNonQuery();
-        });
+            AuditLogger.AuditLog(
+                config: config,
+                userId: userId,
+                action: "logout_all"
+            );
 
-        AuditLogger.AuditLog(
-            config: config,
-            userId: userId,
-            action: "logout_all"
-        );
-
-        return ApiResult<MessageResponse>.Ok(
-            new MessageResponse(true, $"All sessions and refresh tokens revoked for user '{userId}'")
-        );
+            return ApiResult<MessageResponse>.Ok(
+                new MessageResponse(true, $"All sessions and refresh tokens revoked for user '{userId}'")
+            );
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to logout of all sessions for user {UserId}", userId);
+            return ApiResult<MessageResponse>.Fail("Internal server error", 500);
+        }
     }
 
     /// <summary>
@@ -878,76 +700,50 @@ public static class AuthService
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             return ApiResult<TokenResponse>.Fail("Invalid credentials", 403);
 
-        if (!ValidateOidcClient(clientId, clientSecret, config))
-            return ApiResult<TokenResponse>.Fail("Invalid credentials", 403);
-
-        var scopes = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT s.name
-                FROM client_scopes cs
-                JOIN scopes s ON cs.scope_id = s.id
-                JOIN clients c ON cs.client_id = c.id
-                WHERE c.client_identifier = $cid AND cs.is_active = 1 AND s.is_active = 1 AND c.is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$cid", clientId);
+            if (!ValidateOidcClient(clientId, clientSecret, config))
+                return ApiResult<TokenResponse>.Fail("Invalid credentials", 403);
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<string>();
-            while (reader.Read())
-                list.Add(reader.GetString(0));
-            return list;
-        });
+            var scopes = ClientStore.GetClientScopes(clientId);
 
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, clientId),
-            new("client_id", clientId),
-            new("token_use", "client")
-        };
-
-        if (scopes.Count > 0)
-            claims.Add(new Claim("scope", string.Join(' ', scopes)));
-
-        var audience = Db.WithConnection(conn =>
-        {
-            try
+            var claims = new List<Claim>
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT audience FROM clients
-                    WHERE client_identifier = $cid LIMIT 1;
-                """;
-                cmd.Parameters.AddWithValue("$cid", clientId);
-                using var reader = cmd.ExecuteReader();
-                return reader.Read() ? reader.GetString(0) : null;
-            }
-            catch
+                new(JwtRegisteredClaimNames.Sub, clientId),
+                new("client_id", clientId),
+                new("token_use", "client")
+            };
+
+            if (scopes.Count > 0)
+                claims.Add(new Claim("scope", string.Join(' ', scopes)));
+
+            var audience = ClientStore.GetClientAudienceByIdentifier(clientId);
+
+            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
+
+            var response = new TokenResponse
             {
-                return "microauthd";
-            }
-        }) ?? "microauthd";
+                AccessToken = tokenInfo.Token,
+                TokenType = "bearer",
+                ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
+                Jti = tokenInfo.Jti,
+                Audience = audience
+            };
 
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
+            AuditLogger.AuditLog(
+                config: config,
+                userId: null,
+                action: "oidc_token_issued",
+                target: clientId
+            );
 
-        var response = new TokenResponse
+            return ApiResult<TokenResponse>.Ok(response);
+        }
+        catch (Exception ex)
         {
-            AccessToken = tokenInfo.Token,
-            TokenType = "bearer",
-            ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
-            Jti = tokenInfo.Jti,
-            Audience = audience
-        };
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: null,
-            action: "oidc_token_issued",
-            target: clientId
-        );
-
-        return ApiResult<TokenResponse>.Ok(response);
+            Log.Error(ex, "Error issuing OIDC token for client {ClientId}", clientId);
+            return ApiResult<TokenResponse>.Fail("Internal server error", 500);
+        }
     }
 
     /// <summary>
@@ -1005,14 +801,7 @@ public static class AuthService
 
             if (tokenUse == "auth")
             {
-                var isRevoked = Db.WithConnection(conn =>
-                {
-                    using var cmd = conn.CreateCommand();
-                    cmd.CommandText = "SELECT is_revoked FROM sessions WHERE token = $token";
-                    cmd.Parameters.AddWithValue("$token", token);
-                    var result = cmd.ExecuteScalar();
-                    return result is long val && val == 1;
-                });
+                var isRevoked = UserStore.IsTokenRevoked(token);
 
                 if (isRevoked)
                     return ApiResult<Dictionary<string, object>>.Ok(new() { ["active"] = false });
@@ -1164,44 +953,29 @@ public static class AuthService
         {
             var handler = new JwtSecurityTokenHandler();
             jwt = handler.ReadJwtToken(token);
+
+            var jti = jwt.Id;
+            var exp = jwt.ValidTo;
+
+            if (string.IsNullOrWhiteSpace(jti))
+                return ApiResult<MessageResponse>.Fail("Token missing 'jti' claim.");
+
+            // Try session-based revocation first
+            var revoked = UserStore.RevokeToken(token);
+
+            if (revoked > 0)
+                return ApiResult<MessageResponse>.Ok(new(true, "Token revoked via session table"));
+
+            // Otherwise, insert jti into denylist
+            UserStore.AddTokenToBlacklist(jti, exp);
+
+            return ApiResult<MessageResponse>.Ok(new(true, "Token revoked via denylist"));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return ApiResult<MessageResponse>.Fail("Invalid or unreadable token.");
+            Log.Error(ex, "Failed to revoke token: {Message}", ex.Message);
+            return ApiResult<MessageResponse>.Fail("Internal Server Error", 500);
         }
-
-        var jti = jwt.Id;
-        var exp = jwt.ValidTo;
-
-        if (string.IsNullOrWhiteSpace(jti))
-            return ApiResult<MessageResponse>.Fail("Token missing 'jti' claim.");
-
-        // Try session-based revocation first
-        var sessionMatch = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE token = $token";
-            cmd.Parameters.AddWithValue("$token", token);
-            return cmd.ExecuteNonQuery(); // affected rows
-        });
-
-        if (sessionMatch > 0)
-            return ApiResult<MessageResponse>.Ok(new(true, "Token revoked via session table"));
-
-        // Otherwise, insert jti into denylist
-        Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT OR IGNORE INTO jti_denylist (jti, expires_at)
-                VALUES ($jti, $exp)
-            """;
-            cmd.Parameters.AddWithValue("$jti", jti);
-            cmd.Parameters.AddWithValue("$exp", exp.ToString("yyyy-MM-dd HH:mm:ss"));
-            cmd.ExecuteNonQuery();
-        });
-
-        return ApiResult<MessageResponse>.Ok(new(true, "Token revoked via denylist"));
     }
 
     /// <summary>
@@ -1215,14 +989,15 @@ public static class AuthService
     /// otherwise, <see langword="false"/>.</returns>
     private static bool IsRevokedJti(string jti)
     {
-        return Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT 1 FROM jti_denylist WHERE jti = $jti AND expires_at > datetime('now')";
-            cmd.Parameters.AddWithValue("$jti", jti);
-            using var reader = cmd.ExecuteReader();
-            return reader.Read();
-        });
+            return UserStore.IsTokenRevokedJti(jti);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error checking if JTI {Jti} is revoked", jti);
+            return true; // If there's an error, assume it's revoked
+        }
     }
 
     /// <summary>
@@ -1239,26 +1014,20 @@ public static class AuthService
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(code))
             return false;
 
-        var secret = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT otp_secret FROM users WHERE id = $id AND is_active = 1 AND totp_enabled = 1";
-            cmd.Parameters.AddWithValue("$id", userId);
-            using var reader = cmd.ExecuteReader();
-            return reader.Read() ? reader.GetString(0) : null;
-        });
-
-        if (string.IsNullOrWhiteSpace(secret))
-            return false;
-
         try
         {
+            var secret = UserStore.GetTotpSecretByUserId(userId);
+
+            if (string.IsNullOrWhiteSpace(secret))
+                return false;
+
             var bytes = Base32Encoding.ToBytes(secret);
             var totp = new Totp(bytes); // SHA1, 30s, 6 digits
             return totp.VerifyTotp(code, out _, new VerificationWindow(1, 1));
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error(ex, "Failed to validate TOTP code for user {UserId}", userId);
             return false;
         }
     }
@@ -1284,13 +1053,7 @@ public static class AuthService
         if (result is not { Success: true } r)
             return ApiResult<VerifyPasswordResponse>.Forbidden("Invalid credentials");
 
-        var totpRequired = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT totp_enabled FROM users WHERE id = $id";
-            cmd.Parameters.AddWithValue("$id", r.UserId);
-            return cmd.ExecuteScalar() is long v && v == 1;
-        });
+        var totpRequired = UserStore.IsTotpEnabledForUserId(r.UserId!);
 
         return ApiResult<VerifyPasswordResponse>.Ok(new VerifyPasswordResponse
         {

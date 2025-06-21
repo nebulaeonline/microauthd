@@ -4,12 +4,24 @@ using madTypes.Api.Responses;
 using microauthd.Config;
 using Microsoft.AspNetCore.DataProtection;
 using Serilog;
+using System.CommandLine.Parsing;
 using System.Reflection.PortableExecutable;
 using static microauthd.Tokens.TokenIssuer;
 
 namespace microauthd.Data;
 
-public static class UserRepository
+public class RefreshToken
+{
+    public string Id { get; init; } = string.Empty;
+    public string UserId { get; init; } = string.Empty;
+    public string SessionId { get; init; } = string.Empty;
+    public string Hash { get; init; } = string.Empty;
+    public DateTime ExpiresAt { get; init; }
+    public bool IsRevoked { get; init; }
+    public string ClientIdentifier { get; init; } = string.Empty;
+}
+
+public static class UserStore
 {
     /// <summary>
     /// Creates a new user in the database and retrieves the created user's details.
@@ -74,7 +86,7 @@ public static class UserRepository
     /// Ensure that the database connection is properly configured before calling this method.</remarks>
     /// <param name="userId">The unique identifier of the user to check. Cannot be null or empty.</param>
     /// <returns>true if a user with the specified ID exists in the database;  otherwise, false. </returns>
-    public static bool DoesUserExist(string userId)
+    public static bool DoesUserIdExist(string userId)
     {
         return Db.WithConnection(conn =>
         {
@@ -86,13 +98,49 @@ public static class UserRepository
     }
 
     /// <summary>
+    /// Determines whether a specified username exists in the database.
+    /// </summary>
+    /// <remarks>This method queries the database to check for the presence of the specified username. It
+    /// performs a case-sensitive comparison and returns a boolean indicating the result.</remarks>
+    /// <param name="username">The username to check for existence. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the username exists in the database; otherwise, <see langword="false"/>. </returns>
+    public static bool DoesUsernameExist(string username)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM users WHERE username = $username;";
+            cmd.Parameters.AddWithValue("$username", username);
+            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+        });
+    }
+
+    /// <summary>
+    /// Determines whether the specified email address exists in the database.
+    /// </summary>
+    /// <remarks>This method queries the database to check for the presence of the specified email address.
+    /// Ensure that the database connection is properly configured and accessible before calling this method.</remarks>
+    /// <param name="email">The email address to check for existence. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the email address exists in the database; otherwise, <see langword="false"/>.</returns>
+    public static bool DoesEmailExist(string email)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM users WHERE email = $email;";
+            cmd.Parameters.AddWithValue("$email", email);
+            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+        });
+    }
+
+    /// <summary>
     /// Determines whether the specified user is active.
     /// </summary>
     /// <remarks>This method queries the database to check the user's active status. Ensure the database
     /// connection is properly configured.</remarks>
     /// <param name="userId">The unique identifier of the user to check. Cannot be null or empty.</param>
     /// <returns><see langword="true"/> if the user is active; otherwise, <see langword="false"/>.</returns>
-    public static bool IsUserActive(string userId)
+    public static bool IsUserIdActive(string userId)
     {
         return Db.WithConnection(conn =>
         {
@@ -177,6 +225,82 @@ public static class UserRepository
                 WHERE id = $id;
             """;
             cmd.Parameters.AddWithValue("$id", userId);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new UserObject
+            {
+                Id = reader.GetString(0),
+                Username = reader.GetString(1),
+                Email = reader.GetString(2),
+                CreatedAt = reader.GetString(3),
+                IsActive = reader.GetBoolean(4)
+            };
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the password hash for the specified user.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve the password hash associated with the given user
+    /// ID. Ensure that the provided <paramref name="userId"/> corresponds to a valid user in the database.</remarks>
+    /// <param name="userId">The unique identifier of the user whose password hash is to be retrieved. Cannot be null or empty.</param>
+    /// <returns>The password hash of the user as a string. Returns an empty string if the user does not exist or the password
+    /// hash is not set.</returns>
+    public static string GetUserPasswordHash(string userId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT password_hash FROM users WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", userId);
+            var result = cmd.ExecuteScalar();
+            return result?.ToString() ?? string.Empty;
+        });
+    }
+
+
+    /// <summary>
+    /// Retrieves the lockout expiration date and time for the specified user.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve the lockout expiration timestamp for the
+    /// specified user. Ensure that the database connection is properly configured and accessible.</remarks>
+    /// <param name="userId">The unique identifier of the user whose lockout information is being retrieved. Cannot be null or empty.</param>
+    /// <returns>A <see cref="DateTime"/> representing the date and time until the user is locked out.  Returns <see
+    /// cref="DateTime.MinValue"/> if the user is not locked out or if no lockout information is found.</returns>
+    public static DateTime GetUserLockoutUntil(string userId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT lockout_until FROM users WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", userId);
+            var result = cmd.ExecuteScalar();
+            return result is DateTime dt ? dt : DateTime.MinValue;
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a user by their username.
+    /// </summary>
+    /// <remarks>This method queries the database to find a user with the specified username. If no matching
+    /// user exists, the method returns <see langword="null"/>. The returned <see cref="UserObject"/> contains details
+    /// such as the user's ID, username, email, creation date, and active status.</remarks>
+    /// <param name="username">The username of the user to retrieve. This parameter cannot be null or empty.</param>
+    /// <returns>A <see cref="UserObject"/> representing the user with the specified username, or <see langword="null"/> if no
+    /// user is found.</returns>
+    public static UserObject? GetUserByUsername(string username)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, username, email, created_at, is_active
+                FROM users
+                WHERE username = $username;
+            """;
+            cmd.Parameters.AddWithValue("$username", username);
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
                 return null;
@@ -283,6 +407,60 @@ public static class UserRepository
             cmd.Parameters.AddWithValue("$uid", userId);
             cmd.ExecuteNonQuery();
         });
+    }
+
+    /// <summary>
+    /// Revokes a refresh token by marking it as revoked in the database.
+    /// </summary>
+    /// <remarks>This method updates the database to mark the specified refresh token as revoked.  Once
+    /// revoked, the token can no longer be used for authentication or token renewal.</remarks>
+    /// <param name="tokenId">The unique identifier of the refresh token to revoke. This value cannot be null or empty.</param>
+    public static void RevokeRefreshToken(string tokenId)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", tokenId);
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a refresh token from the database using its SHA-256 hash.
+    /// </summary>
+    /// <remarks>This method queries the database for a refresh token that matches the provided SHA-256 hash.
+    /// If no matching token is found, the method returns <see langword="null"/>.</remarks>
+    /// <param name="tokenSha256Hash">The SHA-256 hash of the refresh token to retrieve. This value must be a non-null, non-empty string.</param>
+    /// <returns>A <see cref="RefreshToken"/> object representing the refresh token if found; otherwise, <see langword="null"/>.</returns>
+    public static RefreshToken? GetRefreshTokenBySha256Hash(string tokenSha256Hash)
+    {
+        var token = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, user_id, session_id, refresh_token_hash, expires_at, is_revoked, client_identifier
+                FROM refresh_tokens
+                WHERE refresh_token_sha256 = $sha256;
+            """;
+            cmd.Parameters.AddWithValue("$sha256", tokenSha256Hash);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read()) return null;
+
+            return new RefreshToken
+            {
+                Id = reader.GetString(0),
+                UserId = reader.GetString(1),
+                SessionId = reader.GetString(2),
+                Hash = reader.GetString(3),
+                ExpiresAt = DateTime.Parse(reader.GetString(4)),
+                IsRevoked = reader.GetInt64(5) == 1,
+                ClientIdentifier = reader.GetString(6)
+            };
+        });
+
+        return token;
     }
 
     /// <summary>
@@ -601,6 +779,86 @@ public static class UserRepository
     }
 
     /// <summary>
+    /// Determines whether a token, identified by its JTI (JSON Web Token ID), is revoked.
+    /// </summary>
+    /// <remarks>This method queries a database to check if the specified JTI exists in the denylist and is
+    /// still valid. Ensure that the database connection and schema are properly configured before calling this
+    /// method.</remarks>
+    /// <param name="jti">The unique identifier of the token to check. This value cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the token is found in the denylist and has not expired; otherwise, <see
+    /// langword="false"/>.</returns>
+    public static bool IsTokenRevokedJti(string jti)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM jti_denylist WHERE jti = $jti AND expires_at > datetime('now')";
+            cmd.Parameters.AddWithValue("$jti", jti);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read();
+        });
+    }
+
+    /// <summary>
+    /// Determines whether the specified token has been revoked.
+    /// </summary>
+    /// <remarks>This method queries the database to check the revocation status of the token. A token is
+    /// considered revoked if the corresponding database entry indicates it.</remarks>
+    /// <param name="token">The token to check for revocation. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the token has been revoked; otherwise, <see langword="false"/>.</returns>
+    public static bool IsTokenRevoked(string token)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT is_revoked FROM sessions WHERE token = $token";
+            cmd.Parameters.AddWithValue("$token", token);
+            var result = cmd.ExecuteScalar();
+            return result is long val && val == 1;
+        });
+    }
+
+    /// <summary>
+    /// Revokes the specified token by marking it as invalid in the database.
+    /// </summary>
+    /// <remarks>This method updates the database to mark the token as revoked. Ensure the token provided is
+    /// valid and corresponds to an active session.</remarks>
+    /// <param name="token">The token to be revoked. Cannot be null or empty.</param>
+    /// <returns>The number of rows affected in the database. Returns 0 if no matching token was found.</returns>
+    public static int RevokeToken(string token)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE token = $token";
+            cmd.Parameters.AddWithValue("$token", token);
+            return cmd.ExecuteNonQuery(); // affected rows
+        });
+    }
+
+    /// <summary>
+    /// Adds a token identifier (JTI) to the blacklist, preventing its future use for authentication.
+    /// </summary>
+    /// <remarks>This method stores the JTI and its expiration timestamp in a persistent denylist. If the JTI
+    /// already exists in the denylist, the operation is ignored.</remarks>
+    /// <param name="jti">The unique identifier of the token to be blacklisted. This value cannot be null or empty.</param>
+    /// <param name="expiresAt">The expiration date and time of the token. This determines when the blacklist entry becomes irrelevant.</param>
+    public static void AddTokenToBlacklist(string jti, DateTime expiresAt)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT OR IGNORE INTO jti_denylist (jti, expires_at)
+                VALUES ($jti, $exp)
+            """;
+            cmd.Parameters.AddWithValue("$jti", jti);
+            cmd.Parameters.AddWithValue("$exp", expiresAt.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
     /// Deletes session records from the database based on specified criteria.
     /// </summary>
     /// <remarks>This method performs a bulk deletion of session records based on the specified criteria. If
@@ -831,7 +1089,7 @@ public static class UserRepository
     /// Ensure that <paramref name="userId"/> corresponds to a valid and active user.</remarks>
     /// <param name="userId">The unique identifier of the user whose OTP secret is being updated. Must correspond to an active user.</param>
     /// <param name="otpSecret">The new OTP secret to associate with the user. Cannot be null or empty.</param>
-    public static void StoreOtpSecret(string userId, string otpSecret)
+    public static void StoreTotpSecret(string userId, string otpSecret)
     {
         Db.WithConnection(conn =>
         {
@@ -855,7 +1113,7 @@ public static class UserRepository
     /// <param name="userId">The unique identifier of the user whose OTP secret is to be retrieved. Must not be <see langword="null"/> or
     /// empty.</param>
     /// <returns>The OTP secret as a string if the user exists and is active; otherwise, <see langword="null"/>.</returns>
-    public static string? GetOtpSecretByUserId(string userId)
+    public static string? GetTotpSecretByUserId(string userId)
     {
         return Db.WithConnection(conn =>
         {
@@ -876,7 +1134,7 @@ public static class UserRepository
     /// or empty.</param>
     /// <returns>The number of rows affected by the operation. Typically, this will be 1 if the user exists and the update is
     /// successful, or 0 if no matching user is found.</returns>
-    public static int EnableOtpForUserId(string userId)
+    public static int EnableTotpForUserId(string userId)
     {
         return Db.WithConnection(conn =>
         {
@@ -895,7 +1153,7 @@ public static class UserRepository
     /// <param name="userId">The unique identifier of the user for whom OTP functionality should be disabled. Must not be <see
     /// langword="null"/> or empty.</param>
     /// <returns>The number of rows affected by the operation. Returns 0 if no active user with the specified ID exists.</returns>
-    public static int DisableOtpForUserId(string userId)
+    public static int DisableTotpForUserId(string userId)
     {
         return Db.WithConnection(conn =>
         {
@@ -908,6 +1166,26 @@ public static class UserRepository
             """;
             cmd.Parameters.AddWithValue("$id", userId);
             return cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// Determines whether Time-based One-Time Password (TOTP) authentication is enabled for the specified user.
+    /// </summary>
+    /// <remarks>This method queries the database to check the TOTP status for the user. Ensure the database
+    /// connection is properly configured and accessible.</remarks>
+    /// <param name="userId">The unique identifier of the user. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if TOTP authentication is enabled for the user and the user is active; otherwise, <see
+    /// langword="false"/>.</returns>
+    public static bool IsTotpEnabledForUserId(string userId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT totp_enabled FROM users WHERE id = $id AND is_active = 1";
+            cmd.Parameters.AddWithValue("$id", userId);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() && reader.GetBoolean(0);
         });
     }
 }

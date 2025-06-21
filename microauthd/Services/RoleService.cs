@@ -404,41 +404,6 @@ public static class RoleService
     }
     
     /// <summary>
-    /// Retrieves a list of role claims for the specified user.
-    /// </summary>
-    /// <remarks>This method queries the database to retrieve all active roles associated with the specified
-    /// user.  Each role is returned as a claim of type <see cref="ClaimTypes.Role"/>.</remarks>
-    /// <param name="userId">The unique identifier of the user whose role claims are to be retrieved. Cannot be null or empty.</param>
-    /// <returns>A list of <see cref="Claim"/> objects representing the roles assigned to the user.  The list will be empty if
-    /// the user has no active roles.</returns>
-    public static List<Claim> GetRoleClaimsForUser(string userId)
-    {
-        return Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT r.id FROM user_roles ur
-                JOIN roles r ON ur.role_id = r.id
-                WHERE ur.user_id = $uid
-                  AND ur.is_active = 1
-                  AND r.is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$uid", userId);
-
-            using var reader = cmd.ExecuteReader();
-            var claims = new List<Claim>();
-
-            while (reader.Read())
-            {
-                var roleId = reader.GetString(0);
-                claims.Add(new Claim(ClaimTypes.Role, roleId));
-            }
-
-            return claims;
-        });
-    }
-
-    /// <summary>
     /// Removes a specified role from a user in the system.
     /// </summary>
     /// <remarks>This method removes the association between a user and a role in the system. If the specified

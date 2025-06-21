@@ -70,7 +70,7 @@ public static class UserService
 
         try
         {
-            var user = UserRepository.CreateUser(
+            var user = UserStore.CreateUser(
                 userId: userId,
                 username: username,
                 email: email,
@@ -139,7 +139,7 @@ public static class UserService
 
         try
         {
-            var user = UserRepository.CreateUser(
+            var user = UserStore.CreateUser(
                 userId: userId,
                 username: request.Username,
                 email: request.Email,
@@ -193,19 +193,19 @@ public static class UserService
         try
         {
             // Check for duplicate username/email
-            var conflict = UserRepository.CheckForUsernameOrEmailConflict(updated.Id, updated.Username, updated.Email);
+            var conflict = UserStore.CheckForUsernameOrEmailConflict(updated.Id, updated.Username, updated.Email);
 
             if (conflict)
                 return ApiResult<UserObject>.Fail("Username or email already in use by another user.");
 
             // Do the update
-            var success = UserRepository.UpdateUser(updated);
+            var success = UserStore.UpdateUser(updated);
 
             if (!success)
                 return ApiResult<UserObject>.Fail("Update failed or user not found.");
 
             // Re-read and return updated row
-            var user = UserRepository.GetUserById(updated.Id);
+            var user = UserStore.GetUserById(updated.Id);
 
             return user is not null
                 ? ApiResult<UserObject>.Ok(user)
@@ -229,7 +229,7 @@ public static class UserService
     {
         try
         {
-            var users = UserRepository.ListUsers();
+            var users = UserStore.ListUsers();
             return ApiResult<List<UserObject>>.Ok(users);
         }
         catch (Exception ex)
@@ -258,13 +258,13 @@ public static class UserService
         try
         {
             // Delete the user
-            var deleted = UserRepository.DeleteUser(idToDelete);
+            var deleted = UserStore.DeleteUser(idToDelete);
 
             // Revoke sessions
-            UserRepository.RevokeUserSessions(idToDelete);
+            UserStore.RevokeUserSessions(idToDelete);
 
             // Revoke refresh tokens
-            UserRepository.RevokeUserRefreshTokens(idToDelete);
+            UserStore.RevokeUserRefreshTokens(idToDelete);
 
             AuditLogger.AuditLog(config, userId, "delete_user", idToDelete, ip, ua);
 
@@ -303,7 +303,7 @@ public static class UserService
 
         try
         {
-            var users = UserRepository.ListUsers();
+            var users = UserStore.ListUsers();
 
             AuditLogger.AuditLog(
                 config: config,
@@ -338,7 +338,7 @@ public static class UserService
 
         try
         {
-            var user = UserRepository.GetUserById(userId);
+            var user = UserStore.GetUserById(userId);
 
             if (user is null)
                 return ApiResult<UserObject>.NotFound("User not found");
@@ -378,7 +378,7 @@ public static class UserService
 
         try
         {
-            var user = UserRepository.GetUserById(targetUserId);
+            var user = UserStore.GetUserById(targetUserId);
 
             if (user is null)
                 return ApiResult<UserObject>.NotFound("User not found");
@@ -425,22 +425,22 @@ public static class UserService
         
         try
         {
-            if (!UserRepository.DoesUserExist(userId))
+            if (!UserStore.DoesUserIdExist(userId))
                 return ApiResult<MessageResponse>.Fail("User not found", 404);
 
-            if (!UserRepository.IsUserActive(userId))
+            if (!UserStore.IsUserIdActive(userId))
                 return ApiResult<MessageResponse>.Fail("User is already inactive", 400);
 
-            bool deactivated = UserRepository.DeactivateUser(userId);
+            bool deactivated = UserStore.DeactivateUser(userId);
 
             if (!deactivated)
                 return ApiResult<MessageResponse>.Fail("User not found or already inactive", 400);
 
             // Revoke sessions
-            UserRepository.RevokeUserSessions(userId);
+            UserStore.RevokeUserSessions(userId);
 
             // Revoke refresh tokens
-            UserRepository.RevokeUserRefreshTokens(userId);
+            UserStore.RevokeUserRefreshTokens(userId);
 
             AuditLogger.AuditLog(
                 config: config,
@@ -491,16 +491,16 @@ public static class UserService
 
         try
         {
-            var deactivated = UserRepository.DeactivateUser(targetUserId);
+            var deactivated = UserStore.DeactivateUser(targetUserId);
 
             if (deactivated)
                 return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
 
             // Revoke sessions
-            UserRepository.RevokeUserSessions(targetUserId);
+            UserStore.RevokeUserSessions(targetUserId);
 
             // Revoke refresh tokens
-            UserRepository.RevokeUserRefreshTokens(targetUserId);
+            UserStore.RevokeUserRefreshTokens(targetUserId);
 
             AuditLogger.AuditLog(
                 config: config,
@@ -541,7 +541,7 @@ public static class UserService
 
         try
         {
-            var reactivated = UserRepository.ReactivateUser(userId);
+            var reactivated = UserStore.ReactivateUser(userId);
 
             if (reactivated)
                 return ApiResult<MessageResponse>.Fail("User not found or already active", 400);
@@ -593,7 +593,7 @@ public static class UserService
 
         try
         {
-            var reset = UserRepository.ResetUserPassword(
+            var reset = UserStore.ResetUserPassword(
                 userId: userId,
                 newPasswordHash: hash
             );
@@ -656,7 +656,7 @@ public static class UserService
 
         try
         {
-            var reset = UserRepository.ResetUserPassword(
+            var reset = UserStore.ResetUserPassword(
                 userId: targetUserId,
                 newPasswordHash: hash
             );
@@ -696,7 +696,7 @@ public static class UserService
     {
         try
         {
-            UserRepository.WriteSessionToDb(token, clientIdent);
+            UserStore.WriteSessionToDb(token, clientIdent);
         }
         catch (Exception ex)
         {
@@ -718,7 +718,7 @@ public static class UserService
     {
         try
         {
-            var sessions = UserRepository.ListSessions();
+            var sessions = UserStore.ListSessions();
             return ApiResult<List<SessionResponse>>.Ok(sessions);
         }
         catch (Exception ex)
@@ -744,7 +744,7 @@ public static class UserService
 
         try
         {
-            var session = UserRepository.GetSessionById(jti);
+            var session = UserStore.GetSessionById(jti);
 
             if (session is null)
                 return ApiResult<SessionResponse>.NotFound("Session not found");
@@ -774,7 +774,7 @@ public static class UserService
 
         try
         {
-            var sessions = UserRepository.GetSessionsByUserId(userId);
+            var sessions = UserStore.GetSessionsByUserId(userId);
             return ApiResult<List<SessionResponse>>.Ok(sessions);
         }
         catch
@@ -816,7 +816,7 @@ public static class UserService
 
         try
         {
-            var tokens = UserRepository.GetRefreshTokensByUserId(userId);
+            var tokens = UserStore.GetRefreshTokensByUserId(userId);
             return ApiResult<List<RefreshTokenResponse>>.Ok(tokens);
         }
         catch (Exception ex)
@@ -847,7 +847,7 @@ public static class UserService
 
         try
         {
-            (bool revoked, string message, string userId) = UserRepository.RevokeSessionById(jti);
+            (bool revoked, string message, string userId) = UserStore.RevokeSessionById(jti);
 
             AuditLogger.AuditLog(
                 config: config,
@@ -908,7 +908,7 @@ public static class UserService
     {
         try
         {
-            (bool success, int purged) = UserRepository.PurgeSessions(
+            (bool success, int purged) = UserStore.PurgeSessions(
                 olderThan: olderThan,
                 purgeExpired: purgeExpired,
                 purgeRevoked: purgeRevoked
@@ -972,7 +972,7 @@ public static class UserService
         var sha256 = Utils.Sha256Base64(raw);
 
         // We do not store the raw token, only the argon2id hash and its SHA-256 for quick lookup
-        UserRepository.StoreRefreshToken(
+        UserStore.StoreRefreshToken(
             id: id,
             userId: userId,
             sessionId: sessionId,
@@ -997,7 +997,7 @@ public static class UserService
     {
         try
         {
-            var tokens = UserRepository.ListRefreshTokens();
+            var tokens = UserStore.ListRefreshTokens();
             return ApiResult<List<RefreshTokenResponse>>.Ok(tokens);
         }
         catch
@@ -1022,7 +1022,7 @@ public static class UserService
 
         try
         {
-            var token = UserRepository.GetRefreshTokenById(tokenId);
+            var token = UserStore.GetRefreshTokenById(tokenId);
 
             if (token is null)
                 return ApiResult<RefreshTokenResponse>.NotFound("Refresh token not found");
@@ -1054,7 +1054,7 @@ public static class UserService
 
         try
         {
-            var tokens = UserRepository.GetRefreshTokensByUserId(userId);
+            var tokens = UserStore.GetRefreshTokensByUserId(userId);
             return ApiResult<List<RefreshTokenResponse>>.Ok(tokens);
         }
         catch (Exception ex)
@@ -1088,7 +1088,7 @@ public static class UserService
     {
         try
         {
-            (bool success, int purged) = UserRepository.PurgeRefreshTokens(
+            (bool success, int purged) = UserStore.PurgeRefreshTokens(
                 olderThan: TimeSpan.FromSeconds(req.OlderThanSeconds),
                 purgeExpired: req.PurgeExpired,
                 purgeRevoked: req.PurgeRevoked
@@ -1135,7 +1135,7 @@ public static class UserService
     {
         try
         {
-            var user = UserRepository.GetUsernameById(userId);
+            var user = UserStore.GetUsernameById(userId);
 
             if (user is null)
                 return ApiResult<TotpQrResponse>.NotFound("User not found");
@@ -1154,7 +1154,7 @@ public static class UserService
             var svgQr = new SvgQRCode(data).GetGraphic(5);
             File.WriteAllText(fullPath, svgQr);
 
-            UserRepository.StoreOtpSecret(
+            UserStore.StoreTotpSecret(
                 userId: userId,
                 otpSecret: secret
             );
@@ -1198,7 +1198,7 @@ public static class UserService
 
         try
         {
-            var otpSecret = UserRepository.GetOtpSecretByUserId(userId);
+            var otpSecret = UserStore.GetTotpSecretByUserId(userId);
 
             if (string.IsNullOrWhiteSpace(otpSecret))
                 return ApiResult<MessageResponse>.Fail("totp failure", 403);
@@ -1207,7 +1207,7 @@ public static class UserService
             if (!totp.VerifyTotp(code, out _, new VerificationWindow(1, 1)))
                 return ApiResult<MessageResponse>.Fail("totp failure", 403);
 
-            var affected = UserRepository.EnableOtpForUserId(userId);
+            var affected = UserStore.EnableTotpForUserId(userId);
 
             if (affected > 0)
                 return ApiResult<MessageResponse>.Ok(new(true, "TOTP enabled for user"));
@@ -1241,7 +1241,7 @@ public static class UserService
 
         try
         {
-            var affected = UserRepository.DisableOtpForUserId(userId);
+            var affected = UserStore.DisableTotpForUserId(userId);
 
             if (affected == 0)
                 return ApiResult<MessageResponse>.Fail("User not found or already inactive", 404);

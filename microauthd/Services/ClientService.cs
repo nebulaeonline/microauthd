@@ -57,9 +57,9 @@ namespace microauthd.Services
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
-                INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, audience, created_at, modified_at, is_active)
-                VALUES ($id, $cid, $hash, $name, $aud, datetime('now'), datetime('now'), 1);
-            """;
+                    INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, audience, created_at, modified_at, is_active)
+                    VALUES ($id, $cid, $hash, $name, $aud, datetime('now'), datetime('now'), 1);
+                """;
                 cmd.Parameters.AddWithValue("$id", clientId);
                 cmd.Parameters.AddWithValue("$cid", req.ClientId);
                 cmd.Parameters.AddWithValue("$hash", hash);
