@@ -28,7 +28,7 @@ Realized there wasn't an example login flow, so I added a simple example at publ
 
 You can customize the login experience by modifying this file or replacing it entirely. During build and publish, the contents of public/ are automatically copied to the output directory and served by the AUTH server.
 
-The contract for the login page is that it should POST to `/token` with the following fields / parameters: grant_type (password), username, password, and client_id (should mirror the client you set up during OOBE. You can also refresh at `/token` with grant_type = refresh_token and token set to the refresh token value obtained with the original token grant.
+The contract for the login page is that it should POST to `/token` with the following fields / parameters: grant_type=password, username, password, and client_id (should mirror the client you set up during OOBE). You can also refresh at `/token` with grant_type = refresh_token and token set to the refresh token value obtained with the original token grant.
 
 2025-06-20
 
