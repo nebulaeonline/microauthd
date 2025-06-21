@@ -75,7 +75,7 @@ namespace microauthd.Services
             try
             {
                 var isoCutoff = DateTime.UtcNow.Subtract(cutoff).ToString("o");
-                AuditStore.PurgeAuditLogs(isoCutoff);
+                var purged = AuditStore.PurgeAuditLogs(isoCutoff);
                 return ApiResult<MessageResponse>.Ok(new MessageResponse(true, $"Purged {purged} audit log(s)."));
             }
             catch (Exception ex)
