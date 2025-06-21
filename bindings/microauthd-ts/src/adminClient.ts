@@ -40,6 +40,31 @@ export class AdminClient {
     throw e;
   }
 
+  static async loginPassword(
+    adminUrl: string,
+    username: string,
+    password: string,
+    clientId: string = "madui"
+  ): Promise<AdminClient> {
+    const response = await axios.post<TokenResponse>(
+      `${adminUrl.replace(/\/+$/, "")}/token`,
+      new URLSearchParams({
+        grant_type: "password",
+        username,
+        password,
+        client_id: clientId,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+      }
+    );
+
+    return new AdminClient(adminUrl, response.data.access_token);
+  }
+  
   // SYSTEM DIAGNOSTICS
 
   /** Ping the admin API */
