@@ -22,6 +22,12 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 ## microauthd Status Updates
 
+2025-06-20
+
+Started separating the data layer from the service layer internally. This will allow us to swap out the data layer in the future without affecting the service logic. There is currently no plan to abandon SQLite, so this will be an ongoing background process.
+
+We haven't had a lot of time to test the bindings, so please stay tuned for updates on that front. The idea was to get *something* out there for people to use, but we will be actively auditing for full coverage and putting together testsuites for each of the sets of bindings.
+
 2025-06-19
 
 Bindings are up for Python, Go, and JS/TS. Please consider all of them a work in progress, but the should be usable for most operations (both AUTH & ADMIN).
