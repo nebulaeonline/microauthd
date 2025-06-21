@@ -12,4 +12,6 @@ public class RoleObject
     public string? Description { get; set; }
     [JsonPropertyName("is_protected")]
     public bool IsProtected { get; set; }
+    [JsonPropertyName("is_active")]
+    public bool IsActive { get; set; } = true;
 }

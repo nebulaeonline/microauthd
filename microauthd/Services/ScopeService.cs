@@ -284,7 +284,7 @@ public static class ScopeService
         var deleted = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM scopes WHERE id = $id;";
+            cmd.CommandText = "DELETE FROM scopes WHERE id = $id AND is_protected = 0;";
             cmd.Parameters.AddWithValue("$id", scopeId);
 
             try

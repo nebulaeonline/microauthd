@@ -7,6 +7,7 @@ using microauthd.Services;
 using microauthd.Tokens;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -263,19 +264,13 @@ public static class ServerHost
                                 return Task.CompletedTask;
                             }
                         };
+                    })
+                    .AddCookie("Cookies", options =>
+                    {
+                        options.LoginPath = "/Login";
+                        options.AccessDeniedPath = "/AccessDenied";
                     });
 
-                // cookie-based auth to persist tokens
-                builder.Services.AddAuthentication(options =>
-                {
-                    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                    options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                })
-                .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
-                {
-                    options.LoginPath = "/Login";  // auto-redirect if not authenticated
-                    options.AccessDeniedPath = "/AccessDenied";
-                });
 
                 if (config.EnableAdminSwagger)
                     SwaggerSetup.ConfigureServices(builder, "microauthd admin API");
@@ -301,8 +296,17 @@ public static class ServerHost
                 if (config.EnableAdminSwagger)
                     SwaggerSetup.ConfigureApp(app);
 
-                app.MapRazorPages();
-                app.MapAdminRoutes(config);
+                app.MapRazorPages()
+                   .RequireAuthorization(new AuthorizeAttribute
+                   {
+                       AuthenticationSchemes = "Cookies"
+                   });
+
+                app.MapAdminRoutes(config)
+                   .RequireAuthorization(new AuthorizeAttribute
+                   {
+                       AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme
+                   });
             },
             config
         );

@@ -383,7 +383,7 @@ public static class RoleService
         var deleted = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM roles WHERE id = $id;";
+            cmd.CommandText = "DELETE FROM roles WHERE id = $id AND is_protected = 0;";
             cmd.Parameters.AddWithValue("$id", roleId);
 
             try

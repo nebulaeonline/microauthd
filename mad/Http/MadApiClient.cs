@@ -139,6 +139,7 @@ internal class MadApiClient
     public async Task<List<UserObject>?> ListUsers()
     {
         var res = await _http.GetAsync($"{BaseUrl}/users");
+
         if (!res.IsSuccessStatusCode)
             return null;
 
