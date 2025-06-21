@@ -30,5 +30,22 @@
                 return scopes;
             });
         }
+
+        /// <summary>
+        /// Retrieves the count of active scopes from the database.
+        /// </summary>
+        /// <remarks>This method executes a database query to count the rows in the "scopes" table where
+        /// the "is_active" column is set to 1. Ensure that the database connection is properly configured before
+        /// calling this method.</remarks>
+        /// <returns>The total number of active scopes. Returns 0 if no active scopes are found.</returns>
+        public static int GetScopeCount()
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM scopes WHERE is_active = 1;";
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            });
+        }
     }
 }

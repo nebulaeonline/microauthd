@@ -24,6 +24,8 @@
       <IncludeSymbols>false</IncludeSymbols>
       <Copyright>Copyright © 2025 Nebulae Foundation LLC </Copyright>
       <PackageReadmeFile>docs\README.md</PackageReadmeFile>
+      <RazorCompileOnBuild>true</RazorCompileOnBuild>
+      <RazorCompileOnPublish>true</RazorCompileOnPublish>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>

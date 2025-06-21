@@ -1255,4 +1255,22 @@ public static class UserService
             return ApiResult<MessageResponse>.Fail("Failed to disable TOTP for user", 500);
         }
     }
+
+    /// <summary>
+    /// Retrieves the total number of users currently stored in the system.
+    /// </summary>
+    /// <returns>The total count of users as an integer. Returns 0 if no users are stored.</returns>
+    public static int GetUserCount() => UserStore.GetUserCount();
+
+    /// <summary>
+    /// Retrieves the total number of inactive users in the system.
+    /// </summary>
+    /// <returns>The number of users who are marked as inactive. Returns 0 if there are no inactive users.</returns>
+    public static int GetInactiveUserCount() => UserStore.GetInactiveUserCount();
+
+    /// <summary>
+    /// Retrieves the total number of active user sessions.
+    /// </summary>
+    /// <returns>The total count of active user sessions. Returns 0 if there are no active sessions.</returns>
+    public static int GetUserSessionCount() => UserStore.GetUserSessionCount();
 }

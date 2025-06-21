@@ -3,6 +3,7 @@ using madTypes.Api.Responses;
 using madTypes.Common;
 using microauthd.Common;
 using microauthd.Config;
+using microauthd.Data;
 using Microsoft.Data.Sqlite;
 using Serilog;
 
@@ -577,5 +578,14 @@ namespace microauthd.Services
 
             return ApiResult<List<PermissionObject>>.Ok(list);
         }
+
+        /// <summary>
+        /// Retrieves the total number of permissions available in the permission store.
+        /// </summary>
+        /// <remarks>This method provides a static way to access the number of permissions stored in the
+        /// underlying  permission store. It is useful for scenarios where the caller needs to determine the size of 
+        /// the permission set.</remarks>
+        /// <returns>The total count of permissions as an integer. Returns 0 if no permissions are available.</returns>
+        public static int GetPermissionCount() => PermissionStore.GetPermissionCount();
     }
 }

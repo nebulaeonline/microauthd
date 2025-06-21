@@ -137,4 +137,20 @@ public static class ClientStore
 
         return scopes;
     }
+
+    /// <summary>
+    /// Retrieves the count of active clients from the database.
+    /// </summary>
+    /// <remarks>This method queries the database to count the number of clients marked as active.  It assumes
+    /// that the database connection is properly configured and accessible.</remarks>
+    /// <returns>The total number of active clients as an integer. Returns 0 if no active clients are found.</returns>
+    public static int GetClientCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM clients WHERE is_active = 1;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
 }

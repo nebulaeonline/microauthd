@@ -4,6 +4,7 @@ using madTypes.Api.Responses;
 using madTypes.Common;
 using microauthd.Common;
 using microauthd.Config;
+using microauthd.Data;
 using Microsoft.Data.Sqlite;
 using nebulae.dotArgon2;
 using Serilog;
@@ -474,5 +475,11 @@ public static class RoleService
             return ApiResult<MessageResponse>.Ok(
                 new(true, $"Removed role '{roleId}' from user '{userId}'"));
         });
-    }    
+    }
+
+    /// <summary>
+    /// Retrieves the total number of roles currently stored in the system.
+    /// </summary>
+    /// <returns>The total count of roles as an integer. Returns 0 if no roles are stored.</returns>
+    public static int GetRoleCount() => RoleStore.GetRoleCount();
 }

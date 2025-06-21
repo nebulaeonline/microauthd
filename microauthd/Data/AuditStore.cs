@@ -118,4 +118,20 @@ public static class AuditStore
 
         return purged;
     }
+
+    /// <summary>
+    /// Retrieves the total number of entries in the audit log.
+    /// </summary>
+    /// <remarks>This method executes a database query to count the entries in the audit log table. Ensure
+    /// that the database connection is properly configured before calling this method.</remarks>
+    /// <returns>The total count of audit log entries as an integer. Returns 0 if no entries are present.</returns>
+    public static int GetAuditLogCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM audit_logs;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
 }

@@ -1,0 +1,31 @@
+﻿@page
+@model microauthd.Pages.LoginModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Login";
+}
+
+<h2 class="text-xl font-bold mb-4">Admin Login</h2>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="text-red-500 mb-4">@Model.ErrorMessage</div>
+}
+
+<form method="post" class="space-y-4">
+    <div>
+        <label asp-for="Username" class="block font-medium">Username</label>
+        <input asp-for="Username" class="border rounded w-full px-2 py-1" />
+    </div>
+    <div>
+        <label asp-for="Password" class="block font-medium">Password</label>
+        <input asp-for="Password" type="password" class="border rounded w-full px-2 py-1" />
+    </div>
+    <div>
+        <label asp-for="ClientId" class="block font-medium">Client ID</label>
+        <input asp-for="ClientId" class="border rounded w-full px-2 py-1" />
+    </div>
+    <button type="submit" class="btn btn-primary text-white px-4 py-2 rounded hover:bg-blue-700">
+        Log In
+    </button>
+</form>

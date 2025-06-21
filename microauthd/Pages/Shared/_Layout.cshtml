@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - microauthd</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css" />
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">microauthd</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item">
+                            <a class="nav-link" asp-page="/Users/Index">Users</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-page="/Roles/Index">Roles</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-page="/Permissions/Index">Permissions</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-page="/Clients/Index">Clients</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-page="/Scopes/Index">Scopes</a>
+                        </li>
+                    </ul>
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <div class="container-fluid">
+                            <div id="token-status" class="text-light small text-end"></div>
+                        </div>
+
+                        <script data-jwt-exp="@User.FindFirst("exp")?.Value"></script>
+                        <script>
+                            (function() {
+                                const el = document.querySelector("script[data-jwt-exp]");
+                                const statusEl = document.getElementById("token-status");
+                                if (!el || !statusEl) return;
+
+                                const exp = parseInt(el.dataset.jwtExp);
+                                if (!exp) return;
+
+                                function update() {
+                                    const now = Math.floor(Date.now() / 1000);
+                                    const diff = exp - now;
+
+                                    if (diff <= 0) {
+                                        statusEl.textContent = "Token expired";
+                                        statusEl.classList.add("text-danger");
+                                        return;
+                                    }
+
+                                    const m = Math.floor(diff / 60);
+                                    const s = diff % 60;
+                                    statusEl.textContent = `Token expires in ${m}m ${s}s`;
+                                }
+
+                                update();
+                                setInterval(update, 1000);
+                            })();
+                        </script>
+                    }
+                    <span class="navbar-text text-light small text-end me-2">
+                        @User.FindFirst("sub")?.Value
+                        @if (User.FindFirst("username") is { } uname)
+                        {
+                            <text> (@uname.Value)</text>
+                        }
+                    </span>
+                    <form method="post" asp-page="/Logout">
+                        <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

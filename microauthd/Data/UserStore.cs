@@ -1188,4 +1188,53 @@ public static class UserStore
             return reader.Read() && reader.GetBoolean(0);
         });
     }
+
+    /// <summary>
+    /// Retrieves the count of active users from the database.
+    /// </summary>
+    /// <remarks>This method queries the database to count the number of users marked as active.  It returns
+    /// the total number of active users as an integer.  Ensure that the database connection is properly configured
+    /// before calling this method.</remarks>
+    /// <returns>The total number of active users in the database.</returns>
+    public static int GetUserCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM users WHERE is_active = 1;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the count of inactive users from the database.
+    /// </summary>
+    /// <remarks>This method executes a SQL query to count users where the "is_active" field is set to 0.
+    /// Ensure the database connection is properly configured before calling this method.</remarks>
+    /// <returns>The total number of users marked as inactive in the database.</returns>
+    public static int GetInactiveUserCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM users WHERE is_active = 0;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the count of active user sessions.
+    /// </summary>
+    /// <remarks>An active session is defined as a session that has not been revoked and has an expiration
+    /// time later than the current time.</remarks>
+    /// <returns>The total number of active user sessions.</returns>
+    public static int GetUserSessionCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM sessions WHERE is_revoked = 0 AND expires_at > datetime('now');";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
 }

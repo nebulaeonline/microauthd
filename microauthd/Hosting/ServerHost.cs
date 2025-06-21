@@ -5,6 +5,7 @@ using microauthd.Routes.Admin;
 using microauthd.Routes.Auth;
 using microauthd.Services;
 using microauthd.Tokens;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.FileProviders;
@@ -263,20 +264,43 @@ public static class ServerHost
                             }
                         };
                     });
-                
+
+                // cookie-based auth to persist tokens
+                builder.Services.AddAuthentication(options =>
+                {
+                    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                })
+                .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
+                {
+                    options.LoginPath = "/Login";  // auto-redirect if not authenticated
+                    options.AccessDeniedPath = "/AccessDenied";
+                });
+
                 if (config.EnableAdminSwagger)
                     SwaggerSetup.ConfigureServices(builder, "microauthd admin API");
+
+                // Register razor pages for admin UI
+                builder.Services.AddAntiforgery(o => o.SuppressXFrameOptionsHeader = true);
+                builder.Services.AddRazorPages().AddRazorPagesOptions(opts =>
+                {
+                    opts.Conventions.ConfigureFilter(new IgnoreAntiforgeryTokenAttribute());
+                });
             },
             app =>
             {
                 app.UseMiddleware<RateLimitMiddleware>("admin");
+                app.UseStaticFiles();
+                app.UseRouting();
 
                 app.UseAuthentication();
                 app.UseAuthorization();
 
+                
                 if (config.EnableAdminSwagger)
                     SwaggerSetup.ConfigureApp(app);
 
+                app.MapRazorPages();
                 app.MapAdminRoutes(config);
             },
             config

@@ -24,6 +24,8 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 2025-06-21
 
+Working on a web-based management GUI. Currently implementing via Razor Pages, which will allow us to create a simple web interface for managing users, roles, permissions, scopes, and clients. About 10% of the way there, but it is a start.
+
 Realized there wasn't an example login flow, so I added a simple example at public/login.html. The public/ folder in microauthd is used to serve static files, such as a login page or documentation. Any files placed in this folder will be available at the root of the AUTH server (e.g., /login.html). By default, login.html is included as a simple authentication interface.
 
 You can customize the login experience by modifying this file or replacing it entirely. During build and publish, the contents of public/ are automatically copied to the output directory and served by the AUTH server.
