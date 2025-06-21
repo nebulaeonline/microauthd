@@ -120,7 +120,7 @@ public static class AdminRoutes
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault();
 
-            var result = UserService.SoftDeleteUser(id, config, ip, ua);
+            var result = UserService.DeactivateUser(id, config, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -220,7 +220,7 @@ public static class AdminRoutes
         // get sessions endpoint*******************************************************************
         group.MapGet("/sessions", () =>
         {
-            var result = UserService.GetAllSessions();
+            var result = UserService.ListSessions();
             return result.ToHttpResult();
         })
         .RequireAuthorization()
@@ -239,6 +239,7 @@ public static class AdminRoutes
         .WithName("GetSession")
         .Produces<SessionResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Sessions")
         .WithOpenApi();
 
@@ -302,7 +303,7 @@ public static class AdminRoutes
         {
             group.MapGet("/refresh-tokens", () =>
             {
-                var result = UserService.GetAllRefreshTokens();
+                var result = UserService.ListRefreshTokens();
                 return result.ToHttpResult();
             })
             .RequireAuthorization()

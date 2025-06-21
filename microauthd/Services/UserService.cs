@@ -4,14 +4,18 @@ using madTypes.Api.Responses;
 using madTypes.Common;
 using microauthd.Common;
 using microauthd.Config;
+using microauthd.Data;
 using Microsoft.Data.Sqlite;
 using nebulae.dotArgon2;
+using OtpNet;
+using QRCoder;
+using Serilog;
+using System.CommandLine.Parsing;
+using System.Diagnostics.Eventing.Reader;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using QRCoder;
-using OtpNet;
 using static microauthd.Tokens.TokenIssuer;
 using static nebulae.dotArgon2.Argon2;
 
@@ -66,44 +70,12 @@ public static class UserService
 
         try
         {
-            Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                INSERT INTO users (id, username, password_hash, email, created_at)
-                VALUES ($id, $username, $hash, $email, datetime('now'));
-                """;
-                cmd.Parameters.AddWithValue("$id", userId);
-                cmd.Parameters.AddWithValue("$username", username);
-                cmd.Parameters.AddWithValue("$hash", passwordHash);
-                cmd.Parameters.AddWithValue("$email", email);
-                cmd.ExecuteNonQuery();
-            });
-
-            var user = Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT id, username, email, created_at, is_active FROM users WHERE id = $id;";
-                cmd.Parameters.AddWithValue("$id", userId);
-
-                using var reader = cmd.ExecuteReader();
-
-                if (reader.Read())
-                {
-                    return new UserObject
-                    {
-                        Id = reader.GetString(0),
-                        Username = reader.GetString(1),
-                        Email = reader.GetString(2),
-                        CreatedAt = reader.GetString(3),
-                        IsActive = reader.GetInt64(4) == 1
-                    };
-                }
-                else
-                {
-                    return null;
-                }
-            });
+            var user = UserRepository.CreateUser(
+                userId: userId,
+                username: username,
+                email: email,
+                passwordHash: passwordHash
+            );
 
             AuditLogger.AuditLog(
                 config: config,
@@ -121,32 +93,31 @@ public static class UserService
 
             return ApiResult<UserObject>.Ok(user);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error($"Failed to create user {userId} / {username} / {email}: {ex.Message}");
             return ApiResult<UserObject>.Fail("User creation failed (maybe duplicate username?)", 400);
-        }        
+        }
     }
 
     /// <summary>
-    /// Creates a new user with the specified details, scoped to the permissions of the acting user.
+    /// Creates a new user scoped to the provided request and acting user's permissions.
     /// </summary>
-    /// <remarks>This method performs the following steps: <list type="bullet"> <item>Validates that the
-    /// acting user has the required scope to provision users.</item> <item>Ensures that the username, email, and
-    /// password in the request are not null or empty.</item> <item>Generates a unique user ID and hashes the password
-    /// using the provided configuration.</item> <item>Attempts to insert the new user into the database. If the
-    /// operation fails (e.g., due to a duplicate username or email), the method returns a failure result.</item>
-    /// <item>Logs the operation in the audit log, including the acting user's ID, the action performed, and optional
-    /// metadata such as IP address and user agent.</item> </list></remarks>
-    /// <param name="actingUser">The user performing the operation. Must have the <see cref="SystemScopes.ProvisionUsers"/> scope.</param>
-    /// <param name="request">The details of the user to be created, including username, email, and password. All fields are required.</param>
-    /// <param name="config">The application configuration used for password hashing and other settings.</param>
-    /// <param name="ipAddress">The IP address of the acting user, used for audit logging. Can be <see langword="null"/>.</param>
-    /// <param name="userAgent">The user agent of the acting user, used for audit logging. Can be <see langword="null"/>.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns <see cref="ApiResult{T}.Ok"/>
-    /// if the user is successfully created,  <see cref="ApiResult{T}.Fail"/> if the creation fails (e.g., due to
-    /// missing fields or duplicate data),  or <see cref="ApiResult{T}.Forbidden"/> if the acting user lacks the
-    /// required scope.</returns>
-    public static ApiResult<MessageResponse> CreateUserScoped(
+    /// <remarks>This method validates the acting user's permissions and the provided user details before
+    /// attempting to create a new user.  If successful, the user is created, and an audit log entry is recorded.  If
+    /// the operation fails, an appropriate error message is returned.</remarks>
+    /// <param name="actingUser">The <see cref="ClaimsPrincipal"/> representing the user performing the operation. Must have the required scope
+    /// to provision users.</param>
+    /// <param name="request">The <see cref="CreateUserRequest"/> containing the details of the user to be created, including username, email,
+    /// and password.</param>
+    /// <param name="config">The application configuration used for password hashing and auditing.</param>
+    /// <param name="ipAddress">The IP address of the client making the request. Used for auditing purposes. Can be <see langword="null"/>.</param>
+    /// <param name="userAgent">The user agent string of the client making the request. Used for auditing purposes. Can be <see
+    /// langword="null"/>.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing the created <see cref="UserObject"/> if successful.  Returns a failure
+    /// result if the acting user lacks the required permissions, if required fields are missing,  or if user creation
+    /// fails due to a duplicate or other error.</returns>
+    public static ApiResult<UserObject> CreateUserScoped(
         ClaimsPrincipal actingUser,
         CreateUserRequest request,
         AppConfig config,
@@ -154,53 +125,46 @@ public static class UserService
         string? userAgent)
     {
         if (!actingUser.HasScope(Constants.ProvisionUsers))
-            return ApiResult<MessageResponse>.Forbidden("Permission Denied");
+            return ApiResult<UserObject>.Forbidden("Permission Denied");
 
         if (string.IsNullOrWhiteSpace(request.Username) ||
             string.IsNullOrWhiteSpace(request.Email) ||
             string.IsNullOrWhiteSpace(request.Password))
         {
-            return ApiResult<MessageResponse>.Fail("Username, email, and password are required");
+            return ApiResult<UserObject>.Fail("Username, email, and password are required");
         }
 
         var userId = Guid.NewGuid().ToString();
         var hash = AuthService.HashPassword(request.Password, config);
 
-        var success = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT INTO users (id, username, password_hash, email, created_at)
-                VALUES ($id, $username, $hash, $email, datetime('now'));
-            """;
-            cmd.Parameters.AddWithValue("$id", userId);
-            cmd.Parameters.AddWithValue("$username", request.Username);
-            cmd.Parameters.AddWithValue("$hash", hash);
-            cmd.Parameters.AddWithValue("$email", request.Email);
+            var user = UserRepository.CreateUser(
+                userId: userId,
+                username: request.Username,
+                email: request.Email,
+                passwordHash: hash
+            );
 
-            try
-            {
-                return cmd.ExecuteNonQuery() == 1;
-            }
-            catch (SqliteException)
-            {
-                return false;
-            }
-        });
+            if (user is null)
+                return ApiResult<UserObject>.Fail("User creation failed (likely duplicate)");
 
-        if (!success)
-            return ApiResult<MessageResponse>.Fail("User creation failed (likely duplicate)");
+            AuditLogger.AuditLog(
+                config: config,
+                userId: actingUser.GetUserId(),
+                action: "user_created",
+                target: userId,
+                ipAddress: ipAddress,
+                userAgent: userAgent
+            );
 
-        AuditLogger.AuditLog(
-            config: config,
-            userId: actingUser.GetUserId(),
-            action: "user_created",
-            target: userId,
-            ipAddress: ipAddress,
-            userAgent: userAgent
-        );
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"User '{request.Username}' created."));
+            return ApiResult<UserObject>.Ok(user);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to create user {userId} / {request.Username} / {request.Email}: {ex.Message}");
+            return ApiResult<UserObject>.Fail("User creation failed");
+        }
     }
 
     /// <summary>
@@ -226,71 +190,32 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(updated.Username) || string.IsNullOrWhiteSpace(updated.Email))
             return ApiResult<UserObject>.Fail("Username and email are required.");
 
-        // Check for duplicate username/email
-        var conflict = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT COUNT(*) FROM users
-            WHERE (username = $u OR email = $e) AND id != $id;
-        """;
-            cmd.Parameters.AddWithValue("$u", updated.Username);
-            cmd.Parameters.AddWithValue("$e", updated.Email);
-            cmd.Parameters.AddWithValue("$id", id);
-            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-        });
+            // Check for duplicate username/email
+            var conflict = UserRepository.CheckForUsernameOrEmailConflict(updated.Id, updated.Username, updated.Email);
 
-        if (conflict)
-            return ApiResult<UserObject>.Fail("Username or email already in use by another user.");
+            if (conflict)
+                return ApiResult<UserObject>.Fail("Username or email already in use by another user.");
 
-        var success = Db.WithConnection(conn =>
+            // Do the update
+            var success = UserRepository.UpdateUser(updated);
+
+            if (!success)
+                return ApiResult<UserObject>.Fail("Update failed or user not found.");
+
+            // Re-read and return updated row
+            var user = UserRepository.GetUserById(updated.Id);
+
+            return user is not null
+                ? ApiResult<UserObject>.Ok(user)
+                : ApiResult<UserObject>.Fail("User updated but could not be retrieved.");
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            UPDATE users
-            SET username = $u,
-                email = $e,
-                is_active = $a,
-                modified_at = datetime('now')
-            WHERE id = $id;
-        """;
-            cmd.Parameters.AddWithValue("$u", updated.Username);
-            cmd.Parameters.AddWithValue("$e", updated.Email);
-            cmd.Parameters.AddWithValue("$a", updated.IsActive ? 1 : 0);
-            cmd.Parameters.AddWithValue("$id", id);
-            return cmd.ExecuteNonQuery() == 1;
-        });
-
-        if (!success)
-            return ApiResult<UserObject>.Fail("Update failed or user not found.");
-
-        // Re-read and return updated row
-        var user = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT id, username, email, created_at, is_active
-            FROM users
-            WHERE id = $id;
-        """;
-            cmd.Parameters.AddWithValue("$id", id);
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
-
-            return new UserObject
-            {
-                Id = reader.GetString(0),
-                Username = reader.GetString(1),
-                Email = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
-                IsActive = reader.GetBoolean(4)
-            };
-        });
-
-        return user is not null
-            ? ApiResult<UserObject>.Ok(user)
-            : ApiResult<UserObject>.Fail("User updated but could not be retrieved.");
+            Log.Error($"Failed to update user {id}: {ex.Message}");
+            return ApiResult<UserObject>.Fail("User update failed due to an error.");
+        }
     }
 
     /// <summary>
@@ -302,83 +227,56 @@ public static class UserService
     /// such as ID, username, email, creation date, and active status.</returns>
     public static ApiResult<List<UserObject>> GetAllUsers()
     {
-        var users = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active
-                FROM users
-                ORDER BY username ASC;
-            """;
-
-            using var reader = cmd.ExecuteReader();
-            var list = new List<UserObject>();
-
-            while (reader.Read())
-            {
-                list.Add(new UserObject
-                {
-                    Id = reader.GetString(0),
-                    Username = reader.GetString(1),
-                    Email = reader.GetString(2),
-                    CreatedAt = reader.GetString(3),
-                    IsActive = reader.GetInt64(4) == 1
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<UserObject>>.Ok(users);
+            var users = UserRepository.ListUsers();
+            return ApiResult<List<UserObject>>.Ok(users);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to retrieve users: {ex.Message}");
+            return ApiResult<List<UserObject>>.Fail("Failed to retrieve users from the database.");
+        }
     }
 
     /// <summary>
     /// Deletes a user with the specified identifier from the database.
     /// </summary>
     /// <remarks>This method executes a database operation to delete a user by their unique identifier. 
-    /// Ensure that the provided <paramref name="id"/> corresponds to an existing user in the database.</remarks>
-    /// <param name="id">The unique identifier of the user to delete. Cannot be null or empty.</param>
+    /// Ensure that the provided <paramref name="idToDelete"/> corresponds to an existing user in the database.</remarks>
+    /// <param name="idToDelete">The unique identifier of the user to delete. Cannot be null or empty.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> object.  If the user is successfully
     /// deleted, the result is <see cref="ApiResult{T}.Ok"/> with a success message.  If the user is not found, the
     /// result is <see cref="ApiResult{T}.NotFound"/> with an error message.</returns>
     public static ApiResult<MessageResponse> DeleteUser(
-        string id,
+        string idToDelete,
         AppConfig config,
         string? userId = null,
         string? ip = null,
         string? ua = null)
     {
-        var rows = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM users WHERE id = $id";
-            cmd.Parameters.AddWithValue("$id", id);
-            return cmd.ExecuteNonQuery();
-        });
+            // Delete the user
+            var deleted = UserRepository.DeleteUser(idToDelete);
 
-        // Revoke sessions
-        Db.WithConnection(conn =>
+            // Revoke sessions
+            UserRepository.RevokeUserSessions(idToDelete);
+
+            // Revoke refresh tokens
+            UserRepository.RevokeUserRefreshTokens(idToDelete);
+
+            AuditLogger.AuditLog(config, userId, "delete_user", idToDelete, ip, ua);
+
+            return deleted
+                ? ApiResult<MessageResponse>.Ok(new(true, $"Deleted user {idToDelete}"))
+                : ApiResult<MessageResponse>.NotFound($"User {idToDelete} not found.");
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE user_id = $uid;";
-            cmd.Parameters.AddWithValue("$uid", id);
-            cmd.ExecuteNonQuery();
-        });
-
-        // Revoke refresh tokens
-        Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE user_id = $uid;";
-            cmd.Parameters.AddWithValue("$uid", id);
-            cmd.ExecuteNonQuery();
-        });
-
-        AuditLogger.AuditLog(config, userId, "delete_user", id, ip, ua);
-
-        return rows > 0
-            ? ApiResult<MessageResponse>.Ok(new(true, $"Deleted user {id}"))
-            : ApiResult<MessageResponse>.NotFound($"User {id} not found.");
+            Log.Error($"Failed to delete user {idToDelete}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to delete user from the database.", 500);
+        }
     }
 
     /// <summary>
@@ -403,42 +301,25 @@ public static class UserService
         if (!actingUser.HasScope(Constants.ListUsers))
             return ApiResult<List<UserObject>>.Forbidden("Permission denied");
 
-        var users = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active
-                FROM users
-                ORDER BY username ASC;
-            """;
+            var users = UserRepository.ListUsers();
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<UserObject>();
+            AuditLogger.AuditLog(
+                config: config,
+                userId: actingUser.GetUserId(),
+                action: "user_list",
+                ipAddress: ipAddress,
+                userAgent: userAgent
+            );
 
-            while (reader.Read())
-            {
-                list.Add(new UserObject
-                {
-                    Id = reader.GetString(0),
-                    Username = reader.GetString(1),
-                    Email = reader.GetString(2),
-                    CreatedAt = reader.GetString(3),
-                    IsActive = reader.GetInt64(4) == 1
-                });
-            }
-
-            return list;
-        });
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: actingUser.GetUserId(),
-            action: "user_list",
-            ipAddress: ipAddress,
-            userAgent: userAgent
-        );
-
-        return ApiResult<List<UserObject>>.Ok(users);
+            return ApiResult<List<UserObject>>.Ok(users);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to list users: {ex.Message}");
+            return ApiResult<List<UserObject>>.Fail("Failed to retrieve users from the database.", 500);
+        }
     }
 
     /// <summary>
@@ -455,29 +336,20 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<UserObject>.Fail("User ID is required", 400);
 
-        return Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active
-                FROM users
-                WHERE id = $id;
-            """;
-            cmd.Parameters.AddWithValue("$id", userId);
+            var user = UserRepository.GetUserById(userId);
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
+            if (user is null)
                 return ApiResult<UserObject>.NotFound("User not found");
 
-            return ApiResult<UserObject>.Ok(new UserObject
-            {
-                Id = reader.GetString(0),
-                Username = reader.GetString(1),
-                Email = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
-                IsActive = reader.GetInt64(4) == 1
-            });
-        });
+            return ApiResult<UserObject>.Ok(user);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to retrieve user {userId}: {ex.Message}");
+            return ApiResult<UserObject>.Fail("Failed to retrieve user from the database.", 500);
+        }
     }
 
     /// <summary>
@@ -504,105 +376,89 @@ public static class UserService
         if (!actingUser.HasScope(Constants.ReadUser))
             return ApiResult<UserObject>.Forbidden("Permission denied");
 
-        var user = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active
-                FROM users
-                WHERE id = $id;
-            """;
-            cmd.Parameters.AddWithValue("$id", targetUserId);
+            var user = UserRepository.GetUserById(targetUserId);
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
+            if (user is null)
+                return ApiResult<UserObject>.NotFound("User not found");
 
-            return new UserObject
-            {
-                Id = reader.GetString(0),
-                Username = reader.GetString(1),
-                Email = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
-                IsActive = reader.GetInt64(4) == 1
-            };
-        });
+            AuditLogger.AuditLog(
+                config: config,
+                userId: actingUser.GetUserId(),
+                action: "user_read",
+                target: targetUserId,
+                ipAddress: ipAddress,
+                userAgent: userAgent
+            );
 
-        if (user is null)
-            return ApiResult<UserObject>.NotFound("User not found");
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: actingUser.GetUserId(),
-            action: "user_read",
-            target: targetUserId,
-            ipAddress: ipAddress,
-            userAgent: userAgent
-        );
-
-        return ApiResult<UserObject>.Ok(user);
+            return ApiResult<UserObject>.Ok(user);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to retrieve user {targetUserId}: {ex.Message}");
+            return ApiResult<UserObject>.Fail("Failed to retrieve user from the database.", 500);
+        }
     }
 
     /// <summary>
-    /// Deactivates a user by marking them as inactive in the system.
+    /// Deactivates a user account and revokes all associated sessions and refresh tokens.
     /// </summary>
-    /// <remarks>This method performs a soft delete by setting the user's active status to inactive.  If the
-    /// user is already inactive or does not exist, the operation will fail with an appropriate message. An audit log
-    /// entry is created for the deactivation event, including optional IP address and user agent information if
-    /// provided.</remarks>
+    /// <remarks>This method performs the following actions: <list type="bullet">
+    /// <item><description>Deactivates the user account in the database.</description></item> <item><description>Revokes
+    /// all active sessions and refresh tokens associated with the user.</description></item> <item><description>Logs an
+    /// audit entry for the deactivation action, including optional IP address and user agent
+    /// information.</description></item> </list> If the user is not found or is already inactive, the method returns a
+    /// failure response with a 400 status code. If an unexpected error occurs, the method logs the error and returns a
+    /// failure response with a 500 status code.</remarks>
     /// <param name="userId">The unique identifier of the user to deactivate. Cannot be null, empty, or whitespace.</param>
-    /// <param name="ip">The IP address of the requester. Optional.</param>
-    /// <param name="ua">The user agent string of the requester. Optional.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> with the result of the operation.
-    /// Returns a success result if the user was successfully deactivated, or a failure result if the user was not found
-    /// or already inactive.</returns>
-    public static ApiResult<MessageResponse> SoftDeleteUser(string userId, AppConfig config, string? ip = null, string? ua = null)
+    /// <param name="config">The application configuration used for logging and auditing purposes. Cannot be null.</param>
+    /// <param name="ip">The IP address of the requester, used for auditing. Optional.</param>
+    /// <param name="ua">The user agent of the requester, used for auditing. Optional.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. Returns a success response if the user was successfully deactivated, or a failure response if the
+    /// user was not found, already inactive, or if an error occurred.</returns>
+    public static ApiResult<MessageResponse> DeactivateUser(string userId, AppConfig config, string? ip = null, string? ua = null)
     {
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<MessageResponse>.Fail("User ID is required", 400);
-
-        var affected = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE users SET is_active = 0 WHERE id = $id AND is_active = 1;";
-            cmd.Parameters.AddWithValue("$id", userId);
-            return cmd.ExecuteNonQuery();
-        });
-
         
-        if (affected == 0)
-            return ApiResult<MessageResponse>.Fail("User not found or already inactive", 400);
-
-        // Revoke sessions
-        Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE user_id = $uid;";
-            cmd.Parameters.AddWithValue("$uid", userId);
-            cmd.ExecuteNonQuery();
-        });
+            if (!UserRepository.DoesUserExist(userId))
+                return ApiResult<MessageResponse>.Fail("User not found", 404);
 
-        // Revoke refresh tokens
-        Db.WithConnection(conn =>
+            if (!UserRepository.IsUserActive(userId))
+                return ApiResult<MessageResponse>.Fail("User is already inactive", 400);
+
+            bool deactivated = UserRepository.DeactivateUser(userId);
+
+            if (!deactivated)
+                return ApiResult<MessageResponse>.Fail("User not found or already inactive", 400);
+
+            // Revoke sessions
+            UserRepository.RevokeUserSessions(userId);
+
+            // Revoke refresh tokens
+            UserRepository.RevokeUserRefreshTokens(userId);
+
+            AuditLogger.AuditLog(
+                config: config,
+                userId: null, 
+                action: "user_deactivated",
+                target: userId,
+                ipAddress: ip,
+                userAgent: ua
+            );
+
+            return ApiResult<MessageResponse>.Ok(
+                new MessageResponse(true, $"User '{userId}' deactivated."));
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE user_id = $uid;";
-            cmd.Parameters.AddWithValue("$uid", userId);
-            cmd.ExecuteNonQuery();
-        });
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: null, // you may capture admin user from route if desired
-            action: "user_deactivated",
-            target: userId,
-            ipAddress: ip,
-            userAgent: ua
-        );
-
-        return ApiResult<MessageResponse>.Ok(
-            new MessageResponse(true, $"User '{userId}' deactivated.")
-        );
+            Log.Error($"Failed to deactivate user {userId}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to deactivate user in the database.", 500);
+        }
     }
 
     /// <summary>
@@ -633,49 +489,35 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(targetUserId))
             return ApiResult<MessageResponse>.Fail("User ID is required");
 
-        var affected = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE users
-                SET is_active = 0
-                WHERE id = $id AND is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$id", targetUserId);
-            return cmd.ExecuteNonQuery();
-        });
+            var deactivated = UserRepository.DeactivateUser(targetUserId);
 
-        if (affected == 0)
-            return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
+            if (deactivated)
+                return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
 
-        // Revoke sessions
-        Db.WithConnection(conn =>
+            // Revoke sessions
+            UserRepository.RevokeUserSessions(targetUserId);
+
+            // Revoke refresh tokens
+            UserRepository.RevokeUserRefreshTokens(targetUserId);
+
+            AuditLogger.AuditLog(
+                config: config,
+                userId: actingUser.GetUserId(),
+                action: "user_deactivated",
+                target: targetUserId,
+                ipAddress: ipAddress,
+                userAgent: userAgent
+            );
+
+            return ApiResult<MessageResponse>.Ok(new(true, $"User '{targetUserId}' deactivated."));
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE user_id = $uid;";
-            cmd.Parameters.AddWithValue("$uid", targetUserId);
-            cmd.ExecuteNonQuery();
-        });
-
-        // Revoke refresh tokens
-        Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE user_id = $uid;";
-            cmd.Parameters.AddWithValue("$uid", targetUserId);
-            cmd.ExecuteNonQuery();
-        });
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: actingUser.GetUserId(),
-            action: "user_deactivated",
-            target: targetUserId,
-            ipAddress: ipAddress,
-            userAgent: userAgent
-        );
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"User '{targetUserId}' deactivated."));
+            Log.Error($"Failed to deactivate user {targetUserId}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to deactivate user in the database.", 500);
+        }
     }
 
     /// <summary>
@@ -697,31 +539,31 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<MessageResponse>.Fail("User ID is required", 400);
 
-        var affected = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE users SET is_active = 1 WHERE id = $id AND is_active = 0;";
-            cmd.Parameters.AddWithValue("$id", userId);
-            return cmd.ExecuteNonQuery();
-        });
+            var reactivated = UserRepository.ReactivateUser(userId);
 
-        if (affected == 0)
-            return ApiResult<MessageResponse>.Fail("User not found or already active", 400);
+            if (reactivated)
+                return ApiResult<MessageResponse>.Fail("User not found or already active", 400);
 
-        AuditLogger.AuditLog(
-            config: config,
-            userId: null, // capture admin user if desired
-            action: "user_reactivated",
-            target: userId,
-            ipAddress: ip,
-            userAgent: ua
-        );
+            AuditLogger.AuditLog(
+                config: config,
+                userId: null, // capture admin user if desired
+                action: "user_reactivated",
+                target: userId,
+                ipAddress: ip,
+                userAgent: ua
+            );
 
-        return ApiResult<MessageResponse>.Ok(
-            new MessageResponse(true, $"User '{userId}' reactivated.")
-        );
+            return ApiResult<MessageResponse>.Ok(
+                new MessageResponse(true, $"User '{userId}' reactivated."));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to reactivate user {userId}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to reactivate user in the database.", 500);
+        }
     }
-
 
     /// <summary>
     /// Resets the password for a specified user.
@@ -749,34 +591,34 @@ public static class UserService
 
         var hash = AuthService.HashPassword(newPassword, config);
 
-        var affected = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE users
-                SET password_hash = $hash, modified_at = datetime('now')
-                WHERE id = $id AND is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$id", userId);
-            cmd.Parameters.AddWithValue("$hash", hash);
-            return cmd.ExecuteNonQuery();
-        });
+            var reset = UserRepository.ResetUserPassword(
+                userId: userId,
+                newPasswordHash: hash
+            );
 
-        if (affected == 0)
-            return ApiResult<MessageResponse>.Fail("User not found or inactive", 400);
+            if (reset)
+                return ApiResult<MessageResponse>.Fail("User not found or inactive", 400);
 
-        AuditLogger.AuditLog(
-            config: config,
-            userId: null, // or capture the admin performing it, if applicable
-            action: "user_password_reset",
-            target: userId,
-            ipAddress: ip,
-            userAgent: ua
-        );
+            AuditLogger.AuditLog(
+                config: config,
+                userId: null, // or capture the admin performing it, if applicable
+                action: "user_password_reset",
+                target: userId,
+                ipAddress: ip,
+                userAgent: ua
+            );
 
-        return ApiResult<MessageResponse>.Ok(
-            new MessageResponse(true, $"Password for user '{userId}' has been reset")
-        );
+            return ApiResult<MessageResponse>.Ok(
+                new MessageResponse(true, $"Password for user '{userId}' has been reset")
+            );
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to reset password for user {userId}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to reset user password in the database.", 500);
+        }
     }
 
     /// <summary>
@@ -812,33 +654,32 @@ public static class UserService
 
         var hash = AuthService.HashPassword(newPassword, config);
 
-        var affected = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE users
-                SET password_hash = $hash, modified_at = datetime('now')
-                WHERE id = $uid AND is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$hash", hash);
-            cmd.Parameters.AddWithValue("$uid", targetUserId);
+            var reset = UserRepository.ResetUserPassword(
+                userId: targetUserId,
+                newPasswordHash: hash
+            );
 
-            return cmd.ExecuteNonQuery();
-        });
+            if (reset)
+                return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
 
-        if (affected == 0)
-            return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
+            AuditLogger.AuditLog(
+                config: config,
+                userId: actingUser.GetUserId(),
+                action: "user_password_reset",
+                target: targetUserId,
+                ipAddress: ipAddress,
+                userAgent: userAgent
+            );
 
-        AuditLogger.AuditLog(
-            config: config,
-            userId: actingUser.GetUserId(),
-            action: "user_password_reset",
-            target: targetUserId,
-            ipAddress: ipAddress,
-            userAgent: userAgent
-        );
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Password for user '{targetUserId}' has been reset."));
+            return ApiResult<MessageResponse>.Ok(new(true, $"Password for user '{targetUserId}' has been reset."));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to reset password for user {targetUserId}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to reset user password in the database.", 500);
+        }
     }
 
     /// <summary>
@@ -853,21 +694,15 @@ public static class UserService
     /// required to establish a database connection.</param>
     public static void WriteSessionToDb(TokenInfo token, AppConfig config, string clientIdent)
     {
-        Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked)
-                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0);
-                """;
-            cmd.Parameters.AddWithValue("$id", token.Jti);
-            cmd.Parameters.AddWithValue("$uid", token.UserId);
-            cmd.Parameters.AddWithValue("$cid", clientIdent);
-            cmd.Parameters.AddWithValue("$token", token.Token);
-            cmd.Parameters.AddWithValue("$iat", token.IssuedAt.ToString("o"));
-            cmd.Parameters.AddWithValue("$exp", token.ExpiresAt.ToString("o"));
-            cmd.ExecuteNonQuery();
-        });
+            UserRepository.WriteSessionToDb(token, clientIdent);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to write session {token.Jti} for user {token.UserId} to database: {ex.Message}");
+            throw; // Re-throw the exception to be handled by the caller
+        }
     }
 
     /// <summary>
@@ -879,46 +714,19 @@ public static class UserService
     /// returned with a status code of 500.</remarks>
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="SessionResponse"/> objects if the operation
     /// succeeds. If the operation fails, the result contains an error message and a status code of 500.</returns>
-    public static ApiResult<List<SessionResponse>> GetAllSessions()
+    public static ApiResult<List<SessionResponse>> ListSessions()
     {
         try
         {
-            var sessions = Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use
-                    FROM sessions
-                    ORDER BY issued_at DESC;
-                """;
-
-                using var reader = cmd.ExecuteReader();
-                var list = new List<SessionResponse>();
-
-                while (reader.Read())
-                {
-                    list.Add(new SessionResponse
-                    {
-                        Id = reader.GetString(0),
-                        UserId = reader.GetString(1),
-                        IssuedAt = DateTime.Parse(reader.GetString(2)),
-                        ExpiresAt = DateTime.Parse(reader.GetString(3)),
-                        IsRevoked = reader.GetInt64(4) == 1,
-                        TokenUse = reader.GetString(5)
-                    });
-                }
-
-                return list;
-            });
-
+            var sessions = UserRepository.ListSessions();
             return ApiResult<List<SessionResponse>>.Ok(sessions);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error($"Failed to load sessions: {ex.Message}");
             return ApiResult<List<SessionResponse>>.Fail("Failed to load sessions", 500);
         }
     }
-
 
     /// <summary>
     /// Retrieves a session by its unique identifier (JTI).
@@ -934,31 +742,20 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(jti))
             return ApiResult<SessionResponse>.Fail("Session ID is required", 400);
 
-        return Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use
-                FROM sessions
-                WHERE id = $jti;
-            """;
-            cmd.Parameters.AddWithValue("$jti", jti);
+            var session = UserRepository.GetSessionById(jti);
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
+            if (session is null)
                 return ApiResult<SessionResponse>.NotFound("Session not found");
 
-            return ApiResult<SessionResponse>.Ok(new SessionResponse
-            {
-                Id = reader.GetString(0),
-                UserId = reader.GetString(1),
-                ClientIdentifier = reader.GetString(2),
-                IssuedAt = DateTime.Parse(reader.GetString(3)),
-                ExpiresAt = DateTime.Parse(reader.GetString(4)),
-                IsRevoked = reader.GetInt64(5) == 1,
-                TokenUse = reader.GetString(6)
-            });
-        });
+            return ApiResult<SessionResponse>.Ok(session);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to retrieve session {jti}: {ex.Message}");
+            return ApiResult<SessionResponse>.Fail("Failed to retrieve session from the database.", 500);
+        }        
     }
 
     /// <summary>
@@ -977,36 +774,7 @@ public static class UserService
 
         try
         {
-            var sessions = Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use
-                    FROM sessions
-                    WHERE user_id = $uid
-                    ORDER BY issued_at DESC;
-                """;
-                cmd.Parameters.AddWithValue("$uid", userId);
-
-                using var reader = cmd.ExecuteReader();
-                var list = new List<SessionResponse>();
-
-                while (reader.Read())
-                {
-                    list.Add(new SessionResponse
-                    {
-                        Id = reader.GetString(0),
-                        UserId = reader.GetString(1),
-                        IssuedAt = DateTime.Parse(reader.GetString(2)),
-                        ExpiresAt = DateTime.Parse(reader.GetString(3)),
-                        IsRevoked = reader.GetInt64(4) == 1,
-                        TokenUse = reader.GetString(5)
-                    });
-                }
-
-                return list;
-            });
-
+            var sessions = UserRepository.GetSessionsByUserId(userId);
             return ApiResult<List<SessionResponse>>.Ok(sessions);
         }
         catch
@@ -1027,42 +795,7 @@ public static class UserService
     /// appropriate error message and status code.</returns>
     public static ApiResult<List<SessionResponse>> GetSessionsForSelf(string userId)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<List<SessionResponse>>.Fail("Invalid user", 401);
-
-        var sessions = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, user_id, issued_at, expires_at, is_revoked, token_use
-                FROM sessions
-                WHERE user_id = $uid
-                  AND is_revoked = 0
-                  AND expires_at > datetime('now')
-                ORDER BY issued_at DESC;
-            """;
-            cmd.Parameters.AddWithValue("$uid", userId);
-
-            using var reader = cmd.ExecuteReader();
-            var list = new List<SessionResponse>();
-
-            while (reader.Read())
-            {
-                list.Add(new SessionResponse
-                {
-                    Id = reader.GetString(0),
-                    UserId = reader.GetString(1),
-                    IssuedAt = DateTime.Parse(reader.GetString(2)),
-                    ExpiresAt = DateTime.Parse(reader.GetString(3)),
-                    IsRevoked = reader.GetInt64(4) == 1,
-                    TokenUse = reader.GetString(5)
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<SessionResponse>>.Ok(sessions);
+        return GetSessionsByUserId(userId);
     }
 
     /// <summary>
@@ -1081,37 +814,16 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<List<RefreshTokenResponse>>.Forbidden();
 
-        var tokens = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, user_id, session_id, issued_at, expires_at, is_revoked
-                FROM refresh_tokens
-                WHERE user_id = $uid
-                ORDER BY issued_at DESC;
-            """;
-            cmd.Parameters.AddWithValue("$uid", userId);
-
-            using var reader = cmd.ExecuteReader();
-            var list = new List<RefreshTokenResponse>();
-
-            while (reader.Read())
-            {
-                list.Add(new RefreshTokenResponse
-                {
-                    Id = reader.GetString(0),
-                    UserId = reader.GetString(1),
-                    SessionId = reader.GetString(2),
-                    IssuedAt = DateTime.Parse(reader.GetString(3)),
-                    ExpiresAt = DateTime.Parse(reader.GetString(4)),
-                    IsRevoked = reader.GetInt64(5) == 1
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<RefreshTokenResponse>>.Ok(tokens);
+            var tokens = UserRepository.GetRefreshTokensByUserId(userId);
+            return ApiResult<List<RefreshTokenResponse>>.Ok(tokens);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to retrieve refresh tokens for user {userId}: {ex.Message}");
+            return ApiResult<List<RefreshTokenResponse>>.Fail("Failed to retrieve refresh tokens from the database.", 500);
+        }        
     }
 
     /// <summary>
@@ -1133,48 +845,9 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(jti))
             return ApiResult<RevokeResponse>.Fail("Missing JTI", 400);
 
-        return Db.WithConnection(conn =>
+        try
         {
-            using var getCmd = conn.CreateCommand();
-            getCmd.CommandText = """
-                SELECT user_id, issued_at, expires_at, is_revoked, token_use
-                FROM sessions
-                WHERE id = $jti;
-            """;
-            getCmd.Parameters.AddWithValue("$jti", jti);
-
-            using var reader = getCmd.ExecuteReader();
-            if (!reader.Read())
-                return ApiResult<RevokeResponse>.NotFound("Session not found");
-
-            var userId = reader.GetString(0);
-            var expiresAt = DateTime.Parse(reader.GetString(2));
-            var isRevoked = reader.GetInt64(3) == 1;
-
-            if (isRevoked)
-            {
-                return ApiResult<RevokeResponse>.Ok(new RevokeResponse
-                {
-                    Jti = jti,
-                    Status = "already_revoked",
-                    Message = $"Session {jti} has already been revoked."
-                });
-            }
-
-            if (expiresAt < DateTime.UtcNow)
-            {
-                return ApiResult<RevokeResponse>.Ok(new RevokeResponse
-                {
-                    Jti = jti,
-                    Status = "expired",
-                    Message = $"Session {jti} has already expired."
-                });
-            }
-
-            using var updateCmd = conn.CreateCommand();
-            updateCmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE id = $jti;";
-            updateCmd.Parameters.AddWithValue("$jti", jti);
-            updateCmd.ExecuteNonQuery();
+            (bool revoked, string message, string userId) = UserRepository.RevokeSessionById(jti);
 
             AuditLogger.AuditLog(
                 config: config,
@@ -1185,13 +858,23 @@ public static class UserService
                 userAgent: ua
             );
 
+            if (!revoked)
+            {
+                return ApiResult<RevokeResponse>.Fail(message, 400);
+            }
+
             return ApiResult<RevokeResponse>.Ok(new RevokeResponse
             {
-                Jti = jti,
                 Status = "revoked",
-                Message = $"Session {jti} has been revoked successfully."
+                Jti = jti,
+                Message = message
             });
-        });
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to revoke session {jti}: {ex.Message}");
+            return ApiResult<RevokeResponse>.Fail("Failed to revoke session in the database.", 500);
+        }
     }
 
 
@@ -1223,40 +906,31 @@ public static class UserService
     string? ip = null,
     string? ua = null)
     {
-        var conditions = new List<string>();
-        if (purgeExpired)
-            conditions.Add("expires_at < datetime('now', $cutoff)");
-        if (purgeRevoked)
-            conditions.Add("is_revoked = 1");
-
-        if (conditions.Count == 0)
-            return ApiResult<MessageResponse>.Ok(new(true, "Nothing to purge."));
-
-        var whereClause = string.Join(" OR ", conditions);
-
-        var purged = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"DELETE FROM sessions WHERE {whereClause};";
+            (bool success, int purged) = UserRepository.PurgeSessions(
+                olderThan: olderThan,
+                purgeExpired: purgeExpired,
+                purgeRevoked: purgeRevoked
+            );
 
-            if (purgeExpired)
-                cmd.Parameters.AddWithValue("$cutoff", $"-{(int)olderThan.TotalSeconds} seconds");
+            AuditLogger.AuditLog(
+                config: config,
+                userId: userId,
+                action: "sessions_purged",
+                target: $"purged={purged};expired={purgeExpired};revoked={purgeRevoked}",
+                ipAddress: ip,
+                userAgent: ua
+            );
 
-            return cmd.ExecuteNonQuery();
-        });
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: userId,
-            action: "sessions_purged",
-            target: $"purged={purged};expired={purgeExpired};revoked={purgeRevoked}",
-            ipAddress: ip,
-            userAgent: ua
-        );
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} session(s)."));
+            return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} session(s)."));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to purge sessions: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to purge sessions in the database.", 500);
+        }
     }
-
 
     /// <summary>
     /// Generates a new refresh token, stores its hashed value in the database, and returns the raw token.
@@ -1277,8 +951,7 @@ public static class UserService
         string clientIdent)
     {
         var raw = Utils.GenerateBase64EncodedRandomBytes(32);
-        var now = DateTime.UtcNow;
-        var expires = now.AddSeconds(config.RefreshTokenExpiration);
+        var expires = DateTime.UtcNow.AddSeconds(config.RefreshTokenExpiration);
 
         byte[] salt = new byte[config.Argon2SaltLength];
         using var rng = RandomNumberGenerator.Create();
@@ -1299,26 +972,15 @@ public static class UserService
         var sha256 = Utils.Sha256Base64(raw);
 
         // We do not store the raw token, only the argon2id hash and its SHA-256 for quick lookup
-        Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                    INSERT INTO refresh_tokens (
-                        id, user_id, session_id, client_identifier, refresh_token_hash,
-                        refresh_token_sha256, issued_at, expires_at, is_revoked
-                    )
-                    VALUES ($id, $userId, $sessionId, $cid, $hash, $sha256, $issuedAt, $expiresAt, 0);
-                """;
-            cmd.Parameters.AddWithValue("$id", id);
-            cmd.Parameters.AddWithValue("$userId", userId);
-            cmd.Parameters.AddWithValue("$sessionId", sessionId);
-            cmd.Parameters.AddWithValue("$cid", clientIdent);
-            cmd.Parameters.AddWithValue("$hash", hash);
-            cmd.Parameters.AddWithValue("$sha256", sha256);
-            cmd.Parameters.AddWithValue("$issuedAt", now.ToString("o"));
-            cmd.Parameters.AddWithValue("$expiresAt", expires.ToString("o"));
-            cmd.ExecuteNonQuery();
-        });
+        UserRepository.StoreRefreshToken(
+            id: id,
+            userId: userId,
+            sessionId: sessionId,
+            clientIdent: clientIdent,
+            hash: hash,
+            sha256Hash: sha256,
+            expires: expires
+        );
 
         return raw; // return the un-hashed token to send to client
     }
@@ -1331,38 +993,11 @@ public static class UserService
     /// ID, issuance and expiration timestamps, and revocation status.</remarks>
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="RefreshTokenResponse"/> objects if the operation
     /// succeeds. If the operation fails, the result contains an error message and a status code of 500.</returns>
-    public static ApiResult<List<RefreshTokenResponse>> GetAllRefreshTokens()
+    public static ApiResult<List<RefreshTokenResponse>> ListRefreshTokens()
     {
         try
         {
-            var tokens = Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT id, user_id, session_id, issued_at, expires_at, is_revoked
-                    FROM refresh_tokens
-                    ORDER BY issued_at DESC;
-                """;
-
-                using var reader = cmd.ExecuteReader();
-                var list = new List<RefreshTokenResponse>();
-
-                while (reader.Read())
-                {
-                    list.Add(new RefreshTokenResponse
-                    {
-                        Id = reader.GetString(0),
-                        UserId = reader.GetString(1),
-                        SessionId = reader.GetString(2),
-                        IssuedAt = DateTime.Parse(reader.GetString(3)),
-                        ExpiresAt = DateTime.Parse(reader.GetString(4)),
-                        IsRevoked = reader.GetInt64(5) == 1
-                    });
-                }
-
-                return list;
-            });
-
+            var tokens = UserRepository.ListRefreshTokens();
             return ApiResult<List<RefreshTokenResponse>>.Ok(tokens);
         }
         catch
@@ -1370,7 +1005,6 @@ public static class UserService
             return ApiResult<List<RefreshTokenResponse>>.Fail("Failed to retrieve refresh tokens", 500);
         }
     }
-
 
     /// <summary>
     /// Retrieves a refresh token by its unique identifier.
@@ -1386,30 +1020,20 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(tokenId))
             return ApiResult<RefreshTokenResponse>.Fail("Token ID is required", 400);
 
-        return Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, user_id, session_id, issued_at, expires_at, is_revoked
-                FROM refresh_tokens
-                WHERE id = $id;
-            """;
-            cmd.Parameters.AddWithValue("$id", tokenId);
+            var token = UserRepository.GetRefreshTokenById(tokenId);
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
+            if (token is null)
                 return ApiResult<RefreshTokenResponse>.NotFound("Refresh token not found");
 
-            return ApiResult<RefreshTokenResponse>.Ok(new RefreshTokenResponse
-            {
-                Id = reader.GetString(0),
-                UserId = reader.GetString(1),
-                SessionId = reader.GetString(2),
-                IssuedAt = DateTime.Parse(reader.GetString(3)),
-                ExpiresAt = DateTime.Parse(reader.GetString(4)),
-                IsRevoked = reader.GetInt64(5) == 1
-            });
-        });
+            return ApiResult<RefreshTokenResponse>.Ok(token);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to retrieve refresh token {tokenId}: {ex.Message}");
+            return ApiResult<RefreshTokenResponse>.Fail("Failed to retrieve refresh token from the database.", 500);
+        }
     }
 
 
@@ -1430,44 +1054,15 @@ public static class UserService
 
         try
         {
-            var tokens = Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT id, user_id, session_id, issued_at, expires_at, is_revoked
-                    FROM refresh_tokens
-                    WHERE user_id = $uid
-                    ORDER BY issued_at DESC;
-                """;
-                cmd.Parameters.AddWithValue("$uid", userId);
-
-                using var reader = cmd.ExecuteReader();
-                var list = new List<RefreshTokenResponse>();
-
-                while (reader.Read())
-                {
-                    list.Add(new RefreshTokenResponse
-                    {
-                        Id = reader.GetString(0),
-                        UserId = reader.GetString(1),
-                        SessionId = reader.GetString(2),
-                        IssuedAt = DateTime.Parse(reader.GetString(3)),
-                        ExpiresAt = DateTime.Parse(reader.GetString(4)),
-                        IsRevoked = reader.GetInt64(5) == 1
-                    });
-                }
-
-                return list;
-            });
-
+            var tokens = UserRepository.GetRefreshTokensByUserId(userId);
             return ApiResult<List<RefreshTokenResponse>>.Ok(tokens);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error($"Failed to retrieve refresh tokens for user {userId}: {ex.Message}");
             return ApiResult<List<RefreshTokenResponse>>.Fail("Failed to retrieve refresh tokens", 500);
         }
     }
-
 
     /// <summary>
     /// Deletes refresh tokens from the database based on the specified purge criteria.
@@ -1491,38 +1086,30 @@ public static class UserService
         string? ip = null,
         string? ua = null)
     {
-        var conditions = new List<string>();
-        if (req.PurgeExpired)
-            conditions.Add("expires_at < datetime('now', $cutoff)");
-        if (req.PurgeRevoked)
-            conditions.Add("is_revoked = 1");
-
-        if (conditions.Count == 0)
-            return ApiResult<MessageResponse>.Ok(new(true, "Nothing to purge."));
-
-        string whereClause = string.Join(" OR ", conditions);
-
-        int purged = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"DELETE FROM refresh_tokens WHERE {whereClause};";
+            (bool success, int purged) = UserRepository.PurgeRefreshTokens(
+                olderThan: TimeSpan.FromSeconds(req.OlderThanSeconds),
+                purgeExpired: req.PurgeExpired,
+                purgeRevoked: req.PurgeRevoked
+            );
 
-            if (req.PurgeExpired)
-                cmd.Parameters.AddWithValue("$cutoff", $"-{req.OlderThanSeconds} seconds");
+            AuditLogger.AuditLog(
+                config: config,
+                userId: userId,
+                action: "refresh_tokens_purged",
+                target: $"purged={purged};expired={req.PurgeExpired};revoked={req.PurgeRevoked}",
+                ipAddress: ip,
+                userAgent: ua
+            );
 
-            return cmd.ExecuteNonQuery();
-        });
-
-        AuditLogger.AuditLog(
-            config: config,
-            userId: userId,
-            action: "refresh_tokens_purged",
-            target: $"purged={purged};expired={req.PurgeExpired};revoked={req.PurgeRevoked}",
-            ipAddress: ip,
-            userAgent: ua
-        );
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} refresh token(s)."));
+            return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} refresh token(s)."));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to purge refresh tokens: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to purge refresh tokens in the database.", 500);
+        }
     }
 
     /// <summary>
@@ -1546,53 +1133,43 @@ public static class UserService
         string outputPath,
         AppConfig config)
     {
-        var user = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT username FROM users WHERE id = $id AND is_active = 1";
-            cmd.Parameters.AddWithValue("$id", userId);
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
+            var user = UserRepository.GetUsernameById(userId);
 
-            return reader.GetString(0); // username
-        });
+            if (user is null)
+                return ApiResult<TotpQrResponse>.NotFound("User not found");
 
-        if (user is null)
-            return ApiResult<TotpQrResponse>.NotFound("User not found");
+            // Generate new TOTP secret
+            var secret = Utils.GenerateBase32Secret();
+            var uri = $"otpauth://totp/microauthd:{user}?secret={secret}&issuer=microauthd";
 
-        // Generate new TOTP secret
-        var secret = Utils.GenerateBase32Secret();
-        var uri = $"otpauth://totp/microauthd:{user}?secret={secret}&issuer=microauthd";
+            // Generate filename
+            var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
+            var fullPath = Path.Combine(outputPath, filename);
 
-        // Generate filename
-        var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
-        var fullPath = Path.Combine(outputPath, filename);
+            // Create SVG QR
+            var qrGen = new QRCodeGenerator();
+            var data = qrGen.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
+            var svgQr = new SvgQRCode(data).GetGraphic(5);
+            File.WriteAllText(fullPath, svgQr);
 
-        // Create SVG QR
-        var qrGen = new QRCodeGenerator();
-        var data = qrGen.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
-        var svgQr = new SvgQRCode(data).GetGraphic(5);
-        File.WriteAllText(fullPath, svgQr);
+            UserRepository.StoreOtpSecret(
+                userId: userId,
+                otpSecret: secret
+            );
 
-        Db.WithConnection(conn =>
+            return ApiResult<TotpQrResponse>.Ok(new TotpQrResponse
+            {
+                Success = true,
+                Filename = filename
+            });
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE users
-                SET otp_secret = $secret
-                WHERE id = $id AND is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$secret", secret);
-            cmd.Parameters.AddWithValue("$id", userId);
-            cmd.ExecuteNonQuery();
-        });
-
-        return ApiResult<TotpQrResponse>.Ok(new TotpQrResponse
-        {
-            Success = true,
-            Filename = filename
-        });
+            Log.Error($"Failed to generate TOTP for user {userId}: {ex.Message}");
+            return ApiResult<TotpQrResponse>.Fail("Failed to generate TOTP secret", 500);
+        }
     }
 
     /// <summary>
@@ -1619,34 +1196,29 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(code))
             return ApiResult<MessageResponse>.Fail("totp failure", 403);
 
-        var otpSecret = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT otp_secret FROM users WHERE id = $id AND is_active = 1";
-            cmd.Parameters.AddWithValue("$id", userId);
-            using var reader = cmd.ExecuteReader();
-            return reader.Read() ? reader.GetString(0) : null;
-        });
+            var otpSecret = UserRepository.GetOtpSecretByUserId(userId);
 
-        if (string.IsNullOrWhiteSpace(otpSecret))
+            if (string.IsNullOrWhiteSpace(otpSecret))
+                return ApiResult<MessageResponse>.Fail("totp failure", 403);
+
+            var totp = new OtpNet.Totp(Base32Encoding.ToBytes(otpSecret));
+            if (!totp.VerifyTotp(code, out _, new VerificationWindow(1, 1)))
+                return ApiResult<MessageResponse>.Fail("totp failure", 403);
+
+            var affected = UserRepository.EnableOtpForUserId(userId);
+
+            if (affected > 0)
+                return ApiResult<MessageResponse>.Ok(new(true, "TOTP enabled for user"));
+
             return ApiResult<MessageResponse>.Fail("totp failure", 403);
-
-        var totp = new OtpNet.Totp(Base32Encoding.ToBytes(otpSecret));
-        if (!totp.VerifyTotp(code, out _, new VerificationWindow(1, 1)))
-            return ApiResult<MessageResponse>.Fail("totp failure", 403);
-
-        var affected = Db.WithConnection(conn =>
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE users SET totp_enabled = 1 WHERE id = $id";
-            cmd.Parameters.AddWithValue("$id", userId);
-            return cmd.ExecuteNonQuery();
-        });
-
-        if (affected > 0)
-            return ApiResult<MessageResponse>.Ok(new(true, "TOTP enabled for user"));
-
-        return ApiResult<MessageResponse>.Fail("totp failure", 403);
+            Log.Error($"Failed to verify TOTP code for user {userId}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to verify TOTP code", 500);
+        }
     }
 
     /// <summary>
@@ -1667,24 +1239,20 @@ public static class UserService
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<MessageResponse>.Fail("Missing user_id", 400);
 
-        var affected = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE users
-                SET totp_enabled = 0,
-                    totp_secret = NULL
-                WHERE id = $id AND is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$id", userId);
-            return cmd.ExecuteNonQuery();
-        });
+            var affected = UserRepository.DisableOtpForUserId(userId);
 
-        if (affected == 0)
-            return ApiResult<MessageResponse>.Fail("User not found or already inactive", 404);
+            if (affected == 0)
+                return ApiResult<MessageResponse>.Fail("User not found or already inactive", 404);
 
-        AuditLogger.AuditLog(config, userId, "disable_totp", userId);
-        return ApiResult<MessageResponse>.Ok(new(true, "TOTP disabled for user"));
+            AuditLogger.AuditLog(config, userId, "disable_totp", userId);
+            return ApiResult<MessageResponse>.Ok(new(true, "TOTP disabled for user"));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to disable TOTP for user {userId}: {ex.Message}");
+            return ApiResult<MessageResponse>.Fail("Failed to disable TOTP for user", 500);
+        }
     }
-
 }

@@ -223,7 +223,7 @@ public static class AuthRoutes
         })
         .RequireAuthorization()
         .WithName("ProvisionUser")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<UserObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .WithTags("Auth")
