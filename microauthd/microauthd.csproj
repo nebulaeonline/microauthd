@@ -74,4 +74,10 @@
     <ItemGroup>
       <ProjectReference Include="..\madTypes\madTypes.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="public\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
 </Project>

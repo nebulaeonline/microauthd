@@ -51,7 +51,7 @@ public static class AuthRoutes
             var email = user.FindFirst(ClaimTypes.Email)?.Value
                      ?? user.FindFirst("email")?.Value;
 
-            var roles = user.FindAll(ClaimTypes.Role)
+            var roles = user.FindAll("role")
                             .Select(r => r.Value)
                             .ToList();
 

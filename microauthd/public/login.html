@@ -1,0 +1,74 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>microauthd Login</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 400px;
+            margin: 2rem auto;
+        }
+
+        input, button {
+            width: 100%;
+            margin: 0.5rem 0;
+        }
+
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h2>Login</h2>
+    <form id="loginForm">
+        <input type="text" id="username" placeholder="Username" required />
+        <input type="password" id="password" placeholder="Password" required />
+        <input type="text" id="client_id" placeholder="Client ID" value="madui" required />
+        <button type="submit">Log In</button>
+    </form>
+    <pre id="output"></pre>
+
+    <script>
+    const form = document.getElementById('loginForm');
+    const output = document.getElementById('output');
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const client_id = document.getElementById('client_id').value;
+
+      const formData = new URLSearchParams({
+        grant_type: "password",
+        username,
+        password,
+        client_id
+      });
+
+      try {
+        const res = await fetch("/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Login failed");
+
+        localStorage.setItem("access_token", data.access_token);
+        output.textContent = JSON.stringify(data, null, 2);
+
+        // Optionally fetch /me
+        const me = await fetch("/me", {
+          headers: { Authorization: "Bearer " + data.access_token }
+        }).then(r => r.json());
+
+        output.textContent += "\n\n" + JSON.stringify(me, null, 2);
+      } catch (err) {
+        output.textContent = err.message;
+      }
+    };
+    </script>
+</body>
+</html>

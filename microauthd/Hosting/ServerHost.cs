@@ -1,18 +1,17 @@
-﻿using System.Net;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.JsonWebTokens;
-using Microsoft.IdentityModel.Tokens;
-using Serilog;
-
-using microauthd.Common;
+﻿using microauthd.Common;
 using microauthd.Config;
 using microauthd.Data;
 using microauthd.Routes.Admin;
 using microauthd.Routes.Auth;
-using microauthd.Tokens;
 using microauthd.Services;
-
+using microauthd.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
+using System.Net;
 using System.Security.Claims;
 
 namespace microauthd.Hosting;
@@ -162,6 +161,13 @@ public static class ServerHost
                     SwaggerSetup.ConfigureApp(app);
 
                 app.MapAuthRoutes(config);
+
+                app.UseStaticFiles(new StaticFileOptions
+                {
+                    FileProvider = new PhysicalFileProvider(
+                        Path.Combine(Directory.GetCurrentDirectory(), "public")),
+                    RequestPath = ""
+                });
             },
             config
         );

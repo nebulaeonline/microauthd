@@ -22,6 +22,14 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 ## microauthd Status Updates
 
+2025-06-21
+
+Realized there wasn't an example login flow, so I added a simple example at public/login.html. The public/ folder in microauthd is used to serve static files, such as a login page or documentation. Any files placed in this folder will be available at the root of the AUTH server (e.g., /login.html). By default, login.html is included as a simple authentication interface.
+
+You can customize the login experience by modifying this file or replacing it entirely. During build and publish, the contents of public/ are automatically copied to the output directory and served by the AUTH server.
+
+The contract for the login page is that it should POST to `/token` with the following fields / parameters: grant_type (password), username, password, and client_id (should mirror the client you set up during OOBE. You can also refresh at `/token` with grant_type = refresh_token and token set to the refresh token value obtained with the original token grant.
+
 2025-06-20
 
 Started separating the data layer from the service layer internally. This will allow us to swap out the data layer in the future without affecting the service logic. There is currently no plan to abandon SQLite, so this will be an ongoing background process.
