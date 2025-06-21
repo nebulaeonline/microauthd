@@ -66,7 +66,7 @@ public static class UserStore
                     Id = reader.GetString(0),
                     Username = reader.GetString(1),
                     Email = reader.GetString(2),
-                    CreatedAt = reader.GetString(3),
+                    CreatedAt = reader.GetDateTime(3),
                     IsActive = reader.GetInt64(4) == 1
                 };
             }
@@ -234,7 +234,7 @@ public static class UserStore
                 Id = reader.GetString(0),
                 Username = reader.GetString(1),
                 Email = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
+                CreatedAt = reader.GetDateTime(3),
                 IsActive = reader.GetBoolean(4)
             };
         });
@@ -310,7 +310,7 @@ public static class UserStore
                 Id = reader.GetString(0),
                 Username = reader.GetString(1),
                 Email = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
+                CreatedAt = reader.GetDateTime(3),
                 IsActive = reader.GetBoolean(4)
             };
         });
@@ -323,33 +323,79 @@ public static class UserStore
     /// <see cref="UserObject"/>. The returned list will be empty if no users are found in the database.</remarks>
     /// <returns>A list of <see cref="UserObject"/> instances, where each object represents a user with their associated details
     /// such as ID, username, email, creation date, and active status.</returns>
-    public static List<UserObject> ListUsers()
+    public static List<UserObject> ListUsers(int offset = 0, int limit = 50)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active
+                SELECT id, username, email, is_active, created_at
                 FROM users
-                ORDER BY username ASC;
+                WHERE is_active = 1
+                ORDER BY username
+                LIMIT $limit OFFSET $offset
             """;
+            cmd.Parameters.AddWithValue("$limit", limit);
+            cmd.Parameters.AddWithValue("$offset", offset);
 
             using var reader = cmd.ExecuteReader();
-            var list = new List<UserObject>();
-
+            var results = new List<UserObject>();
             while (reader.Read())
             {
-                list.Add(new UserObject
+                results.Add(new UserObject
                 {
-                    Id = reader.GetString(0),
+                    Id = reader.GetGuid(0).ToString(),
                     Username = reader.GetString(1),
                     Email = reader.GetString(2),
-                    CreatedAt = reader.GetString(3),
-                    IsActive = reader.GetInt64(4) == 1
+                    IsActive = reader.GetBoolean(3),
+                    CreatedAt = reader.GetDateTime(4)
                 });
             }
 
-            return list;
+            return results;
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a paginated list of inactive users from the database.
+    /// </summary>
+    /// <remarks>This method queries the database for users who are marked as inactive and returns their
+    /// details. The results are ordered by username in ascending order. Use the <paramref name="offset"/> and 
+    /// <paramref name="limit"/> parameters to control pagination.</remarks>
+    /// <param name="offset">The zero-based index of the first record to retrieve. Must be non-negative.</param>
+    /// <param name="limit">The maximum number of records to retrieve. Must be greater than zero. Defaults to 50.</param>
+    /// <returns>A list of <see cref="UserObject"/> instances representing inactive users.  The list will be empty if no inactive
+    /// users are found.</returns>
+    public static List<UserObject> ListInactiveUsers(int offset = 0, int limit = 50)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, username, email, is_active, created_at
+                FROM users
+                WHERE is_active = 0
+                ORDER BY username
+                LIMIT $limit OFFSET $offset
+            """;
+            cmd.Parameters.AddWithValue("$limit", limit);
+            cmd.Parameters.AddWithValue("$offset", offset);
+
+            using var reader = cmd.ExecuteReader();
+            var results = new List<UserObject>();
+            while (reader.Read())
+            {
+                results.Add(new UserObject
+                {
+                    Id = reader.GetGuid(0).ToString(),
+                    Username = reader.GetString(1),
+                    Email = reader.GetString(2),
+                    IsActive = reader.GetBoolean(3),
+                    CreatedAt = reader.GetDateTime(4)
+                });
+            }
+
+            return results;
         });
     }
 

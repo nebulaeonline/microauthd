@@ -225,7 +225,7 @@ public static class UserService
     /// cref="UserObject"/> objects. The returned list will be empty if no users are found in the database.</remarks>
     /// <returns>A list of <see cref="UserObject"/> objects, where each object represents a user with their associated details
     /// such as ID, username, email, creation date, and active status.</returns>
-    public static ApiResult<List<UserObject>> GetAllUsers()
+    public static ApiResult<List<UserObject>> ListUsers()
     {
         try
         {

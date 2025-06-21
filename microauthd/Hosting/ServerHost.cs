@@ -282,10 +282,11 @@ public static class ServerHost
 
                 // Register razor pages for admin UI
                 builder.Services.AddAntiforgery(o => o.SuppressXFrameOptionsHeader = true);
-                builder.Services.AddRazorPages().AddRazorPagesOptions(opts =>
-                {
-                    opts.Conventions.ConfigureFilter(new IgnoreAntiforgeryTokenAttribute());
-                });
+                builder.Services.AddRazorPages();
+                //builder.Services.AddRazorPages().AddRazorPagesOptions(options =>
+                //{
+                //    options.Conventions.AddPageRoute("/Admin/Users/Index", "/users-ui");
+                //});
             },
             app =>
             {

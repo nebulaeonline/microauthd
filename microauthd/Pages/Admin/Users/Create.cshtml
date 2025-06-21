@@ -1,0 +1,31 @@
+﻿@page
+@model microauthd.Pages.Admin.Users.CreateModel
+@{
+    ViewData["Title"] = "Create User";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Create New User</h2>
+
+<form method="post">
+    <div class="mb-3">
+        <label asp-for="Username" class="form-label"></label>
+        <input asp-for="Username" class="form-control w-50" />
+        <span asp-validation-for="Username" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control w-50" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Password" class="form-label"></label>
+        <input asp-for="Password" type="password" class="form-control w-50" />
+        <span asp-validation-for="Password" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a asp-page="/Admin/Users/Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>

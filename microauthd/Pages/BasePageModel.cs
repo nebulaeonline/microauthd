@@ -1,10 +1,17 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using microauthd.Config;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Security.Claims;
 
 public abstract class BasePageModel : PageModel
 {
+    protected AppConfig Config => HttpContext.RequestServices.GetRequiredService<AppConfig>();
+    protected string? UserId => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    protected string? IpAddress => HttpContext.Connection.RemoteIpAddress?.ToString();
+    protected string? UserAgent => HttpContext.Request.Headers["User-Agent"].FirstOrDefault();
+
     public override void OnPageHandlerExecuting(Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutingContext context)
     {
         // Only check expiration if authenticated

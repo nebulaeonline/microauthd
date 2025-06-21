@@ -10,7 +10,7 @@ public class UserObject
     [JsonPropertyName("email")]
     public required string Email { get; set; }
     [JsonPropertyName("created_at")]
-    public required string CreatedAt { get; set; }
+    public required DateTime CreatedAt { get; set; }
     [JsonPropertyName("is_active")]
     public bool IsActive { get; set; }
 }

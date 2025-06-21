@@ -74,7 +74,7 @@ public static class AdminRoutes
         // get users endpoint**********************************************************************
         group.MapGet("/users", () =>
         {
-            var result = UserService.GetAllUsers();
+            var result = UserService.ListUsers();
             return result.ToHttpResult();
         })
         .RequireAuthorization()
