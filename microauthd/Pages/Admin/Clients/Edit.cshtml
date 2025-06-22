@@ -47,15 +47,7 @@
 
     <div class="d-flex justify-content-start mt-4">
         <button type="submit" class="btn btn-primary">Save Changes</button>
-        <a asp-page="/Admin/Clients/Index" class="btn btn-secondary ms-2">Cancel</a>
-
-        <form method="post" asp-page-handler="RegenerateSecret" class="ms-2 d-inline">
-            <input type="hidden" asp-for="ClientForm.Id" />
-            <button type="submit" class="btn btn-warning ms-2"
-                    onclick="return confirm('Regenerate client secret? The previous one will become invalid.')">
-                Regenerate Secret
-            </button>
-        </form>        
+        <a asp-page="/Admin/Clients/Index" class="btn btn-secondary ms-2">Cancel</a>                       
     </div>
 </form>
 <hr />
@@ -64,6 +56,14 @@
     <button type="submit" class="btn btn-danger"
             onclick="return confirm('Are you sure you want to permanently delete this client?');">
         Delete Client
+    </button>
+</form>
+<hr/>
+<form method="post" asp-page-handler="RegenerateSecret" class="ms-2 d-inline">
+    <input type="hidden" asp-for="ClientForm.Id" />
+    <button type="submit" class="btn btn-warning"
+            onclick="return confirm('Regenerate client secret? The previous one will become invalid.')">
+        Regenerate Secret
     </button>
 </form>
 @section Scripts {

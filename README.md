@@ -2,7 +2,7 @@
 
 microauthd is a self-hosted, embedded-friendly identity provider designed for internal services, machine-to-machine workflows, and constrained environments. It is written in C# using the .NET 8 SDK. It is **not** a replacement for Keycloak, Auth0, or Dex. It's a small, hardened component that forms one pillar of a larger authentication and authorization architecture.
 
-Curent AOT status is: building & executing - 26MB executable, 35MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
+Curent AOT status is: building & executing - 26MB executable, 57MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
 
 AOT build (same command for mad in the mad directory):
 
@@ -188,12 +188,13 @@ Future bindings will be released for common languages (C#, ~~Go~~ (Done), ~~Pyth
 - Admin vs Auth API separation (dual-port, dual-key architecture)
 - CLI (`mad`) with full administrative control
 - One-time-use refresh tokens with revocation
-- Audit logging of nearly all privileged operations
+- Audit logging of all privileged operations
 - OOBE wizard that configures the full system and initial admin user
 - AOT-safe JSON serialization across all DTOs
 
 ### What Still Needs Work
 
+- Web-based management GUI is in progress (Razor Pages)
 - `mad` CLI still a WIP but has improved significantly
 - ~~Some minor inconsistencies in API response formatting~~ (APIs are now consistent)
 - Token usage metadata is stored but not yet used for token tracing
@@ -204,11 +205,11 @@ Future bindings will be released for common languages (C#, ~~Go~~ (Done), ~~Pyth
 
 - ~~**Update Endpoints are not yet implemented**~~ - updates are now implemented for users, roles, permissions, clients, and scopes
 - **No multi-tenancy** support (by design)
-- **No UI** - this is a text-first, CLI- and API-driven system
+- ~~**No UI** - this is a text-first, CLI- and API-driven system~~ (In progress)
 - **One shared DB connection** limits concurrency- will be addressed via per-request pooled connections
 - **Does not enforce fine-graned resource ownership or external ACLs** - leaves this to calling systems
 - OOBE is helpful, but **not quite production-ready** for large deployments (much better in v2 of OOBE now)
-- OTP-based loginis not yet implemented (on roadmap)
+- ~~OTP-based loginis not yet implemented (on roadmap)~~ (Done)
 - **Bindings for Python, Go, and JS/TS are in the repo; other languages are not yet published**
 
 ### Project Roadmap
@@ -220,7 +221,9 @@ Future bindings will be released for common languages (C#, ~~Go~~ (Done), ~~Pyth
 5. ~~Launch test harness using `mad` + Python bindings (in progress)~~ Done.
 6. Ship bindings for C# & Rust
 7. More robust failed password mechanisms (~~rate limiting~~ (done) / exponential backoff)
-8. OTP login flow
+8. ~~OTP login flow~~ (Done)
+9. Example code for common languages
+10. Documentation for all endpoints, CLI, and bindings
 ---
 
 ## Summary

@@ -1,0 +1,21 @@
+﻿@page
+@model microauthd.Pages.Admin.Clients.CreatedModel
+@{
+    ViewData["Title"] = "Client Created";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Client Created</h2>
+
+@if (TempData["GeneratedSecret"] is string secret && !string.IsNullOrWhiteSpace(secret))
+{
+    <div class="alert alert-warning">
+        <strong>Client Secret:</strong> <code>@secret</code><br />
+        This is the only time this value will be shown. Be sure to copy it now.
+    </div>
+}
+
+<p>The new client was created successfully.</p>
+
+<a asp-page="/Admin/Clients/Index" class="btn btn-primary">Back to Client List</a>
+

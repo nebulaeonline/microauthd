@@ -71,10 +71,11 @@ public class EditModel : BasePageModel
         GeneratedSecret = result.Value?.Message ?? "";
         TempData["Success"] = "Client secret regenerated. Copy it now — it will not be shown again.";
 
-        var client = ClientStore.GetClientByClientId(ClientForm.Id);
+        var client = ClientStore.GetClientById(ClientForm.Id);
         if (client != null)
             ClientForm = EditClientModel.FromClient(client);
 
+        ModelState.Clear();
         return Page();
     }
 

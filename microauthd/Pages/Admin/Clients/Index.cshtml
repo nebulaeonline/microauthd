@@ -40,6 +40,14 @@
     </tbody>
 </table>
 
+<div class="d-flex justify-content-between mt-3">
+    <a asp-page="/Admin/Clients/Create" class="btn btn-success">Create New Client</a>
+    <form method="get" asp-page="/Admin/Clients/Edit" class="d-flex">
+        <input name="id" class="form-control me-2" placeholder="Find by ID" />
+        <button type="submit" class="btn btn-outline-light">Go</button>
+    </form>
+</div>
+
 @if (Model.TotalCount > Model.PageSize)
 {
     <nav>
@@ -57,12 +65,3 @@
         </ul>
     </nav>
 }
-
-<div class="d-flex justify-content-between mt-3">
-    <a asp-page="/Admin/Clients/Create" class="btn btn-success">Create New Client</a>
-    <form method="get" asp-page="/Admin/Clients/Edit" class="d-flex">
-        <input name="id" class="form-control me-2" placeholder="Find by ID" />
-        <button type="submit" class="btn btn-outline-light">Go</button>
-    </form>
-</div>
-
