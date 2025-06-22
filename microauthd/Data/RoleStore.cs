@@ -1,4 +1,5 @@
 ﻿using madTypes.Api.Common;
+using System.Text.Json.Serialization;
 
 namespace microauthd.Data;
 
@@ -21,7 +22,7 @@ public static class RoleStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
                 SELECT id, name, description, is_protected, is_active FROM roles
-                ORDER BY name
+                WHERE is_active = 1 ORDER BY name
                 LIMIT $limit OFFSET $offset
             """;
             cmd.Parameters.AddWithValue("$limit", limit);
@@ -39,6 +40,45 @@ public static class RoleStore
                 });
             }
             return roles;
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a role by its unique identifier.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve the role information associated with the given
+    /// identifier. If the <paramref name="roleId"/> is invalid (null, empty, or whitespace), the method returns <see
+    /// langword="null"/>.</remarks>
+    /// <param name="roleId">The unique identifier of the role to retrieve. This value cannot be null, empty, or consist solely of
+    /// whitespace.</param>
+    /// <returns>A <see cref="RoleObject"/> representing the role with the specified identifier, or <see langword="null"/> if no
+    /// matching role is found.</returns>
+    public static RoleObject? GetRoleById(string roleId)
+    {
+        if (string.IsNullOrWhiteSpace(roleId))
+            return null;
+        
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, name, description, is_protected, is_active FROM roles
+                WHERE id = $rid
+            """;
+            cmd.Parameters.AddWithValue("$rid", roleId);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                return new RoleObject
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    IsProtected = reader.GetBoolean(3),
+                    IsActive = reader.GetBoolean(4)
+                };
+            }
+            return null;
         });
     }
 
@@ -84,6 +124,71 @@ public static class RoleStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT COUNT(*) FROM roles WHERE is_active = 1;";
             return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a list of active roles from the database.
+    /// </summary>
+    /// <remarks>This method queries the database for roles that are marked as active and returns them as a
+    /// list of  <see cref="RoleDto"/> objects. Each role includes its identifier and name.</remarks>
+    /// <returns>A list of <see cref="RoleDto"/> objects representing active roles. Returns an empty list if no active roles are
+    /// found.</returns>
+    public static List<RoleDto> GetAllRoleDtos()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id, name FROM roles WHERE is_active = 1";
+            using var reader = cmd.ExecuteReader();
+            var roles = new List<RoleDto>();
+            while (reader.Read())
+            {
+                roles.Add(new RoleDto
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1)
+                });
+            }
+            return roles;
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a list of active roles assigned to the specified user.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve roles that are both active and assigned to the
+    /// user. The roles are filtered based on the user's active assignments and the active status of the
+    /// roles.</remarks>
+    /// <param name="userId">The unique identifier of the user whose roles are to be retrieved.  This parameter cannot be null, empty, or
+    /// consist solely of whitespace.</param>
+    /// <returns>A list of <see cref="RoleDto"/> objects representing the active roles assigned to the user. If the <paramref
+    /// name="userId"/> is null, empty, or consists solely of whitespace,  an empty list is returned.</returns>
+    public static List<RoleDto> GetAssignedRolesDto(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return new List<RoleDto>();
+
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT r.id, r.name FROM user_roles ur
+                JOIN roles r ON ur.role_id = r.id
+                WHERE ur.user_id = $uid AND ur.is_active = 1 AND r.is_active = 1
+            """;
+            cmd.Parameters.AddWithValue("$uid", userId);
+            using var reader = cmd.ExecuteReader();
+            var roles = new List<RoleDto>();
+            while (reader.Read())
+            {
+                roles.Add(new RoleDto
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1)
+                });
+            }
+            return roles;
         });
     }
 }

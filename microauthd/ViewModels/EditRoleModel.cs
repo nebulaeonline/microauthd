@@ -13,7 +13,7 @@ public class EditRoleModel
     public bool IsProtected { get; set; } = false;
     public bool IsActive { get; set; } = true;
 
-    public EditRoleModel FromRoleObject(RoleObject role)
+    public static EditRoleModel FromRoleObject(RoleObject role)
     {
         return new EditRoleModel
         {

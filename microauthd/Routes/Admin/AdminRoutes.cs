@@ -42,7 +42,9 @@ public static class AdminRoutes
             var ping = new PingResponse("pong from admin");
             return Results.Json(ping, MicroauthJsonContext.Default.PingResponse);
 
-        }).WithTags("Info")
+        })
+        .AllowAnonymous()
+        .WithTags("Info")
         .WithOpenApi();
 
         // version endpoint*************************************************************************
@@ -52,6 +54,7 @@ public static class AdminRoutes
             return Results.Json(response, MicroauthJsonContext.Default.VersionResponse);
 
         })
+        .AllowAnonymous()
         .WithTags("Info")
         .Produces<VersionResponse>(StatusCodes.Status200OK)
         .WithOpenApi();
@@ -211,6 +214,7 @@ public static class AdminRoutes
             var result = AuthService.IssueAdminToken(req, config, ip, ua);
             return result.ToHttpResult();
         })
+        .AllowAnonymous()
         .WithName("IssueToken")
         .Produces<TokenResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -507,6 +511,55 @@ public static class AdminRoutes
         .Produces<List<string>>(StatusCodes.Status200OK)
         .WithTags("Roles")
         .WithTags("Users")
+        .WithOpenApi();
+
+        // get role DTOs for all / user endpoint****************************************************
+        group.MapGet("/users/{userId}/roles", (
+            string userId,
+            [FromQuery] bool all
+        ) =>
+        {
+            var roles = all
+                ? RoleService.GetAllRoleDtos()
+                : RoleService.GetAssignedRolesDto(userId);
+
+            return roles.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetUserRoles")
+        .Produces<ApiResult<List<RoleDto>>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .WithTags("Users")
+        .WithTags("Roles")
+        .WithOpenApi();
+
+        // replace user roles endpoint**************************************************************
+        group.MapPut("/users/{userId}/roles", (
+            string userId,
+            [FromBody] List<RoleDto> roles,
+            HttpContext ctx,
+            AppConfig config
+        ) =>
+        {
+            var actor = ctx.User.GetUserId();
+            var ip = ctx.Connection.RemoteIpAddress?.ToString();
+            var ua = ctx.Request.Headers.UserAgent.ToString();
+
+            var roleAssignment = new RoleAssignmentDto
+            {
+                UserId = userId,
+                Roles = roles
+            };
+
+            var result = RoleService.ReplaceUserRoles(roleAssignment, config, actor!, ip, ua);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("ReplaceUserRoles")
+        .Produces<ApiResult<MessageResponse>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status400BadRequest)
+        .WithTags("Users")
+        .WithTags("Roles")
         .WithOpenApi();
 
         // create permission endpoint***************************************************************

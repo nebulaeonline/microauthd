@@ -29,6 +29,7 @@ public static class AuthRoutes
             var ping = new PingResponse("pong from auth");
             return Results.Json(ping, MicroauthJsonContext.Default.PingResponse);
         })
+        .AllowAnonymous()
         .WithTags("Info")
         .WithOpenApi();
 
@@ -38,6 +39,7 @@ public static class AuthRoutes
             var response = new VersionResponse();
             return Results.Json(response, MicroauthJsonContext.Default.VersionResponse);
         })
+        .AllowAnonymous()
         .WithTags("Info")
         .WithOpenApi();
 
@@ -137,6 +139,7 @@ public static class AuthRoutes
                 _ => ApiResult<TokenResponse>.Fail("Unsupported grant_type", 400).ToHttpResult()
             };            
         })
+        .AllowAnonymous()
         .WithName("IssueToken")
         .Produces<TokenResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)

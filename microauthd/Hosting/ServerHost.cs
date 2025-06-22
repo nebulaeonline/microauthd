@@ -8,6 +8,7 @@ using microauthd.Tokens;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -269,6 +270,14 @@ public static class ServerHost
                     {
                         options.LoginPath = "/Login";
                         options.AccessDeniedPath = "/AccessDenied";
+
+                        // Allow cookie over HTTP for dev, but secure in prod
+                        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                        options.Cookie.HttpOnly = true;
+                        options.Cookie.SameSite = SameSiteMode.Lax;
+                        options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+                        options.SlidingExpiration = true;
+                        options.Cookie.Name = "microauthd.session";
                     });
 
 
@@ -285,23 +294,34 @@ public static class ServerHost
             },
             app =>
             {
+                // Use forwarded headers if behind a reverse proxy
+                app.UseForwardedHeaders(new ForwardedHeadersOptions
+                {
+                    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+                });
+
+                // Use rate limiting middleware for admin routes too
                 app.UseMiddleware<RateLimitMiddleware>("admin");
-                app.UseStaticFiles();
+
+                // Standard middleware setup
+                app.UseStaticFiles();   // wwwroot files
                 app.UseRouting();
 
                 app.UseAuthentication();
                 app.UseAuthorization();
 
-                
+                // Enable Swagger UI if configured
                 if (config.EnableAdminSwagger)
                     SwaggerSetup.ConfigureApp(app);
 
+                // Use cookie authorization (once authenticated)
                 app.MapRazorPages()
                    .RequireAuthorization(new AuthorizeAttribute
                    {
                        AuthenticationSchemes = "Cookies"
                    });
 
+                // APIs use JWT Bearer authentication
                 app.MapAdminRoutes(config)
                    .RequireAuthorization(new AuthorizeAttribute
                    {

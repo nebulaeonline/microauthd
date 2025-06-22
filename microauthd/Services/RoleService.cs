@@ -478,6 +478,103 @@ public static class RoleService
     }
 
     /// <summary>
+    /// Replaces the roles assigned to a user with a new set of roles.
+    /// </summary>
+    /// <remarks>This method updates the roles assigned to a user by comparing the current roles with the
+    /// provided roles. Roles that are not in the new set are removed, and roles that are in the new set but not
+    /// currently assigned are added. Audit logging is performed to record the changes.</remarks>
+    /// <param name="dto">An object containing the user ID and the new set of roles to assign. The <see cref="RoleAssignmentDto.UserId"/>
+    /// property must not be null or whitespace, and each role in <see cref="RoleAssignmentDto.Roles"/> must have a
+    /// valid ID.</param>
+    /// <param name="config">The application configuration used for role assignment and audit logging.</param>
+    /// <param name="actorUserId">The ID of the user performing the operation. This is used for audit logging.</param>
+    /// <param name="ip">The IP address of the user performing the operation. This is used for audit logging. Can be null.</param>
+    /// <param name="ua">The user agent string of the user performing the operation. This is used for audit logging. Can be null.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the success or failure
+    /// of the operation. If successful, the response contains a message confirming that the roles were updated.</returns>
+    public static ApiResult<MessageResponse> ReplaceUserRoles(
+        RoleAssignmentDto dto,
+        AppConfig config,
+        string actorUserId,
+        string? ip,
+        string? ua)
+    {
+        if (string.IsNullOrWhiteSpace(dto.UserId))
+            return ApiResult<MessageResponse>.Fail("Missing userId", 400);
+
+        var current = RoleStore.GetAssignedRolesDto(dto.UserId)
+            .Select(r => r.Id)
+            .ToHashSet();
+
+        var submitted = dto.Roles
+            .Where(r => !string.IsNullOrWhiteSpace(r.Id))
+            .Select(r => r.Id)
+            .ToHashSet();
+
+        var toAdd = submitted.Except(current).ToList();
+        var toRemove = current.Except(submitted).ToList();
+
+        // AddRoleToUser and RemoveRoleFromUser are both audit logged internally,
+        // so we don't need to log here again as it's redundant.
+        foreach (var roleId in toAdd)
+            AddRoleToUser(dto.UserId, roleId, config, actorUserId, ip, ua);
+
+        foreach (var roleId in toRemove)
+            RemoveRoleFromUser(dto.UserId, roleId, config, actorUserId, ip, ua);
+
+        return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Roles updated."));
+    }
+
+    /// <summary>
+    /// Retrieves a list of all roles as data transfer objects (DTOs).
+    /// </summary>
+    /// <remarks>This method returns a result containing all roles available in the system. If the operation
+    /// fails, an error message and status code are included in the result.</remarks>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="RoleDto"/> objects representing all roles. If the
+    /// operation fails, the result contains an error message and a status code.</returns>
+    public static ApiResult<List<RoleDto>> GetAllRoleDtos()
+    {
+        try
+        {
+            var roles = RoleStore.GetAllRoleDtos();
+            return ApiResult<List<RoleDto>>.Ok(roles);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to retrieve all roles");
+            return ApiResult<List<RoleDto>>.Fail("Unable to retrieve roles", 500);
+        }
+    }
+
+    /// <summary>
+    /// Retrieves the list of roles assigned to a specific user.
+    /// </summary>
+    /// <remarks>This method attempts to retrieve the roles assigned to the specified user from the underlying
+    /// role store. If the operation is successful, the result will contain the list of roles. If an error occurs during
+    /// retrieval, the result will include an error message and a status code indicating the failure.</remarks>
+    /// <param name="userId">The unique identifier of the user whose assigned roles are to be retrieved. Must not be null, empty, or consist
+    /// solely of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="RoleDto"/> objects representing the user's
+    /// assigned roles. If the operation fails, the result will include an error message and an appropriate HTTP status
+    /// code.</returns>
+    public static ApiResult<List<RoleDto>> GetAssignedRolesDto(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return ApiResult<List<RoleDto>>.Fail("Missing userId", 400);
+
+        try
+        {
+            var roles = RoleStore.GetAssignedRolesDto(userId);
+            return ApiResult<List<RoleDto>>.Ok(roles);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to retrieve assigned roles for user {UserId}", userId);
+            return ApiResult<List<RoleDto>>.Fail("Unable to retrieve user roles", 500);
+        }
+    }
+
+    /// <summary>
     /// Retrieves the total number of roles currently stored in the system.
     /// </summary>
     /// <returns>The total count of roles as an integer. Returns 0 if no roles are stored.</returns>

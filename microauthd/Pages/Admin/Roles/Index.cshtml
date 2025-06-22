@@ -47,7 +47,7 @@
         <button type="submit" class="btn btn-outline-light">Find</button>
     </form>
 </div>
-@if (Model.TotalCount > Model.PageSize)
+@if (Model.TotalCount > Model.PageSize || Model.CurrentPage > 1)
 {
     <nav>
         <ul class="pagination justify-content-center">
@@ -57,7 +57,10 @@
                 {
                     var active = i == Model.CurrentPage ? "active" : "";
                     <li class="page-item @active">
-                        <a class="page-link" asp-page="/Admin/Roles/Index" asp-route-pg="@i" asp-route-pageSize="@Model.PageSize">@i</a>
+                        <a class="page-link"
+                           asp-page="/Admin/Roles/Index"
+                           asp-route-pg="@i"
+                           asp-route-pageSize="@Model.PageSize">@i</a>
                     </li>
                 }
             }

@@ -9,9 +9,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Security.Claims;
 using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.AspNetCore.Authorization;
 
 namespace microauthd.Pages;
 
+[AllowAnonymous]
 public class LoginModel : PageModel
 {
     private readonly AppConfig _config;
