@@ -138,7 +138,7 @@ public static class AuthService
     public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
     {
         // Look up client in database
-        var client = ClientStore.GetClientById(clientId);
+        var client = ClientStore.GetClientByClientId(clientId);
         if (client is null || !client.IsActive)
             return null;
 

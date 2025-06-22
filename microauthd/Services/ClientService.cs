@@ -6,6 +6,7 @@ using microauthd.Common;
 using microauthd.Config;
 using microauthd.Data;
 using Microsoft.Data.Sqlite;
+using nebulae.dotArgon2;
 using Serilog;
 using System.Text;
 using static nebulae.dotArgon2.Argon2;
@@ -140,9 +141,9 @@ public static class ClientService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT COUNT(*) FROM clients
-            WHERE client_identifier = $cid AND id != $id;
-        """;
+                SELECT COUNT(*) FROM clients
+                WHERE client_identifier = $cid AND id != $id;
+            """;
             cmd.Parameters.AddWithValue("$cid", updated.ClientId);
             cmd.Parameters.AddWithValue("$id", id);
             return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
@@ -155,16 +156,16 @@ public static class ClientService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            UPDATE clients
-            SET client_identifier = $cid,
-                display_name = $name,
-                is_active = $active,
-                modified_at = datetime('now')
-            WHERE id = $id;
-        """;
+                UPDATE clients
+                SET client_identifier = $cid,
+                    audience = $aud,
+                    display_name = $name,
+                    modified_at = datetime('now')
+                WHERE id = $id;
+            """;
             cmd.Parameters.AddWithValue("$cid", updated.ClientId);
             cmd.Parameters.AddWithValue("$name", updated.DisplayName ?? "");
-            cmd.Parameters.AddWithValue("$active", updated.IsActive ? 1 : 0);
+            cmd.Parameters.AddWithValue("$aud", updated.Audience);
             cmd.Parameters.AddWithValue("$id", id);
             return cmd.ExecuteNonQuery() == 1;
         });
@@ -177,7 +178,7 @@ public static class ClientService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT id, client_identifier, display_name, is_active, created_at
+            SELECT id, client_identifier, display_name, audience, created_at
             FROM clients
             WHERE id = $id;
         """;
@@ -192,7 +193,7 @@ public static class ClientService
                 Id = reader.GetString(0),
                 ClientId = reader.GetString(1),
                 DisplayName = reader.GetString(2),
-                IsActive = reader.GetBoolean(3),
+                Audience = reader.GetString(3),
                 CreatedAt = reader.GetDateTime(4)
             };
         });
@@ -356,6 +357,52 @@ public static class ClientService
         AuditLogger.AuditLog(config, actorUserId, "delete_client", clientId, ip, ua);
 
         return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientId}' deleted"));
+    }
+
+    /// <summary>
+    /// Regenerates the client secret for the specified client ID and returns the new secret.
+    /// </summary>
+    /// <remarks>This method generates a new client secret, hashes it using the provided application
+    /// configuration, and updates the client record in the data store. The new secret is returned in plain text only
+    /// once as part of the response. Audit logging is performed to record the action.</remarks>
+    /// <param name="clientId">The unique identifier of the client whose secret is being regenerated. Cannot be null or empty.</param>
+    /// <param name="config">The application configuration used for hashing the secret. Must not be null.</param>
+    /// <param name="actorUserId">The identifier of the user performing the operation. Used for audit logging. Cannot be null or empty.</param>
+    /// <param name="ip">The IP address of the user performing the operation. Optional; can be null.</param>
+    /// <param name="ua">The user agent string of the user performing the operation. Optional; can be null.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> with the new client secret in plain
+    /// text. The response indicates success or failure, along with an HTTP status code.</returns>
+    public static ApiResult<MessageResponse> RegenerateClientSecret(
+            string clientId,
+            AppConfig config,
+            string actorUserId,
+            string? ip = null,
+            string? ua = null)
+    {
+        if (string.IsNullOrWhiteSpace(clientId))
+            return ApiResult<MessageResponse>.Fail("Client ID is required.", 400);
+
+        var newSecret = AuthService.GeneratePassword(32);
+        var hash = AuthService.HashPassword(newSecret, config);
+
+        var success = ClientStore.UpdateClientSecret(clientId, hash);
+        if (!success)
+            return ApiResult<MessageResponse>.Fail("Failed to update client secret.", 500);
+
+        AuditLogger.AuditLog(
+            config,
+            userId: actorUserId,
+            action: "client.secret.regenerated",
+            target: $"client={clientId}",
+            ipAddress: ip,
+            userAgent: ua
+        );
+
+        // IMPORTANT: Return the plain secret only once
+        return ApiResult<MessageResponse>.Ok(
+            new MessageResponse(true, newSecret),
+            200
+        );
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 ﻿using madTypes.Api.Common;
 using madTypes.Api.Responses;
+using Microsoft.IdentityModel.Tokens;
 
 namespace microauthd.Data;
 
@@ -9,6 +10,7 @@ public class Client
     public string ClientId { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;
     public string ClientSecretHash { get; init; } = string.Empty;
+    public string Audience { get; init; } = string.Empty;
     public bool IsActive { get; init; }
 }
 
@@ -28,17 +30,17 @@ public static class ClientStore
     /// details such as the client's ID, display name, secret hash, and active status.</remarks>
     /// <param name="clientId">The unique identifier of the client to retrieve. This value must not be null or empty.</param>
     /// <returns>A <see cref="Client"/> object representing the client if found; otherwise, <see langword="null"/>.</returns>
-    public static Client? GetClientById(string clientId)
+    public static Client? GetClientByClientId(string clientId)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT id, client_identifier, display_name, client_secret_hash, is_active
-            FROM clients
-            WHERE client_identifier = $id
-            LIMIT 1;
-        """;
+                SELECT id, client_identifier, display_name, audience, client_secret_hash, is_active
+                FROM clients
+                WHERE client_identifier = $id
+                LIMIT 1;
+            """;
             cmd.Parameters.AddWithValue("$id", clientId);
 
             using var reader = cmd.ExecuteReader();
@@ -50,8 +52,48 @@ public static class ClientStore
                 Id = reader.GetString(0),
                 ClientId = reader.GetString(1),
                 DisplayName = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                ClientSecretHash = reader.GetString(3),
-                IsActive = reader.GetBoolean(4)
+                Audience = reader.GetString(3),
+                ClientSecretHash = reader.GetString(4),
+                IsActive = reader.GetBoolean(5)
+            };
+        });
+    }
+
+
+    /// <summary>
+    /// Retrieves a client record from the database by its unique identifier.
+    /// </summary>
+    /// <remarks>This method queries the database for a client record with the specified identifier.  If a
+    /// matching record is found, it is mapped to a <see cref="Client"/> object.  If no record is found, the method
+    /// returns <see langword="null"/>.</remarks>
+    /// <param name="id">The unique identifier of the client to retrieve. This value must not be null or empty.</param>
+    /// <returns>A <see cref="Client"/> object representing the client with the specified identifier,  or <see langword="null"/>
+    /// if no matching client is found.</returns>
+    public static Client? GetClientById(string id)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, client_identifier, display_name, audience, client_secret_hash, is_active
+                FROM clients
+                WHERE id = $id
+                LIMIT 1;
+            """;
+            cmd.Parameters.AddWithValue("$id", id);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new Client
+            {
+                Id = reader.GetString(0),
+                ClientId = reader.GetString(1),
+                DisplayName = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                Audience = reader.GetString(3),
+                ClientSecretHash = reader.GetString(4),
+                IsActive = reader.GetBoolean(5)
             };
         });
     }
@@ -181,6 +223,33 @@ public static class ClientStore
                 });
             }
             return results;
+        });
+    }
+
+    /// <summary>
+    /// Updates the client secret hash for the specified client.
+    /// </summary>
+    /// <remarks>This method updates the client secret hash in the database for the client identified by
+    /// <paramref name="clientId"/>. Ensure that the provided <paramref name="clientId"/> corresponds to an existing
+    /// client record.</remarks>
+    /// <param name="clientId">The unique identifier of the client whose secret hash is being updated. Must not be <see langword="null"/> or
+    /// empty.</param>
+    /// <param name="hash">The new hash value for the client secret. Must not be <see langword="null"/> or empty.</param>
+    /// <returns><see langword="true"/> if the update was successful and exactly one record was modified;  otherwise, <see
+    /// langword="false"/>.</returns>
+    public static bool UpdateClientSecret(string clientId, string hash)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE clients SET client_secret_hash = $hash WHERE id = $cid
+            """;
+
+            cmd.Parameters.AddWithValue("$hash", hash);
+            cmd.Parameters.AddWithValue("$cid", clientId);
+
+            return cmd.ExecuteNonQuery() == 1;
         });
     }
 

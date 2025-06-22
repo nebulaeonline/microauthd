@@ -1,4 +1,72 @@
-﻿@page
+﻿@page "{id?}"
 @model microauthd.Pages.Admin.Clients.EditModel
 @{
+    ViewData["Title"] = "Edit Client";
+    Layout = "_Layout";
 }
+
+<h2 class="mb-4">Edit Client</h2>
+
+@if (!string.IsNullOrWhiteSpace(Model.GeneratedSecret))
+{
+    <div class="alert alert-warning">
+        <strong>New Client Secret:</strong>
+        <code>@Model.GeneratedSecret</code>
+        <br />
+        Please copy it now — it will not be shown again.
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ClientForm.Id))
+{
+    <div class="mb-3 text-muted">
+        <strong>ID:</strong> @Model.ClientForm.Id
+    </div>
+}
+
+<form method="post">
+    <input type="hidden" asp-for="ClientForm.Id" />
+
+    <div class="mb-3">
+        <label asp-for="ClientForm.DisplayName" class="form-label"></label>
+        <input asp-for="ClientForm.DisplayName" class="form-control w-50" />
+        <span asp-validation-for="ClientForm.DisplayName" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="ClientForm.ClientId" class="form-label"></label>
+        <input asp-for="ClientForm.ClientId" class="form-control w-50" />
+        <span asp-validation-for="ClientForm.ClientId" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="ClientForm.Audience" class="form-label"></label>
+        <input asp-for="ClientForm.Audience" class="form-control w-50" />
+        <span asp-validation-for="ClientForm.Audience" class="text-danger"></span>
+    </div>
+
+    <div class="d-flex justify-content-start mt-4">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a asp-page="/Admin/Clients/Index" class="btn btn-secondary ms-2">Cancel</a>
+
+        <form method="post" asp-page-handler="RegenerateSecret" class="ms-2 d-inline">
+            <input type="hidden" asp-for="ClientForm.Id" />
+            <button type="submit" class="btn btn-warning ms-2"
+                    onclick="return confirm('Regenerate client secret? The previous one will become invalid.')">
+                Regenerate Secret
+            </button>
+        </form>        
+    </div>
+</form>
+<hr />
+<form method="post" asp-page-handler="Delete" class="ms-2 d-inline">
+    <input type="hidden" asp-for="ClientForm.Id" />
+    <button type="submit" class="btn btn-danger"
+            onclick="return confirm('Are you sure you want to permanently delete this client?');">
+        Delete Client
+    </button>
+</form>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

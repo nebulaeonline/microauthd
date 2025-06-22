@@ -22,7 +22,11 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 ## microauthd Status Updates
 
-2025-06-21
+**2025-06-22**
+
+Still working on the web-based management GUI. The Razor Pages implementation is progressing well and should be ready for initial testing soon. The project is a good demonstration of using microauthd's auth capabilities, as it generates all tokens and handles logins for the admin site.
+
+**2025-06-21**
 
 Working on a web-based management GUI. Currently implementing via Razor Pages, which will allow us to create a simple web interface for managing users, roles, permissions, scopes, and clients. About 10% of the way there, but it is a start.
 
@@ -32,19 +36,19 @@ You can customize the login experience by modifying this file or replacing it en
 
 The contract for the login page is that it should POST to `/token` with the following fields / parameters: grant_type=password, username, password, and client_id (should mirror the client you set up during OOBE). You can also refresh at `/token` with grant_type = refresh_token and token set to the refresh token value obtained with the original token grant.
 
-2025-06-20
+**2025-06-20**
 
 Started separating the data layer from the service layer internally. This will allow us to swap out the data layer in the future without affecting the service logic. There is currently no plan to abandon SQLite, so this will be an ongoing background process.
 
 We haven't had a lot of time to test the bindings, so please stay tuned for updates on that front. The idea was to get *something* out there for people to use, but we will be actively auditing for full coverage and putting together testsuites for each of the sets of bindings.
 
-2025-06-19
+**2025-06-19**
 
 Bindings are up for Python, Go, and JS/TS. Please consider all of them a work in progress, but the should be usable for most operations (both AUTH & ADMIN).
 
 So the cli tool `mad` is now in a pretty good state, but it is **slow**. And not just a little slow, but *really* slow. That is fine for the time being, because it is a cli bootstrapping tool mostly, it is not expected that heavy scripting will be done using it. I figure most people will code against the JSON HTTP APIs directly, and those are plenty fast. I just wanted to give people a heads up that the CLI is not fast. Know that it is not microauthd itself.
 
-2025-06-18
+**2025-06-18**
 
 ~~Things are a bit in flux at the moment. Some things are broken.~~ Token introspection and token revocation should be solid again.
 
@@ -54,13 +58,13 @@ TOTP-based login is now implemented and will be undergoing testing. Stick at 7.1
 
 Remember please that the database schema is still in flux, and we do not provide migrations yet, so you will need to drop the database and re-run the OOBE wizard. When we go stable, we will begin providing db migrations.
 
-2025-06-17
+**2025-06-17**
 
 CRUD operations are now implemented for our 5 main data types: users, roles, permissions, clients, and scopes. The API is now consistent across all endpoints, with uniform response structures and error handling. The `mad` CLI tool has also been significantly improved to support these operations.
 
 The python test harness is now complete and has been used to validate the API surface, the back-end functions and the `mad` CLI tool. `mad` can now be used to create, update, delete, and assign users, roles, permissions, clients, and scopes. Additional tests will be added for token grant, revocation and refresh token redemption (all 3 have been tested manually and via script and the system does work as intended).
 
-2025-06-16
+**2025-06-16**
 
 microauthd is currently not yet ready for production use. It has a LOT of rough edges right now. The code is functional and has been tested in a few scenarios, but it is most definitely not ready for production use. There is no documentation yet, either.
 

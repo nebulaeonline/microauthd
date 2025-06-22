@@ -1,4 +1,6 @@
 ﻿using madTypes.Api.Common;
+using microauthd.Data;
+
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -13,6 +15,7 @@ namespace microauthd.ViewModels
         [Required]
         [StringLength(255, MinimumLength = 1, ErrorMessage = "Display name must have between 1-255 characters.")]
         public string DisplayName { get; init; } = string.Empty;
+        public string ClientSecretHash { get; init; } = string.Empty;
         public bool IsActive { get; init; }
         public DateTime CreatedAt { get; init; } = DateTime.MinValue;
         [Required]
@@ -21,7 +24,6 @@ namespace microauthd.ViewModels
 
         public static EditClientModel FromClientObject(ClientObject client)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
             return new EditClientModel
             {
                 Id = client.Id,
@@ -29,6 +31,19 @@ namespace microauthd.ViewModels
                 DisplayName = client.DisplayName,
                 IsActive = client.IsActive,
                 CreatedAt = client.CreatedAt,
+                Audience = client.Audience
+            };
+        }
+
+        public static EditClientModel FromClient(Client client)
+        {
+            return new EditClientModel
+            {
+                Id = client.Id,
+                ClientId = client.ClientId,
+                DisplayName = client.DisplayName,
+                ClientSecretHash = client.ClientSecretHash,
+                IsActive = client.IsActive,
                 Audience = client.Audience
             };
         }
@@ -42,6 +57,19 @@ namespace microauthd.ViewModels
                 DisplayName = DisplayName,
                 IsActive = IsActive,
                 CreatedAt = CreatedAt,
+                Audience = Audience
+            };
+        }
+
+        public Client ToClient()
+        {
+            return new Client
+            {
+                Id = Id,
+                ClientId = ClientId,
+                DisplayName = DisplayName,
+                ClientSecretHash = ClientSecretHash,
+                IsActive = IsActive,
                 Audience = Audience
             };
         }
