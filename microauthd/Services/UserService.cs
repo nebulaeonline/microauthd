@@ -1257,6 +1257,56 @@ public static class UserService
     }
 
     /// <summary>
+    /// Replaces the scope assignments for a specified user with the provided set of scopes.
+    /// </summary>
+    /// <remarks>This method updates the scope assignments for the specified user by comparing the current
+    /// scopes with the provided scopes. Scopes that are not currently assigned but are included in the provided list
+    /// are added, while scopes that are currently assigned but not included in the provided list are removed. Both
+    /// addition and removal operations are internally audit logged.</remarks>
+    /// <param name="dto">The data transfer object containing the target user ID and the list of scopes to assign. The <see
+    /// cref="ScopeAssignmentDto.TargetId"/> must not be null or whitespace.</param>
+    /// <param name="config">The application configuration used for scope assignment operations.</param>
+    /// <param name="actorUserId">The ID of the user performing the operation. This is used for audit logging.</param>
+    /// <param name="ip">The IP address of the actor user, used for audit logging. Can be null.</param>
+    /// <param name="ua">The user agent string of the actor user, used for audit logging. Can be null.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates whether the operation
+    /// was successful. If successful, the response contains a success message. If validation fails, the response
+    /// contains an error message and a 400 status code.</returns>
+    public static ApiResult<MessageResponse> ReplaceUserScopes(
+            ScopeAssignmentDto dto,
+            AppConfig config,
+            string actorUserId,
+            string? ip,
+            string? ua)
+    {
+        if (string.IsNullOrWhiteSpace(dto.TargetId))
+            return ApiResult<MessageResponse>.Fail("Missing targetId", 400);
+
+        var current = ScopeStore.GetAssignedScopesForUser(dto.TargetId)
+            .Select(r => r.Id)
+            .ToHashSet();
+
+        var submitted = dto.Scopes
+            .Where(r => !string.IsNullOrWhiteSpace(r.Id))
+            .Select(r => r.Id)
+            .ToHashSet();
+
+        var toAdd = submitted.Except(current).ToList();
+        var toRemove = current.Except(submitted).ToList();
+
+        // AddScopeToUser and RemoveScopeFromUser are both audit logged internally,
+        // so we don't need to log here again as it's redundant.
+        AssignScopesRequest req = new();
+        req.ScopeIds.AddRange(toAdd);
+        ScopeService.AddScopesToUser(dto.TargetId, req, config, actorUserId, ip, ua);
+
+        foreach (var scopeId in toRemove)
+            ScopeService.RemoveScopeFromUser(dto.TargetId, scopeId, config, actorUserId, ip, ua);
+
+        return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Scopes updated."));
+    }
+
+    /// <summary>
     /// Retrieves the total number of users currently stored in the system.
     /// </summary>
     /// <returns>The total count of users as an integer. Returns 0 if no users are stored.</returns>

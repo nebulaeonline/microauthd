@@ -171,7 +171,7 @@ public static class ScopeService
                 Id = reader.GetString(0),
                 Name = reader.GetString(1),
                 Description = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
+                CreatedAt = reader.GetDateTime(3),
                 IsActive = reader.GetBoolean(4)
             };
         });
@@ -195,11 +195,11 @@ public static class ScopeService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT id, name, description, created_at, is_active
-            FROM scopes
-            WHERE is_active = 1
-            ORDER BY name ASC;
-        """;
+                SELECT id, name, description, created_at, is_active
+                FROM scopes
+                WHERE is_active = 1
+                ORDER BY name ASC;
+            """;
 
             using var reader = cmd.ExecuteReader();
             var list = new List<ScopeObject>();
@@ -211,7 +211,7 @@ public static class ScopeService
                     Id = reader.GetString(0),
                     Name = reader.GetString(1),
                     Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    CreatedAt = reader.GetString(3),
+                    CreatedAt = reader.GetDateTime(3),
                     IsActive = reader.GetInt64(4) == 1
                 });
             }
@@ -237,10 +237,10 @@ public static class ScopeService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-        SELECT id, name, description
-        FROM scopes
-        WHERE id = $id
-    """;
+            SELECT id, name, description
+            FROM scopes
+            WHERE id = $id
+        """;
             cmd.Parameters.AddWithValue("$id", id);
 
             using var reader = cmd.ExecuteReader();
@@ -445,7 +445,7 @@ public static class ScopeService
                     Id = reader.GetString(0),
                     Name = reader.GetString(1),
                     Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    CreatedAt = reader.GetString(3),
+                    CreatedAt = reader.GetDateTime(3),
                     IsActive = reader.GetInt64(4) == 1
                 });
             }

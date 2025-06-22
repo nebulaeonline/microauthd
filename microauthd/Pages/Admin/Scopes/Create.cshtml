@@ -1,0 +1,25 @@
+﻿@page
+@model microauthd.Pages.Admin.Scopes.CreateModel
+@{
+    ViewData["Title"] = "Create Scope";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Create New Scope</h2>
+
+<form method="post">
+    <div class="mb-3">
+        <label asp-for="ScopeForm.Name" class="form-label"></label>
+        <input asp-for="ScopeForm.Name" class="form-control w-50" />
+        <span asp-validation-for="ScopeForm.Name" class="text-danger"></span>
+    </div>
+
+    
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a asp-page="/Admin/Scopes/Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

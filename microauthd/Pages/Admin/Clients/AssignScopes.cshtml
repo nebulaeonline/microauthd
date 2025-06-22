@@ -1,0 +1,84 @@
+﻿@page "{id?}"
+@model microauthd.Pages.Admin.Clients.AssignScopesToClientModel
+@{
+    ViewData["Title"] = "Assign Scopes";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Assign Scopes to @Model.ClientId</h2>
+
+<form method="post" id="scopeForm">
+    <div class="row">
+        <div class="col">
+            <label>Available Scopes</label>
+            <select id="availableScopes" class="form-select" size="10" multiple>
+                @foreach (var scope in Model.AvailableScopes)
+                {
+                    <option value="@scope.Id">@scope.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-1 d-flex flex-column justify-content-center">
+            <button type="button" id="addScope" class="btn btn-secondary mb-2">&gt;&gt;</button>
+            <button type="button" id="removeScope" class="btn btn-secondary">&lt;&lt;</button>
+        </div>
+        <div class="col">
+            <label>Assigned Scopes</label>
+            <select id="assignedScopes" name="SelectedScopeIds" class="form-select" size="10" multiple>
+                @foreach (var scope in Model.AssignedScopes)
+                {
+                    <option value="@scope.Id">@scope.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <input type="hidden" asp-for="TargetClientId" />
+    <div id="scopeHiddenFields"></div>
+
+    <script>
+        document.getElementById('scopeForm').onsubmit = function () {
+            const assigned = document.getElementById('assignedScopes');
+            const hiddenContainer = document.getElementById('scopeHiddenFields');
+            hiddenContainer.innerHTML = '';
+            for (let i = 0; i < assigned.options.length; i++) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'SelectedScopeIds';
+                input.value = assigned.options[i].value;
+                hiddenContainer.appendChild(input);
+            }
+            return true;
+        };
+    </script>
+
+    <div class="mt-4 d-flex justify-content-end">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a asp-page="/Admin/Clients/Index" class="btn btn-secondary ms-2">Cancel</a>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('addScope').addEventListener('click', () => {
+                const available = document.getElementById('availableScopes');
+                const assigned = document.getElementById('assignedScopes');
+                Array.from(available.selectedOptions).forEach(opt => {
+                    assigned.add(opt.cloneNode(true));
+                    available.removeChild(opt);
+                });
+            });
+
+            document.getElementById('removeScope').addEventListener('click', () => {
+                const available = document.getElementById('availableScopes');
+                const assigned = document.getElementById('assignedScopes');
+                Array.from(assigned.selectedOptions).forEach(opt => {
+                    available.add(opt.cloneNode(true));
+                    assigned.removeChild(opt);
+                });
+            });
+        });
+    </script>
+}
+

@@ -11,6 +11,8 @@ public sealed class ScopeObject
     public string? Description { get; init; }
     [JsonPropertyName("is_active")]
     public bool IsActive { get; init; }
+    [JsonPropertyName("is_protected")]
+    public bool IsProtected { get; init; }
     [JsonPropertyName("created_at")]
-    public string CreatedAt { get; init; } = string.Empty;
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 }

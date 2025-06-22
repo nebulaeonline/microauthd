@@ -17,7 +17,10 @@
     </select>
     <input type="hidden" name="pg" value="1" />
 </form>
-
+@if (!string.IsNullOrWhiteSpace(TempData["Success"] as string))
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
 <table class="table table-dark table-bordered align-middle">
     <thead>
         <tr>

@@ -102,6 +102,15 @@ namespace microauthd.Common
                 var t when t == typeof(List<RoleObject>) =>
                     MicroauthJsonContext.Default.ListRoleObject,
 
+                var t when t == typeof(ScopeAssignmentDto) =>
+                    MicroauthJsonContext.Default.ScopeAssignmentDto,
+
+                var t when t == typeof(ScopeDto) =>
+                    MicroauthJsonContext.Default.ScopeDto,
+
+                var t when t == typeof(List<ScopeDto>) =>
+                    MicroauthJsonContext.Default.ListScopeDto,
+
                 var t when t == typeof(ScopeObject) =>
                     MicroauthJsonContext.Default.ScopeObject,
 

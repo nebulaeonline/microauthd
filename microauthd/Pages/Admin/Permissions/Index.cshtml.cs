@@ -14,8 +14,9 @@ public class IndexModel : BasePageModel
     public int CurrentPage { get; private set; }
     public int PageSize { get; private set; } = 10;
 
-    public void OnGet(int pg = 1)
+    public void OnGet(int pg = 1, int pageSize = 10)
     {
+        PageSize = pageSize;
         CurrentPage = pg < 1 ? 1 : pg;
         var offset = (CurrentPage - 1) * PageSize;
 

@@ -406,6 +406,54 @@ public static class ClientService
     }
 
     /// <summary>
+    /// Replaces the scopes assigned to a client with the specified set of scopes.
+    /// </summary>
+    /// <remarks>This method updates the scopes assigned to a client by comparing the current scopes with the
+    /// provided scopes. Scopes that are not currently assigned but are included in the provided set will be added, and
+    /// scopes that are currently assigned but are not included in the provided set will be removed.</remarks>
+    /// <param name="dto">The scope assignment details, including the target client ID and the list of scopes to assign.</param>
+    /// <param name="config">The application configuration used for scope assignment operations.</param>
+    /// <param name="actorUserId">The ID of the user performing the operation, used for auditing purposes.</param>
+    /// <param name="ip">The IP address of the user performing the operation, used for auditing purposes. Can be <see langword="null"/>.</param>
+    /// <param name="ua">The user agent string of the user performing the operation, used for auditing purposes. Can be <see
+    /// langword="null"/>.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates whether the operation
+    /// was successful. If successful, the response contains a success message; otherwise, it contains an error message.</returns>
+    public static ApiResult<MessageResponse> ReplaceClientScopes(
+            ScopeAssignmentDto dto,
+            AppConfig config,
+            string actorUserId,
+            string? ip,
+            string? ua)
+    {
+        if (string.IsNullOrWhiteSpace(dto.TargetId))
+            return ApiResult<MessageResponse>.Fail("Missing targetId", 400);
+
+        var current = ScopeStore.GetAssignedScopesForClient(dto.TargetId)
+            .Select(r => r.Id)
+            .ToHashSet();
+
+        var submitted = dto.Scopes
+            .Where(r => !string.IsNullOrWhiteSpace(r.Id))
+            .Select(r => r.Id)
+            .ToHashSet();
+
+        var toAdd = submitted.Except(current).ToList();
+        var toRemove = current.Except(submitted).ToList();
+
+        // AddScopesToClient and RemoveScopeFromClient are both audit logged internally,
+        // so we don't need to log here again as it's redundant.
+        AssignScopesRequest req = new();
+        req.ScopeIds.AddRange(toAdd);
+        ScopeService.AddScopesToClient(dto.TargetId, req, config, actorUserId, ip, ua);
+
+        foreach (var scopeId in toRemove)
+            ScopeService.RemoveScopeFromClient(dto.TargetId, scopeId, config, actorUserId, ip, ua);
+
+        return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Scopes updated."));
+    }
+
+    /// <summary>
     /// Retrieves the total number of clients currently stored in the system.
     /// </summary>
     /// <returns>The total count of clients as an integer. Returns 0 if no clients are stored.</returns>
