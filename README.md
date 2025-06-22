@@ -2,7 +2,7 @@
 
 microauthd is a self-hosted, embedded-friendly identity provider designed for internal services, machine-to-machine workflows, and constrained environments. It is written in C# using the .NET 8 SDK. It is **not** a replacement for Keycloak, Auth0, or Dex. It's a small, hardened component that forms one pillar of a larger authentication and authorization architecture.
 
-Curent AOT status is: building & executing - 26MB executable, 57MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
+Curent AOT status is: building & executing - 32MB executable, 57MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
 
 AOT build (same command for mad in the mad directory):
 
