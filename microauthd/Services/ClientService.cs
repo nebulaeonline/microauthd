@@ -99,7 +99,7 @@ public static class ClientService
                 Id = reader.GetString(0),
                 ClientId = reader.GetString(1),
                 DisplayName = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
+                CreatedAt = reader.GetDateTime(3),
                 IsActive = reader.GetBoolean(4)
             };
         });
@@ -193,7 +193,7 @@ public static class ClientService
                 ClientId = reader.GetString(1),
                 DisplayName = reader.GetString(2),
                 IsActive = reader.GetBoolean(3),
-                CreatedAt = reader.GetString(4)
+                CreatedAt = reader.GetDateTime(4)
             };
         });
 
@@ -232,7 +232,7 @@ public static class ClientService
                     Id = reader.GetString(0),
                     ClientId = reader.GetString(1),
                     DisplayName = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                    CreatedAt = reader.GetString(3),
+                    CreatedAt = reader.GetDateTime(3),
                     IsActive = reader.GetInt64(4) == 1
                 });
             }
@@ -258,10 +258,10 @@ public static class ClientService
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT id, client_identifier, display_name, created_at, is_active
-            FROM clients
-            WHERE id = $id
-        """;
+                SELECT id, client_identifier, display_name, created_at, is_active
+                FROM clients
+                WHERE id = $id
+            """;
             cmd.Parameters.AddWithValue("$id", id);
 
             using var reader = cmd.ExecuteReader();
@@ -273,7 +273,7 @@ public static class ClientService
                 Id = reader.GetString(0),
                 ClientId = reader.GetString(1),
                 DisplayName = reader.GetString(2),
-                CreatedAt = reader.GetString(3),
+                CreatedAt = reader.GetDateTime(3),
                 IsActive = reader.GetBoolean(4)
             };
         });

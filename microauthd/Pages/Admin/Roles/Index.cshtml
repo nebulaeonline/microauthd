@@ -33,7 +33,16 @@
                 <td>@role.Name</td>
                 <td>@role.Description</td>
                 <td class="text-center">
-                    <a class="btn btn-sm btn-primary" asp-page="/Admin/Roles/Edit" asp-route-id="@role.Id">Edit</a>
+                    <a class="btn btn-sm btn-warning me-1"
+                       asp-page="/Admin/Roles/AssignPermissions"
+                       asp-route-id="@role.Id">
+                        Permissions
+                    </a>
+                    <a class="btn btn-sm btn-primary"
+                       asp-page="/Admin/Roles/Edit"
+                       asp-route-id="@role.Id">
+                        Edit
+                    </a>
                 </td>
             </tr>
         }

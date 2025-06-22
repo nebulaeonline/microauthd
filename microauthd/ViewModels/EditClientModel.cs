@@ -1,0 +1,49 @@
+﻿using madTypes.Api.Common;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+
+namespace microauthd.ViewModels
+{
+    public class EditClientModel
+    {
+        public string Id { get; init; } = string.Empty;
+        [Required]
+        [StringLength(255, MinimumLength = 1, ErrorMessage = "Client identifier must have between 1-255 characters.")]
+        public string ClientId { get; init; } = string.Empty;
+        [Required]
+        [StringLength(255, MinimumLength = 1, ErrorMessage = "Display name must have between 1-255 characters.")]
+        public string DisplayName { get; init; } = string.Empty;
+        public bool IsActive { get; init; }
+        public DateTime CreatedAt { get; init; } = DateTime.MinValue;
+        [Required]
+        [StringLength(64, MinimumLength = 1, ErrorMessage = "Audience must have between 1-64 characters.")]
+        public string Audience { get; init; } = "microauthd";
+
+        public static EditClientModel FromClientObject(ClientObject client)
+        {
+            if (client == null) throw new ArgumentNullException(nameof(client));
+            return new EditClientModel
+            {
+                Id = client.Id,
+                ClientId = client.ClientId,
+                DisplayName = client.DisplayName,
+                IsActive = client.IsActive,
+                CreatedAt = client.CreatedAt,
+                Audience = client.Audience
+            };
+        }
+
+        public ClientObject ToClientObject()
+        {
+            return new ClientObject
+            {
+                Id = Id,
+                ClientId = ClientId,
+                DisplayName = DisplayName,
+                IsActive = IsActive,
+                CreatedAt = CreatedAt,
+                Audience = Audience
+            };
+        }
+    }
+}

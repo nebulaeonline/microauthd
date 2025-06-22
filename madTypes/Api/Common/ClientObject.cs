@@ -13,7 +13,7 @@ public sealed class ClientObject
     [JsonPropertyName("is_active")]
     public bool IsActive { get; init; }
     [JsonPropertyName("created_at")]
-    public string CreatedAt { get; init; } = string.Empty;
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     [JsonPropertyName("audience")]
     public string Audience { get; init; } = "microauthd";
 }

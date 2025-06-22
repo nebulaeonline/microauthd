@@ -1,4 +1,86 @@
-﻿@page
+﻿@page "{id?}"
 @model microauthd.Pages.Admin.Roles.AssignPermissionsModel
 @{
+    ViewData["Title"] = "Assign Permissions";
+    Layout = "_Layout";
 }
+
+<h2 class="mb-4">Assign Permissions to @Model.RoleName</h2>
+
+<form method="post" id="permissionForm">
+    <div class="row">
+        <div class="col">
+            <label>Available Permissions</label>
+            <select id="availablePermissions" class="form-select" size="10" multiple>
+                @foreach (var perm in Model.AvailablePermissions)
+                {
+                    <option value="@perm.Id">@perm.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-1 d-flex flex-column justify-content-center">
+            <button type="button" id="addPermission" class="btn btn-secondary mb-2">&gt;&gt;</button>
+            <button type="button" id="removePermission" class="btn btn-secondary">&lt;&lt;</button>
+        </div>
+        <div class="col">
+            <label>Assigned Permissions</label>
+            <select id="assignedPermissions" name="SelectedPermissionIds" class="form-select" size="10" multiple>
+                @foreach (var perm in Model.AssignedPermissions)
+                {
+                    <option value="@perm.Id">@perm.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <input type="hidden" asp-for="targetRoleId" />
+    <div id="permissionHiddenFields"></div>
+
+    <script>
+        document.getElementById('permissionForm').onsubmit = function () {
+            const assigned = document.getElementById('assignedPermissions');
+            const hiddenContainer = document.getElementById('permissionHiddenFields');
+            hiddenContainer.innerHTML = '';
+
+            for (let i = 0; i < assigned.options.length; i++) {
+                const hiddenField = document.createElement('input');
+                hiddenField.type = 'hidden';
+                hiddenField.name = 'SelectedPermissionIds';
+                hiddenField.value = assigned.options[i].value;
+                hiddenContainer.appendChild(hiddenField);
+            }
+
+            return true;
+        };
+    </script>
+
+    <div class="mt-4 d-flex justify-content-end">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a asp-page="/Admin/Roles/Index" class="btn btn-secondary ms-2">Cancel</a>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('addPermission').addEventListener('click', () => {
+                const available = document.getElementById('availablePermissions');
+                const assigned = document.getElementById('assignedPermissions');
+                Array.from(available.selectedOptions).forEach(opt => {
+                    assigned.add(opt.cloneNode(true));
+                    available.removeChild(opt);
+                });
+            });
+
+            document.getElementById('removePermission').addEventListener('click', () => {
+                const available = document.getElementById('availablePermissions');
+                const assigned = document.getElementById('assignedPermissions');
+                Array.from(assigned.selectedOptions).forEach(opt => {
+                    available.add(opt.cloneNode(true));
+                    assigned.removeChild(opt);
+                });
+            });
+        });
+    </script>
+}
+

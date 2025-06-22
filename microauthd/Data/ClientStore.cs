@@ -1,4 +1,5 @@
-﻿using madTypes.Api.Responses;
+﻿using madTypes.Api.Common;
+using madTypes.Api.Responses;
 
 namespace microauthd.Data;
 
@@ -136,6 +137,51 @@ public static class ClientStore
         });
 
         return scopes;
+    }
+
+    /// <summary>
+    /// Retrieves a paginated list of active clients from the database.
+    /// </summary>
+    /// <remarks>This method queries the database for clients that are marked as active and returns them in
+    /// ascending order by name. Use the <paramref name="offset"/> and <paramref name="limit"/> parameters to control
+    /// pagination.</remarks>
+    /// <param name="offset">The zero-based index of the first client to retrieve. Must be non-negative.</param>
+    /// <param name="limit">The maximum number of clients to retrieve. Must be greater than zero.</param>
+    /// <returns>A list of <see cref="ClientObject"/> instances representing active clients. The list will be empty if no active
+    /// clients are found within the specified range.</returns>
+    public static List<ClientObject> ListClients(int offset = 0, int limit = 50)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, client_identifier, display_name, audience, is_active, created_at
+                FROM clients
+                WHERE is_active = 1
+                ORDER BY display_name
+                LIMIT $limit OFFSET $offset
+            """;
+            cmd.Parameters.AddWithValue("$limit", limit);
+            cmd.Parameters.AddWithValue("$offset", offset);
+
+            using var reader = cmd.ExecuteReader();
+            var results = new List<ClientObject>();
+            
+            while (reader.Read())
+            {
+                results.Add(new ClientObject
+                {
+                    Id = reader.GetString(0),
+                    ClientId = reader.GetString(1),
+                    DisplayName = reader.GetString(2),
+                    Audience = reader.GetString(3),
+                    IsActive = reader.GetBoolean(4),
+                    CreatedAt = reader.GetDateTime(5)
+
+                });
+            }
+            return results;
+        });
     }
 
     /// <summary>
