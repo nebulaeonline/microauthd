@@ -52,6 +52,9 @@
                                 <li><a class="dropdown-item" asp-page="/Admin/Scopes/Create">Create Scopes</a></li>
                             </ul>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Admin/Audit/Index" role="button">Logs</a>                            
+                        </li>
                     </ul>
                     @if (User.Identity?.IsAuthenticated == true)
                     {

@@ -1,0 +1,66 @@
+﻿@page
+@model microauthd.Pages.Admin.Audit.IndexModel
+@{
+    ViewData["Title"] = "Audit Logs";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Audit Logs</h2>
+
+<table class="table table-dark table-bordered align-middle">
+    <thead>
+        <tr>
+            <th>Timestamp</th>
+            <th>User ID</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>IP</th>
+            <th>User Agent</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var log in Model.Logs)
+        {
+            <tr>
+                <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td class="text-break">@log.UserId</td>
+                <td>@log.Action</td>
+                <td class="text-break">@log.Target</td>
+                <td>@log.IpAddress</td>
+                <td class="text-break">@log.UserAgent</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (Model.TotalCount > Model.PageSize)
+{
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                var totalPages = (int)Math.Ceiling(Model.TotalCount / (double)Model.PageSize);
+                for (int i = 1; i <= totalPages; i++)
+                {
+                    var active = i == Model.CurrentPage ? "active" : "";
+                    <li class="page-item @active">
+                        <a class="page-link"
+                           asp-page="/Admin/Audit/Index"
+                           asp-route-page="@i"
+                           asp-route-pageSize="@Model.PageSize">@i</a>
+                    </li>
+                }
+            }
+        </ul>
+    </nav>
+}
+
+<form method="get" class="mb-3 d-flex justify-content-end">
+    <label for="pageSize" class="me-2 text-nowrap">Page size:</label>
+    <select name="pageSize" id="pageSize" class="form-select w-auto"
+            onchange="this.form.submit()">
+        <option value="10" selected="@((Model.PageSize == 10).ToString().ToLower())">10</option>
+        <option value="25" selected="@((Model.PageSize == 25).ToString().ToLower())">25</option>
+        <option value="50" selected="@((Model.PageSize == 50).ToString().ToLower())">50</option>
+    </select>
+</form>
+
