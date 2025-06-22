@@ -17,20 +17,40 @@
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link" asp-page="/Admin/Users/Index">Users</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Users</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-page="/Admin/Users/Index">List Users</a></li>
+                                <li><a class="dropdown-item" asp-page="/Admin/Users/Create">Create User</a></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-page="/Admin/Roles/Index">Roles</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Roles</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-page="/Admin/Roles/Index">List Roles</a></li>
+                                <li><a class="dropdown-item" asp-page="/Admin/Roles/Create">Create Role</a></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-page="/Permissions/Index">Permissions</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Permissions</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-page="/Admin/Permissions/Index">List Permissions</a></li>
+                                <li><a class="dropdown-item" asp-page="/Admin/Permissions/Create">Create Permissions</a></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-page="/Clients/Index">Clients</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Clients</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-page="/Admin/Clients/Index">List Clients</a></li>
+                                <li><a class="dropdown-item" asp-page="/Admin/Clients/Create">Create Clients</a></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-page="/Scopes/Index">Scopes</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Scopes</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-page="/Admin/Scopes/Index">List Scopes</a></li>
+                                <li><a class="dropdown-item" asp-page="/Admin/Scopes/Create">Create Scopes</a></li>
+                            </ul>
                         </li>
                     </ul>
                     @if (User.Identity?.IsAuthenticated == true)

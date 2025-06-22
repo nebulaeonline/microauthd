@@ -1,0 +1,54 @@
+﻿@page
+@model microauthd.Pages.Admin.Permissions.IndexModel
+@{
+    ViewData["Title"] = "Permissions";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Permissions</h2>
+
+<table class="table table-dark table-bordered align-middle">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th class="text-center">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var perm in Model.Permissions)
+        {
+            <tr>
+                <td>@perm.Name</td>
+                <td class="text-center">
+                    <a class="btn btn-sm btn-primary" asp-page="/Admin/Permissions/Edit" asp-route-id="@perm.Id">Edit</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+<div class="d-flex justify-content-between mt-3">
+    <a class="btn btn-success" asp-page="/Admin/Permissions/Create">Create New Permission</a>
+
+    <form method="get" asp-page="/Admin/Permissions/Edit" class="d-flex" role="search">
+        <input type="text" name="id" class="form-control me-2" placeholder="Find by ID..." required />
+        <button type="submit" class="btn btn-outline-light">Find</button>
+    </form>
+</div>
+@if (Model.TotalCount > Model.PageSize)
+{
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                var totalPages = (int)Math.Ceiling(Model.TotalCount / (double)Model.PageSize);
+                for (int i = 1; i <= totalPages; i++)
+                {
+                    var active = i == Model.CurrentPage ? "active" : "";
+                    <li class="page-item @active">
+                        <a class="page-link" asp-page="/Admin/Permissions/Index" asp-route-pg="@i">@i</a>
+                    </li>
+                }
+            }
+        </ul>
+    </nav>
+}
+

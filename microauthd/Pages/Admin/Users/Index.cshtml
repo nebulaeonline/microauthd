@@ -63,6 +63,8 @@
                 </td>
                 <td class="text-center">
                     <a class="btn btn-sm btn-primary" asp-page="/Admin/Users/Edit" asp-route-id="@user.Id">Edit</a>
+                    <a class="btn btn-sm btn-secondary" asp-page="/Admin/Users/AssignRoles" asp-route-id="@user.Id">Roles</a>
+                    <a class="btn btn-sm btn-secondary" asp-page="/Admin/Users/AssignScopes" asp-route-id="@user.Id">Scopes</a>
                 </td>
             </tr>
         }

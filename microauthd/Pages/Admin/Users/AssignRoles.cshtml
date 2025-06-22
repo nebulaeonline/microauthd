@@ -1,0 +1,91 @@
+﻿@page "{id?}"
+@model microauthd.Pages.Admin.Users.AssignRolesModel
+@{
+    ViewData["Title"] = "Assign Roles";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Assign Roles to @Model.Username</h2>
+
+<form method="post" id="roleForm">
+    <!-- Your existing form content -->
+    <div class="row">
+        <div class="col">
+            <label>Available Roles</label>
+            <select id="availableRoles" class="form-select" size="10" multiple>
+                @foreach (var role in Model.AvailableRoles)
+                {
+                    <option value="@role.Id">@role.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-1 d-flex flex-column justify-content-center">
+            <button type="button" id="addRole" class="btn btn-secondary mb-2">&gt;&gt;</button>
+            <button type="button" id="removeRole" class="btn btn-secondary">&lt;&lt;</button>
+        </div>
+        <div class="col">
+            <label>Assigned Roles</label>
+            <select id="assignedRoles" name="SelectedRoles" class="form-select" size="10" multiple>
+                @foreach (var role in Model.AssignedRoles)
+                {
+                    <option value="@role.Id">@role.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <input type="hidden" asp-for="targetUserId" />
+    <div id="roleHiddenFields"></div>
+
+    <!-- Inline script runs immediately after these elements exist -->
+    <script>
+        // Attach submit handler immediately
+        document.getElementById('roleForm').onsubmit = function() {
+            const assigned = document.getElementById('assignedRoles');
+            const hiddenContainer = document.getElementById('roleHiddenFields');
+
+            // Clear existing hidden fields
+            hiddenContainer.innerHTML = '';
+
+            // Create hidden fields for each assigned role
+            for (let i = 0; i < assigned.options.length; i++) {
+                const hiddenField = document.createElement('input');
+                hiddenField.type = 'hidden';
+                hiddenField.name = 'SelectedRoleIds';
+                hiddenField.value = assigned.options[i].value;
+                hiddenContainer.appendChild(hiddenField);
+            }
+
+            return true; // Allow form to submit
+        };
+    </script>
+
+    <div class="mt-4 d-flex justify-content-end">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a asp-page="/Admin/Users/Index" class="btn btn-secondary ms-2">Cancel</a>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('addRole').addEventListener('click', () => {
+                const available = document.getElementById('availableRoles');
+                const assigned = document.getElementById('assignedRoles');
+                Array.from(available.selectedOptions).forEach(opt => {
+                    assigned.add(opt.cloneNode(true));
+                    available.removeChild(opt);
+                });
+            });
+
+            document.getElementById('removeRole').addEventListener('click', () => {
+                const available = document.getElementById('availableRoles');
+                const assigned = document.getElementById('assignedRoles');
+                Array.from(assigned.selectedOptions).forEach(opt => {
+                    available.add(opt.cloneNode(true));
+                    assigned.removeChild(opt);
+                });
+            });
+        });
+    </script>
+}

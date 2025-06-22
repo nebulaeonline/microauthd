@@ -1,0 +1,23 @@
+﻿@page
+@model microauthd.Pages.Admin.Permissions.CreateModel
+@{
+    ViewData["Title"] = "Create Permission";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Create New Permission</h2>
+
+<form method="post">
+    <div class="mb-3">
+        <label asp-for="PermissionForm.Name" class="form-label">Name</label>
+        <input asp-for="PermissionForm.Name" class="form-control w-50" />
+        <span asp-validation-for="PermissionForm.Name" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a asp-page="/Admin/Permissions/Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

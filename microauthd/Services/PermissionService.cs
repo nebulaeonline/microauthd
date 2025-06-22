@@ -580,6 +580,82 @@ namespace microauthd.Services
         }
 
         /// <summary>
+        /// Retrieves all available permissions as a list of data transfer objects (DTOs).
+        /// </summary>
+        /// <remarks>This method provides a standardized way to access permission data in the form of
+        /// DTOs,  which can be used for further processing or display in client applications.</remarks>
+        /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="PermissionDto"/> objects  representing the
+        /// available permissions. The result is successful if the operation completes without errors.</returns>
+        public static ApiResult<List<PermissionDto>> GetAllPermissionDtos()
+        {
+            var list = PermissionStore.GetAllPermissionDtos();
+            return ApiResult<List<PermissionDto>>.Ok(list);
+        }
+
+        /// <summary>
+        /// Retrieves a list of permissions assigned to the specified role.
+        /// </summary>
+        /// <param name="roleId">The unique identifier of the role for which assigned permissions are to be retrieved. Must not be null or
+        /// empty.</param>
+        /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="PermissionDto"/> objects representing the
+        /// permissions assigned to the specified role. If no permissions are assigned, the list will be empty.</returns>
+        public static ApiResult<List<PermissionDto>> GetAssignedPermissionDtos(string roleId)
+        {
+            var list = PermissionStore.GetAssignedPermissionDtos(roleId);
+            return ApiResult<List<PermissionDto>>.Ok(list);
+        }
+
+        /// <summary>
+        /// Replaces the permissions assigned to a specific role with a new set of permissions.
+        /// </summary>
+        /// <remarks>This method compares the current permissions assigned to the role with the
+        /// permissions provided in the <paramref name="dto"/>. It adds any new permissions that are not currently
+        /// assigned and removes any permissions that are no longer included. Internal auditing is performed for
+        /// permission additions and removals, so no additional logging is required.</remarks>
+        /// <param name="dto">An object containing the role identifier and the new set of permissions to assign. The <see
+        /// cref="PermissionAssignmentDto.RoleId"/> property must not be null or whitespace.</param>
+        /// <param name="config">The application configuration used for permission assignment operations.</param>
+        /// <param name="actorUserId">The identifier of the user performing the operation. This is used for auditing purposes.</param>
+        /// <param name="ip">The IP address of the user performing the operation. This is optional and may be null.</param>
+        /// <param name="ua">The user agent string of the user performing the operation. This is optional and may be null.</param>
+        /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates whether the
+        /// operation was successful. If the operation succeeds, the response contains a success message. If the
+        /// <paramref name="dto"/> contains a null or whitespace <see cref="PermissionAssignmentDto.RoleId"/>, the
+        /// response indicates failure with a 400 status code.</returns>
+        public static ApiResult<MessageResponse> ReplaceRolePermissions(
+            PermissionAssignmentDto dto,
+            AppConfig config,
+            string actorUserId,
+            string? ip,
+            string? ua)
+        {
+            if (string.IsNullOrWhiteSpace(dto.RoleId))
+                return ApiResult<MessageResponse>.Fail("Missing userId", 400);
+
+            var current = PermissionStore.GetAssignedPermissionDtos(dto.RoleId)
+                .Select(r => r.Id)
+                .ToHashSet();
+
+            var submitted = dto.Permissions
+                .Where(r => !string.IsNullOrWhiteSpace(r.Id))
+                .Select(r => r.Id)
+                .ToHashSet();
+
+            var toAdd = submitted.Except(current).ToList();
+            var toRemove = current.Except(submitted).ToList();
+
+            // AddPermissionToRole and RemovePermissionFromRole are both audit logged internally,
+            // so we don't need to log here again as it's redundant.
+            foreach (var permId in toAdd)
+                AssignPermissionsToRole(dto.RoleId, permId, config, actorUserId, ip, ua);
+
+            foreach (var permId in toRemove)
+                RemovePermissionFromRole(dto.RoleId, permId, config, actorUserId, ip, ua);
+
+            return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Permissions updated."));
+        }
+
+        /// <summary>
         /// Retrieves the total number of permissions available in the permission store.
         /// </summary>
         /// <remarks>This method provides a static way to access the number of permissions stored in the

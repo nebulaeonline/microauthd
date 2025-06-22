@@ -77,6 +77,9 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(RoleDto))]
 [JsonSerializable(typeof(List<RoleDto>))]
 [JsonSerializable(typeof(RoleAssignmentDto))]
+[JsonSerializable(typeof(PermissionDto))]
+[JsonSerializable(typeof(List<PermissionDto>))]
+[JsonSerializable(typeof(PermissionAssignmentDto))]
 public partial class MicroauthJsonContext : JsonSerializerContext
 {
 }

@@ -644,6 +644,30 @@ public static class AdminRoutes
         .WithTags("Permissions")
         .WithOpenApi();
 
+        // get all permission DTOs endpoint*********************************************************
+        group.MapGet("/permissions/retrieve/all", () =>
+        {
+            var result = PermissionService.GetAllPermissionDtos();
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetAllPermissionDtos")
+        .Produces<List<PermissionDto>>(StatusCodes.Status200OK)
+        .WithTags("Permissions")
+        .WithOpenApi();
+
+        // get permission DTOs for role endpoint****************************************************
+        group.MapGet("/permissions/retrieve/{roleId}", (string roleId) =>
+        {
+            var result = PermissionService.GetAssignedPermissionDtos(roleId);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetAssignedPermissionDtos")
+        .Produces<List<PermissionDto>>(StatusCodes.Status200OK)
+        .WithTags("Permissions")
+        .WithOpenApi();
+
         // assign permission to role endpoint*******************************************************
         group.MapPost("/roles/{roleId}/permissions", (
             string roleId, 

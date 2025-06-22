@@ -60,6 +60,15 @@ namespace microauthd.Common
                 var t when t == typeof(OidcDiscoveryResponse) =>
                     MicroauthJsonContext.Default.OidcDiscoveryResponse,
 
+                var t when t == typeof(PermissionAssignmentDto) =>
+                    MicroauthJsonContext.Default.PermissionAssignmentDto,
+
+                var t when t == typeof(PermissionDto) =>
+                    MicroauthJsonContext.Default.PermissionDto,
+
+                var t when t == typeof(List<PermissionDto>) =>
+                    MicroauthJsonContext.Default.ListPermissionDto,
+
                 var t when t == typeof(PermissionObject) =>
                     MicroauthJsonContext.Default.PermissionObject,
 
@@ -77,6 +86,15 @@ namespace microauthd.Common
 
                 var t when t == typeof(RevokeResponse) =>
                     MicroauthJsonContext.Default.RevokeResponse,
+
+                var t when t == typeof(RoleAssignmentDto) =>
+                    MicroauthJsonContext.Default.RoleAssignmentDto,
+
+                var t when t == typeof(RoleDto) =>
+                    MicroauthJsonContext.Default.RoleDto,
+
+                var t when t == typeof(List<RoleDto>) =>
+                    MicroauthJsonContext.Default.ListRoleDto,
 
                 var t when t == typeof(RoleObject) =>
                     MicroauthJsonContext.Default.RoleObject,
