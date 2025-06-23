@@ -83,6 +83,27 @@ public static class RoleStore
     }
 
     /// <summary>
+    /// Retrieves the unique identifier of a role based on its name.
+    /// </summary>
+    /// <remarks>This method queries the database to find the role ID associated with the given name. Ensure
+    /// that the database connection is properly configured and accessible.</remarks>
+    /// <param name="name">The name of the role to search for. Cannot be null or empty.</param>
+    /// <returns>The unique identifier of the role as a string, or <see langword="null"/> if no role with the specified name
+    /// exists.</returns>
+    public static string? GetRoleIdByName(string name)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id FROM roles WHERE name = $name LIMIT 1;";
+            cmd.Parameters.AddWithValue("$name", name);
+
+            var result = cmd.ExecuteScalar();
+            return result == null ? null : Convert.ToString(result);
+        });
+    }
+
+    /// <summary>
     /// Retrieves a list of active roles associated with the specified user.
     /// </summary>
     /// <remarks>This method queries the database to retrieve roles that are both active and

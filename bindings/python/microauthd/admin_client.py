@@ -34,6 +34,14 @@ class AdminClient:
             return None
         resp.raise_for_status()
         return UserObject.from_dict(resp.json())
+    
+    def get_user_id_by_username(self, username: str) -> Optional[str]:
+        url = f"{self.admin_url}/users/id-by-name/{username}"
+        res = requests.get(url, headers=self._headers())
+        if res.status_code == 404:
+            return None
+        res.raise_for_status()
+        return res.json().get("result")
 
     def update_user(self, user_id: str, email: Optional[str] = None, is_active: Optional[bool] = None) -> UserObject:
         url = f"{self.admin_url}/users/{user_id}"
@@ -79,6 +87,14 @@ class AdminClient:
         resp.raise_for_status()
         return RoleObject.from_dict(resp.json())
 
+    def get_role_id_by_name(self, name: str) -> Optional[str]:
+        url = f"{self.admin_url}/roles/id-by-name/{name}"
+        res = requests.get(url, headers=self._headers())
+        if res.status_code == 404:
+            return None
+        res.raise_for_status()
+        return res.json().get("result")
+
     def update_role(self, role_id: str, description: Optional[str] = None) -> RoleObject:
         url = f"{self.admin_url}/roles/{role_id}"
         payload = {"description": description} if description is not None else {}
@@ -110,6 +126,16 @@ class AdminClient:
         resp.raise_for_status()
         return resp.json().get("success", False)
 
+    def replace_user_roles(self, user_id: str, role_ids: list[str]) -> bool:
+        url = f"{self.admin_url}/users/{user_id}/roles"
+        dto = {
+            "userId": user_id,
+            "roles": [{"id": rid} for rid in role_ids]
+        }
+        resp = requests.put(url, json=dto, headers=self._headers())
+        resp.raise_for_status()
+        return resp.json().get("success", True)
+
     def remove_role_from_user(self, user_id: str, role_id: str) -> bool:
         url = f"{self.admin_url}/roles/remove"
         payload = {
@@ -135,6 +161,14 @@ class AdminClient:
             return None
         resp.raise_for_status()
         return PermissionObject.from_dict(resp.json())
+
+    def get_permission_id_by_name(self, name: str) -> Optional[str]:
+        url = f"{self.admin_url}/permissions/id-by-name/{name}"
+        res = requests.get(url, headers=self._headers())
+        if res.status_code == 404:
+            return None
+        res.raise_for_status()
+        return res.json().get("result")
 
     def update_permission(self, perm_id: str, name: str) -> PermissionObject:
         url = f"{self.admin_url}/permissions/{perm_id}"
@@ -202,6 +236,14 @@ class AdminClient:
         resp.raise_for_status()
         return ScopeObject.from_dict(resp.json())
 
+    def get_scope_id_by_name(self, name: str) -> Optional[str]:
+        url = f"{self.admin_url}/scopes/id-by-name/{name}"
+        res = requests.get(url, headers=self._headers())
+        if res.status_code == 404:
+            return None
+        res.raise_for_status()
+        return res.json().get("result")
+
     def update_scope(self, scope_id: str, description: Optional[str] = None) -> ScopeObject:
         url = f"{self.admin_url}/scopes/{scope_id}"
         payload = {"description": description} if description is not None else {}
@@ -233,6 +275,13 @@ class AdminClient:
         resp.raise_for_status()
         return resp.json().get("success", False)
 
+    def assign_scopes_to_user(self, user_id: str, scope_ids: list[str]) -> bool:
+        url = f"{self.admin_url}/users/{user_id}/scopes"
+        payload = {"scopeIds": scope_ids}
+        resp = requests.post(url, json=payload, headers=self._headers())
+        resp.raise_for_status()
+        return resp.json().get("success", True)
+
     def list_scopes_for_user(self, user_id: str) -> list[ScopeObject]:
         url = f"{self.admin_url}/scopes/user/{user_id}"
         resp = requests.get(url, headers=self._headers())
@@ -258,6 +307,13 @@ class AdminClient:
         resp = requests.post(url, json=payload, headers=self._headers())
         resp.raise_for_status()
         return resp.json().get("success", False)
+
+    def assign_scopes_to_client(self, client_id: str, scope_ids: list[str]) -> bool:
+        url = f"{self.admin_url}/clients/{client_id}/scopes"
+        payload = {"scopeIds": scope_ids}
+        resp = requests.post(url, json=payload, headers=self._headers())
+        resp.raise_for_status()
+        return resp.json().get("success", True)
 
     def list_scopes_for_client(self, client_id: str) -> list[ScopeObject]:
         url = f"{self.admin_url}/scopes/client/{client_id}"
@@ -295,6 +351,14 @@ class AdminClient:
             return None
         resp.raise_for_status()
         return ClientObject.from_dict(resp.json())
+
+    def get_client_id_by_name(self, client_id: str) -> Optional[str]:
+        url = f"{self.admin_url}/clients/id-by-name/{client_id}"
+        res = requests.get(url, headers=self._headers())
+        if res.status_code == 404:
+            return None
+        res.raise_for_status()
+        return res.json().get("result")
 
     def update_client(self, client_id: str, display_name: Optional[str] = None, audience: Optional[str] = None) -> ClientObject:
         url = f"{self.admin_url}/clients/{client_id}"

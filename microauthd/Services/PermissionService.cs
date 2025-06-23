@@ -243,6 +243,39 @@ namespace microauthd.Services
         }
 
         /// <summary>
+        /// Retrieves the unique identifier for a permission based on its name.
+        /// </summary>
+        /// <remarks>This method interacts with the underlying permission store to retrieve the ID
+        /// associated with the specified permission name. Ensure that the provided name is valid and corresponds to an
+        /// existing permission.</remarks>
+        /// <param name="name">The name of the permission to look up. This parameter cannot be null, empty, or consist solely of
+        /// whitespace.</param>
+        /// <returns>An <see cref="ApiResult{T}"/> containing the permission ID if found, or an error message and status code if
+        /// the lookup fails. If the permission name is invalid, the result will indicate a failure with a 400 status
+        /// code. If the permission is not found, the result will indicate a failure with a 404 status code. If an
+        /// internal error occurs, the result will indicate a failure with a 500 status code.</returns>
+        public static ApiResult<string> GetPermissionIdByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return ApiResult<string>.Fail("Permission name is required", 400);
+
+            try
+            {
+                var id = PermissionStore.GetPermissionIdByName(name);
+
+                return id == null
+                    ? ApiResult<string>.Fail("Permission not found", 404)
+                    : ApiResult<string>.Ok(id);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving permission ID by name");
+                return ApiResult<string>.Fail("Internal error occurred", 500);
+            }
+        }
+
+
+        /// <summary>
         /// Deletes a permission identified by the specified <paramref name="permissionId"/>.
         /// </summary>
         /// <remarks>This method deletes the specified permission from the database. If the deletion is

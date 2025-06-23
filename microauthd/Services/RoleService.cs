@@ -241,6 +241,35 @@ public static class RoleService
     }
 
     /// <summary>
+    /// Retrieves the unique identifier of a role based on its name.
+    /// </summary>
+    /// <remarks>This method attempts to retrieve the role ID from the underlying role store. If the role name
+    /// is invalid or the role does not exist, an appropriate error result is returned. In the event of an internal
+    /// error, a generic failure result is returned with a status code of 500.</remarks>
+    /// <param name="name">The name of the role to look up. This parameter cannot be null, empty, or consist solely of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing the role's unique identifier if found, or an error message and status
+    /// code if the role is not found or an error occurs.</returns>
+    public static ApiResult<string> GetRoleIdByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return ApiResult<string>.Fail("Role name is required", 400);
+
+        try
+        {
+            var id = RoleStore.GetRoleIdByName(name);
+
+            return id == null
+                ? ApiResult<string>.Fail("Role not found", 404)
+                : ApiResult<string>.Ok(id);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving role ID by name");
+            return ApiResult<string>.Fail("Internal error occurred", 500);
+        }
+    }
+
+    /// <summary>
     /// Assigns a specified role to a user in the system.
     /// </summary>
     /// <remarks>This method performs the following steps: <list type="bullet"> <item><description>Validates

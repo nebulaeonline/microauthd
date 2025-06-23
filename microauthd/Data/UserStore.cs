@@ -134,6 +134,26 @@ public static class UserStore
     }
 
     /// <summary>
+    /// Retrieves the user ID associated with the specified username.
+    /// </summary>
+    /// <remarks>This method queries the database to find the user ID corresponding to the given username.  If
+    /// no matching username is found, the method returns <see langword="null"/>.</remarks>
+    /// <param name="username">The username of the user whose ID is to be retrieved. Cannot be null or empty.</param>
+    /// <returns>The user ID as a string if the username exists in the database; otherwise, <see langword="null"/>.</returns>
+    public static string? GetUserIdByUsername(string username)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id FROM users WHERE username = $username LIMIT 1;";
+            cmd.Parameters.AddWithValue("$username", username);
+
+            var result = cmd.ExecuteScalar();
+            return result == null ? null : Convert.ToString(result);
+        });
+    }
+
+    /// <summary>
     /// Determines whether the specified user is active.
     /// </summary>
     /// <remarks>This method queries the database to check the user's active status. Ensure the database

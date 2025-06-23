@@ -285,6 +285,36 @@ public static class ClientService
     }
 
     /// <summary>
+    /// Retrieves the client ID associated with the specified client identifier.
+    /// </summary>
+    /// <remarks>This method attempts to retrieve the client ID from the underlying client store. If the
+    /// client identifier is invalid,  the method returns a failure result with a 400 status code. If the client is not
+    /// found, a failure result with a 404 status code is returned.  In the event of an internal error, a failure result
+    /// with a 500 status code is returned.</remarks>
+    /// <param name="clientIdentifier">The unique identifier of the client. This parameter cannot be null, empty, or consist solely of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing the client ID if found, or an error message and status code if the
+    /// client identifier is invalid,  the client is not found, or an internal error occurs.</returns>
+    public static ApiResult<string> GetClientIdByIdentifier(string clientIdentifier)
+    {
+        if (string.IsNullOrWhiteSpace(clientIdentifier))
+            return ApiResult<string>.Fail("Client identifier is required", 400);
+
+        try
+        {
+            var id = ClientStore.GetClientIdByIdentifier(clientIdentifier);
+
+            return id == null
+                ? ApiResult<string>.Fail("Client not found", 404)
+                : ApiResult<string>.Ok(id);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving client ID by identifier");
+            return ApiResult<string>.Fail("Internal error occurred", 500);
+        }
+    }
+
+    /// <summary>
     /// Deletes a client record from the database based on the specified client ID.
     /// </summary>
     /// <remarks>This method attempts to delete a client record from the database. If the deletion fails

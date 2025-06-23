@@ -111,6 +111,16 @@ export class AdminClient {
     }
   }
 
+  async getUserIdByUsername(username: string): Promise<string | null> {
+    try {
+      const res = await this.client.get<{ result: string }>(`/users/id-by-name/${encodeURIComponent(username)}`);
+      return res.data.result;
+    } catch (e: any) {
+      if (e.response?.status === 404) return null;
+      AdminClient.handleError(e);
+    }
+  }
+
   async updateUser(id: string, email?: string, is_active?: boolean): Promise<UserObject> {
     try {
       const payload: any = {};
@@ -194,6 +204,16 @@ export class AdminClient {
     }
   }
 
+  async getRoleIdByName(name: string): Promise<string | null> {
+    try {
+      const res = await this.client.get<{ result: string }>(`/roles/id-by-name/${encodeURIComponent(name)}`);
+      return res.data.result;
+    } catch (e: any) {
+      if (e.response?.status === 404) return null;
+      AdminClient.handleError(e);
+    }
+  }
+
   async deleteRole(id: string): Promise<void> {
     try {
       await this.client.delete(`/roles/${id}`);
@@ -272,6 +292,16 @@ export class AdminClient {
     }
   }
 
+  async getPermissionIdByName(name: string): Promise<string | null> {
+    try {
+      const res = await this.client.get<{ result: string }>(`/permissions/id-by-name/${encodeURIComponent(name)}`);
+      return res.data.result;
+    } catch (e: any) {
+      if (e.response?.status === 404) return null;
+      AdminClient.handleError(e);
+    }
+  }
+
   async listPermissions(): Promise<PermissionObject[]> {
     try {
       const res = await this.client.get<PermissionObject[]>("/permissions");
@@ -339,6 +369,16 @@ export class AdminClient {
       const res = await this.client.get<ScopeObject>(`/scopes/${id}`);
       return res.data;
     } catch (e) {
+      AdminClient.handleError(e);
+    }
+  }
+
+  async getScopeIdByName(name: string): Promise<string | null> {
+    try {
+      const res = await this.client.get<{ result: string }>(`/scopes/id-by-name/${encodeURIComponent(name)}`);
+      return res.data.result;
+    } catch (e: any) {
+      if (e.response?.status === 404) return null;
       AdminClient.handleError(e);
     }
   }
@@ -449,6 +489,16 @@ export class AdminClient {
       const res = await this.client.get<ClientObject>(`/clients/${id}`);
       return res.data;
     } catch (e) {
+      AdminClient.handleError(e);
+    }
+  }
+
+  async getClientIdByName(clientId: string): Promise<string | null> {
+    try {
+      const res = await this.client.get<{ result: string }>(`/clients/id-by-name/${encodeURIComponent(clientId)}`);
+      return res.data.result;
+    } catch (e: any) {
+      if (e.response?.status === 404) return null;
       AdminClient.handleError(e);
     }
   }

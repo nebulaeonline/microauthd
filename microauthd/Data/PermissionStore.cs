@@ -74,6 +74,28 @@ public static class PermissionStore
             return null;
         });
     }
+
+    /// <summary>
+    /// Retrieves the unique identifier of a permission based on its name.
+    /// </summary>
+    /// <remarks>This method queries the database to find the permission ID associated with the given name. If
+    /// no matching permission is found, the method returns <see langword="null"/>.</remarks>
+    /// <param name="name">The name of the permission to look up. This value cannot be null or empty.</param>
+    /// <returns>The unique identifier of the permission as a string, or <see langword="null"/> if no permission with the
+    /// specified name exists.</returns>
+    public static string? GetPermissionIdByName(string name)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id FROM permissions WHERE name = $name LIMIT 1;";
+            cmd.Parameters.AddWithValue("$name", name);
+
+            var result = cmd.ExecuteScalar();
+            return result == null ? null : Convert.ToString(result);
+        });
+    }
+
     /// <summary>
     /// Retrieves a list of active permissions assigned to the specified role.
     /// </summary>

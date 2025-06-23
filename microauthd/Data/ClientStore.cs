@@ -99,6 +99,26 @@ public static class ClientStore
     }
 
     /// <summary>
+    /// Retrieves the client ID associated with the specified client identifier.
+    /// </summary>
+    /// <remarks>This method queries the database to find the client ID associated with the given client
+    /// identifier. If no matching record exists, the method returns <see langword="null"/>.</remarks>
+    /// <param name="clientIdentifier">The unique identifier of the client. This value is used to query the database for the corresponding client ID.</param>
+    /// <returns>The client ID as a string if a matching record is found; otherwise, <see langword="null"/>.</returns>
+    public static string? GetClientIdByIdentifier(string clientIdentifier)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id FROM clients WHERE client_id = $client_id LIMIT 1;";
+            cmd.Parameters.AddWithValue("$client_id", clientIdentifier);
+
+            var result = cmd.ExecuteScalar();
+            return result == null ? null : Convert.ToString(result);
+        });
+    }
+
+    /// <summary>
     /// Retrieves the audience associated with the specified client identifier.
     /// </summary>
     /// <remarks>This method queries the database to retrieve the audience for the given client identifier. If

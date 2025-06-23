@@ -240,6 +240,34 @@ public static class UserService
     }
 
     /// <summary>
+    /// Retrieves the user ID associated with the specified username.
+    /// </summary>
+    /// <remarks>This method returns a successful result if the user ID is found, or an error result with an
+    /// appropriate status code and message if the username is invalid or the user does not exist.</remarks>
+    /// <param name="username">The username of the user whose ID is to be retrieved. Cannot be null, empty, or consist solely of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing the user ID if the username exists, or an error result if the username
+    /// is invalid or the user is not found.</returns>
+    public static ApiResult<string> GetUserIdByUsername(string username)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                return ApiResult<string>.Fail("Username is required", 400);
+
+            var id = UserStore.GetUserIdByUsername(username);
+
+            return id == null
+                ? ApiResult<string>.Fail("User not found", 404)
+                : ApiResult<string>.Ok(id);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to retrieve user ID for username {username}: {ex.Message}");
+            return ApiResult<string>.Fail("Failed to retrieve user ID from the database.", 500);
+        }
+    }
+
+    /// <summary>
     /// Deletes a user with the specified identifier from the database.
     /// </summary>
     /// <remarks>This method executes a database operation to delete a user by their unique identifier. 

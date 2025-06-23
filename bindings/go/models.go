@@ -130,3 +130,23 @@ type PurgeTokensRequest struct {
 type PurgeAuditLogRequest struct {
 	OlderThanDays int `json:"older_than_days"`
 }
+
+// Role DTOs for bulk API operations on Roles
+type RoleDto struct {
+	ID string `json:"id"`
+}
+
+type RoleAssignmentDto struct {
+	UserID string    `json:"userId"`
+	Roles  []RoleDto `json:"roles"`
+}
+
+// Scope DTOs for bulk API operations on Scopes
+type ScopeAssignmentRequest struct {
+	ScopeIds []string `json:"scopeIds"`
+}
+
+type ScopeAssignmentDto struct {
+	ClientID string   `json:"clientId"`
+	ScopeIds []string `json:"scopeIds"`
+}

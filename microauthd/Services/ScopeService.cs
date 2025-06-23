@@ -261,6 +261,36 @@ public static class ScopeService
     }
 
     /// <summary>
+    /// Retrieves the unique identifier for a scope based on its name.
+    /// </summary>
+    /// <remarks>This method attempts to retrieve the scope identifier from the underlying store. If the scope
+    /// name does not exist, a failure result with a 404 status code is returned. In the event of an internal error, a
+    /// failure result with a 500 status code is returned.</remarks>
+    /// <param name="name">The name of the scope to retrieve the identifier for. Cannot be null, empty, or consist solely of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing the scope identifier as a string if the scope is found. If the scope is
+    /// not found, the result contains an error message and a 404 status code. If the input is invalid or an internal
+    /// error occurs, the result contains an appropriate error message and status code.</returns>
+    public static ApiResult<string> GetScopeIdByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return ApiResult<string>.Fail("Scope name is required", 400);
+
+        try
+        {
+            var id = ScopeStore.GetScopeIdByName(name);
+
+            return id == null
+                ? ApiResult<string>.Fail("Scope not found", 404)
+                : ApiResult<string>.Ok(id);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving scope ID by name");
+            return ApiResult<string>.Fail("Internal error occurred", 500);
+        }
+    }
+
+    /// <summary>
     /// Deletes a scope identified by the specified scope ID from the database.
     /// </summary>
     /// <remarks>This method attempts to delete the specified scope from the database. If the deletion fails, 

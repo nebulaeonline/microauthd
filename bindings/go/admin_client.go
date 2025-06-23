@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -124,6 +125,17 @@ func (c *AdminClient) GetUser(id string) (*UserObject, error) {
 	var u UserObject
 	err = json.NewDecoder(res.Body).Decode(&u)
 	return &u, err
+}
+
+func (c *AdminClient) GetUserIdByUsername(username string) (string, error) {
+	var out struct {
+		Result string `json:"result"`
+	}
+	err := c.doJSON("GET", "/users/id-by-name/"+url.PathEscape(username), nil, &out)
+	if err != nil {
+		return "", err
+	}
+	return out.Result, nil
 }
 
 func (c *AdminClient) UpdateUser(id string, email string, isActive bool) (*UserObject, error) {
@@ -281,6 +293,17 @@ func (c *AdminClient) GetRole(id string) (*RoleObject, error) {
 	return &out, err
 }
 
+func (c *AdminClient) GetRoleIdByName(name string) (string, error) {
+	var out struct {
+		Result string `json:"result"`
+	}
+	err := c.doJSON("GET", "/roles/id-by-name/"+url.PathEscape(name), nil, &out)
+	if err != nil {
+		return "", err
+	}
+	return out.Result, nil
+}
+
 func (c *AdminClient) ListRoles() ([]RoleObject, error) {
 	var out []RoleObject
 	err := c.doJSON("GET", "/roles", nil, &out)
@@ -297,6 +320,18 @@ func (c *AdminClient) AssignRoleToUser(userID, roleID string) error {
 		"role_id": roleID,
 	}
 	return c.doJSON("POST", "/roles/assign", body, nil)
+}
+
+func (c *AdminClient) ReplaceUserRoles(userID string, roleIDs []string) error {
+	roles := make([]RoleDto, len(roleIDs))
+	for i, rid := range roleIDs {
+		roles[i] = RoleDto{ID: rid}
+	}
+	body := RoleAssignmentDto{
+		UserID: userID,
+		Roles:  roles,
+	}
+	return c.doJSON("PUT", "/users/"+userID+"/roles", body, nil)
 }
 
 func (c *AdminClient) UnassignRoleFromUser(userID, roleID string) error {
@@ -339,6 +374,17 @@ func (c *AdminClient) GetPermission(id string) (*PermissionObject, error) {
 	var out PermissionObject
 	err := c.doJSON("GET", "/permissions/"+id, nil, &out)
 	return &out, err
+}
+
+func (c *AdminClient) GetPermissionIdByName(name string) (string, error) {
+	var out struct {
+		Result string `json:"result"`
+	}
+	err := c.doJSON("GET", "/permissions/id-by-name/"+url.PathEscape(name), nil, &out)
+	if err != nil {
+		return "", err
+	}
+	return out.Result, nil
 }
 
 func (c *AdminClient) ListPermissions() ([]PermissionObject, error) {
@@ -390,6 +436,17 @@ func (c *AdminClient) GetScope(id string) (*ScopeObject, error) {
 	return &out, err
 }
 
+func (c *AdminClient) GetScopeIdByName(name string) (string, error) {
+	var out struct {
+		Result string `json:"result"`
+	}
+	err := c.doJSON("GET", "/scopes/id-by-name/"+url.PathEscape(name), nil, &out)
+	if err != nil {
+		return "", err
+	}
+	return out.Result, nil
+}
+
 func (c *AdminClient) ListScopes() ([]ScopeObject, error) {
 	var out []ScopeObject
 	err := c.doJSON("GET", "/scopes", nil, &out)
@@ -408,6 +465,13 @@ func (c *AdminClient) AssignScopeToUser(userID, scopeID string) error {
 	return c.doJSON("POST", "/users/"+userID+"/scopes", body, nil)
 }
 
+func (c *AdminClient) AssignScopesToUser(userID string, scopeIDs []string) error {
+	body := map[string][]string{
+		"scopeIds": scopeIDs,
+	}
+	return c.doJSON("POST", "/users/"+userID+"/scopes", body, nil)
+}
+
 func (c *AdminClient) ListScopesForUser(userID string) ([]ScopeObject, error) {
 	var out []ScopeObject
 	err := c.doJSON("GET", "/users/"+userID+"/scopes", nil, &out)
@@ -422,6 +486,13 @@ func (c *AdminClient) AssignScopeToClient(clientID, scopeID string) error {
 	body := map[string]string{
 		"client_id": clientID,
 		"scope_id":  scopeID,
+	}
+	return c.doJSON("POST", "/clients/"+clientID+"/scopes", body, nil)
+}
+
+func (c *AdminClient) AssignScopesToClient(clientID string, scopeIDs []string) error {
+	body := map[string][]string{
+		"scopeIds": scopeIDs,
 	}
 	return c.doJSON("POST", "/clients/"+clientID+"/scopes", body, nil)
 }
@@ -464,6 +535,17 @@ func (c *AdminClient) GetClient(id string) (*ClientObject, error) {
 	var out ClientObject
 	err := c.doJSON("GET", "/clients/"+id, nil, &out)
 	return &out, err
+}
+
+func (c *AdminClient) GetClientIdByClientIdentifier(clientID string) (string, error) {
+	var out struct {
+		Result string `json:"result"`
+	}
+	err := c.doJSON("GET", "/clients/id-by-name/"+url.PathEscape(clientID), nil, &out)
+	if err != nil {
+		return "", err
+	}
+	return out.Result, nil
 }
 
 func (c *AdminClient) ListClients() ([]ClientObject, error) {

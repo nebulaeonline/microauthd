@@ -99,6 +99,18 @@ public static class AdminRoutes
         .WithTags("Users")
         .WithOpenApi();
 
+        // get user id by username endpoint*********************************************************
+        group.MapGet("/users/id-by-name/{username}", (string username) =>
+        {
+            return UserService.GetUserIdByUsername(username).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetUserIdByUsername")
+        .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .WithTags("Users")
+        .WithOpenApi();
+
         // update user endpoint*********************************************************************
         group.MapPut("/users/{id}", (
             string id,
@@ -432,7 +444,7 @@ public static class AdminRoutes
         .WithTags("Roles")
         .WithOpenApi();
 
-        // get role endpoint************************************************************************
+        // get role by id endpoint************************************************************************
         group.MapGet("/roles/{id}", (
             string id,
             AppConfig config
@@ -445,6 +457,18 @@ public static class AdminRoutes
         .WithName("GetRoleById")
         .Produces<RoleObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .WithTags("Roles")
+        .WithOpenApi();
+
+        // get role id by name endpoint*************************************************************
+        group.MapGet("/roles/id-by-name/{name}", (string name) =>
+        {
+            return RoleService.GetRoleIdByName(name).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetRoleIdByName")
+        .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -622,6 +646,18 @@ public static class AdminRoutes
         .WithName("GetPermissionById")
         .Produces<PermissionObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .WithTags("Permissions")
+        .WithOpenApi();
+
+        // get permission id by name endpoint*******************************************************
+        group.MapGet("/permissions/id-by-name/{name}", (string name) =>
+        {
+            return PermissionService.GetPermissionIdByName(name).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetPermissionIdByName")
+        .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -824,6 +860,18 @@ public static class AdminRoutes
         .WithTags("Scopes")
         .WithOpenApi();
 
+        // get scope id by name endpoint************************************************************
+        group.MapGet("/scopes/id-by-name/{name}", (string name) =>
+        {
+            return ScopeService.GetScopeIdByName(name).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetScopeIdByName")
+        .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .WithTags("Scopes")
+        .WithOpenApi();
+
         // delete scope endpoint********************************************************************
         group.MapDelete("/scopes/{scopeId}", (
             string scopeId,
@@ -887,7 +935,7 @@ public static class AdminRoutes
         .WithTags("Clients")
         .WithOpenApi();
 
-        // get clients endpoint********************************************************************
+        // list clients endpoint********************************************************************
         group.MapGet("/clients", () =>
         {
             var result = ClientService.GetAllClients();
@@ -910,6 +958,18 @@ public static class AdminRoutes
         .WithName("GetClientById")
         .Produces<ClientObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .WithTags("Clients")
+        .WithOpenApi();
+
+        // get client id by name endpoint***********************************************************
+        group.MapGet("/clients/id-by-name/{clientId}", (string clientId) =>
+        {
+            return ClientService.GetClientIdByIdentifier(clientId).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetClientIdByClientIdentifier")
+        .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
         .WithTags("Clients")
         .WithOpenApi();
 

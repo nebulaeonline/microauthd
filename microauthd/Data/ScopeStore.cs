@@ -212,6 +212,27 @@ namespace microauthd.Data
         }
 
         /// <summary>
+        /// Retrieves the unique identifier (ID) of a scope based on its name.
+        /// </summary>
+        /// <remarks>This method queries the database to find the ID of the scope associated with the
+        /// given name. If multiple scopes share the same name, only the first match is returned.</remarks>
+        /// <param name="name">The name of the scope to search for. Cannot be null or empty.</param>
+        /// <returns>The unique identifier of the scope as a string, or <see langword="null"/> if no scope with the specified
+        /// name exists.</returns>
+        public static string? GetScopeIdByName(string name)
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT id FROM scopes WHERE name = $name LIMIT 1;";
+                cmd.Parameters.AddWithValue("$name", name);
+
+                var result = cmd.ExecuteScalar();
+                return result == null ? null : Convert.ToString(result);
+            });
+        }
+
+        /// <summary>
         /// Retrieves the count of active scopes from the database.
         /// </summary>
         /// <remarks>This method executes a database query to count the rows in the "scopes" table where
