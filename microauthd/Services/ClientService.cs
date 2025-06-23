@@ -60,7 +60,7 @@ public static class ClientService
             if (clientObj is null)
                 return ApiResult<ClientObject>.Fail("Client creation failed (duplicate client_id?)");
 
-            AuditLogger.AuditLog(config, actorUserId, "create_client", req.ClientId, ip, ua);
+            Utils.Audit.Logg("create_client", req.ClientId);
 
             return ApiResult<ClientObject>.Ok(clientObj);
         }
@@ -99,7 +99,7 @@ public static class ClientService
         try
         {
             // Check for identifier conflicts
-            var conflict = ClientStore.DoesClientIdExist(updated.ClientId);
+            var conflict = ClientStore.DoesClientIdExist(id, updated.ClientId);
 
             if (conflict)
                 return ApiResult<ClientObject>.Fail("Another client already uses that identifier.");
@@ -241,7 +241,7 @@ public static class ClientService
             if (!deleted)
                 return ApiResult<MessageResponse>.Fail("Failed to delete client");
 
-            AuditLogger.AuditLog(config, actorUserId, "delete_client", clientId, ip, ua);
+            Utils.Audit.Logg("delete_client", clientId);
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientId}' deleted"));
         }
@@ -282,13 +282,9 @@ public static class ClientService
         if (!success)
             return ApiResult<MessageResponse>.Fail("Failed to update client secret.", 500);
 
-        AuditLogger.AuditLog(
-            config,
-            userId: actorUserId,
+        Utils.Audit.Logg(
             action: "client.secret.regenerated",
-            target: $"client={clientId}",
-            ipAddress: ip,
-            userAgent: ua
+            target: $"clientId"
         );
 
         // IMPORTANT: Return the plain secret only once

@@ -167,13 +167,14 @@ public static class ClientStore
     /// <param name="clientId">The client identifier to check for existence. Cannot be null or empty.</param>
     /// <returns><see langword="true"/> if the specified client identifier exists in the database;  otherwise, <see
     /// langword="false"/>. </returns>
-    public static bool DoesClientIdExist(string clientId)
+    public static bool DoesClientIdExist(string id, string clientId)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM clients WHERE client_identifier = $id;";
-            cmd.Parameters.AddWithValue("$id", clientId);
+            cmd.CommandText = "SELECT COUNT(*) FROM clients WHERE id != $id AND client_identifier = $cid;";
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.AddWithValue("$cid", clientId);
             var result = cmd.ExecuteScalar();
             return result != null && Convert.ToInt32(result) > 0;
         });
@@ -479,8 +480,8 @@ public static class ClientStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
                 UPDATE sessions
-                SET is_active = 0, modified_at = datetime('now')
-                WHERE client_id = (SELECT id FROM clients WHERE client_identifier = $cid);
+                SET is_revoked = 1
+                WHERE client_identifier = $cid;
             """;
             cmd.Parameters.AddWithValue("$cid", clientIdent);
             cmd.ExecuteNonQuery();
@@ -501,8 +502,8 @@ public static class ClientStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
                 UPDATE refresh_tokens
-                SET is_active = 0, modified_at = datetime('now')
-                WHERE client_id = (SELECT id FROM clients WHERE client_identifier = $cid);
+                SET is_revoked = 1
+                WHERE client_identifier = $cid;
             """;
             cmd.Parameters.AddWithValue("$cid", clientIdent);
             cmd.ExecuteNonQuery();

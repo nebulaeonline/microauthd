@@ -350,13 +350,9 @@ public static class AuthRoutes
 
             if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             {
-                AuditLogger.AuditLog(
-                    config,
-                    userId: null,
+                Utils.Audit.Logg(
                     action: "token.introspect.failure",
-                    target: $"client={clientId} reason=missing_fields",
-                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
-                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
+                    target: $"client={clientId} reason=missing_fields"
                 );
 
                 return ApiResult<Dictionary<string, object>>
@@ -367,13 +363,9 @@ public static class AuthRoutes
             var client = AuthService.AuthenticateClient(clientId, clientSecret, config);
             if (client is null)
             {
-                AuditLogger.AuditLog(
-                    config,
-                    userId: null,
+                Utils.Audit.Logg(
                     action: "token.introspect.failure",
-                    target: $"client={clientId} reason=invalid_client_credentials",
-                    ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
-                    userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
+                    target: $"client={clientId} reason=invalid_client_credentials"
                 );
 
                 return ApiResult<Dictionary<string, object>>

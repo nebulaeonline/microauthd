@@ -5,11 +5,13 @@ namespace madTypes.Api.Responses;
 public class AuditLogResponse
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = "";
+    public string Id { get; set; } = string.Empty;
     [JsonPropertyName("user_id")]
     public string? UserId { get; set; }
     [JsonPropertyName("action")]
-    public string Action { get; set; } = "";
+    public string Action { get; set; } = string.Empty;
+    [JsonPropertyName("secondary")]
+    public string? Secondary { get; set; }
     [JsonPropertyName("target")]
     public string? Target { get; set; }
     [JsonPropertyName("timestamp")]

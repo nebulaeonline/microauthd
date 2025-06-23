@@ -46,7 +46,7 @@ public static class ScopeService
             if (scopeObj is null)
                 return ApiResult<ScopeObject>.Fail("Scope creation failed (duplicate name?)");
 
-            AuditLogger.AuditLog(config, actorUserId, "create_scope", req.Name, ip, ua);
+            Utils.Audit.Logg("create_scope", req.Name, scopeId);
 
             return ApiResult<ScopeObject>.Ok(scopeObj);
         }
@@ -210,7 +210,7 @@ public static class ScopeService
             if (!deleted)
                 return ApiResult<MessageResponse>.Fail("Failed to delete scope");
 
-            AuditLogger.AuditLog(config, actorUserId, "delete_scope", scopeId, ip, ua);
+            Utils.Audit.Logg("delete_scope", scopeId);
             return ApiResult<MessageResponse>.Ok(new(true, $"Scope '{scopeId}' deleted"));
         }
         catch (Exception ex)
@@ -256,7 +256,7 @@ public static class ScopeService
             if (added == 0)
                 return ApiResult<MessageResponse>.Fail("No scopes were assigned. Check scope IDs or duplicates.");
 
-            AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_client", clientId, ip, ua);
+            Utils.Audit.Logg("assign_scope_to_client", clientId, req.ScopeIds.Count.ToString());
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Assigned {added} scope(s) to client."));
         }
@@ -324,7 +324,7 @@ public static class ScopeService
             if (affected == 0)
                 return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
 
-            AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_client", $"{clientId}:{scopeId}", ip, ua);
+            Utils.Audit.Logg("remove_scope_from_client", scopeId, clientId);
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Removed scope '{scopeId}' from client '{clientId}'"));
         }
@@ -396,7 +396,7 @@ public static class ScopeService
             if (added == 0)
                 return ApiResult<MessageResponse>.Fail("No scopes were assigned — check if they exist or were already assigned");
 
-            AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_user", userId, ip, ua);
+            Utils.Audit.Logg("assign_scope_to_user", userId, req.ScopeIds.Count.ToString());
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Assigned {added} scope(s) to user."));
         }
@@ -439,7 +439,7 @@ public static class ScopeService
             if (affected == 0)
                 return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
 
-            AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_user", $"{userId}:{scopeId}", ip, ua);
+            Utils.Audit.Logg("remove_scope_from_user", scopeId, userId);
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Removed scope '{scopeId}' from user '{userId}'."));
         }

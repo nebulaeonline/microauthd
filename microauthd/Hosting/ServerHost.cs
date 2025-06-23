@@ -1,6 +1,7 @@
 ﻿using microauthd.Common;
 using microauthd.Config;
 using microauthd.Data;
+using microauthd.Logging;
 using microauthd.Routes.Admin;
 using microauthd.Routes.Auth;
 using microauthd.Services;
@@ -129,13 +130,9 @@ public static class ServerHost
                                     {
                                         Log.Warning("Replay detected: revoked token jti={Jti} user={UserId}", jti, userId);
 
-                                        AuditLogger.AuditLog(
-                                            config,
-                                            userId: userId, // already validated to be a GUID
+                                        Utils.Audit.Logg(
                                             action: "auth.token.replay_detected",
-                                            target: $"jti={jti}",
-                                            ipAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
-                                            userAgent: context.HttpContext.Request.Headers["User-Agent"].FirstOrDefault()
+                                            target: $"jti={jti}"
                                         );
 
                                         context.Fail("Invalid token");
@@ -155,6 +152,12 @@ public static class ServerHost
                 
                 if (config.EnableAuthSwagger)
                     SwaggerSetup.ConfigureServices(builder, "microauthd auth API");
+
+                // Register http context accessor
+                builder.Services.AddHttpContextAccessor();
+
+                // Register the audit logging service
+                builder.Services.AddSingleton<AuditDos>();
             },
             app =>
             {
@@ -190,9 +193,6 @@ public static class ServerHost
                     opts.SerializerOptions.TypeInfoResolverChain.Insert(0, MicroauthJsonContext.Default);
                 });
                 
-                // Add our http context accessor on the admin side for audit logging
-                builder.Services.AddHttpContextAccessor();
-
                 builder.Services.AddAuthorization();
                 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .AddJwtBearer(options =>
@@ -250,13 +250,9 @@ public static class ServerHost
                                     {
                                         Log.Warning("Replay detected: revoked token jti={Jti} user={UserId}", jti, userId);
 
-                                        AuditLogger.AuditLog(
-                                            config,
-                                            userId: userId,
+                                        Utils.Audit.Logg(
                                             action: "admin.token.replay_detected",
-                                            target: $"jti={jti}",
-                                            ipAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
-                                            userAgent: context.HttpContext.Request.Headers["User-Agent"].FirstOrDefault()
+                                            target: $"jti={jti}"
                                         );
 
                                         context.Fail("Invalid token");
@@ -298,6 +294,12 @@ public static class ServerHost
                 //{
                 //    options.Conventions.AddPageRoute("/Admin/Users/Index", "/users-ui");
                 //});
+
+                // Register http context accessor
+                builder.Services.AddHttpContextAccessor();
+
+                // Register the audit logging service
+                builder.Services.AddSingleton<AuditDos>();
             },
             app =>
             {
@@ -405,6 +407,7 @@ public static class ServerHost
             configureBuilder(builder);
 
             var app = builder.Build();
+            Utils.Init(app.Services);
 
             configureApp(app);
 

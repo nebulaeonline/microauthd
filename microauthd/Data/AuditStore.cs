@@ -29,7 +29,7 @@ public static class AuditStore
             if (!string.IsNullOrWhiteSpace(action)) where.Add("action = $act");
 
             cmd.CommandText = $"""
-                SELECT id, user_id, action, target, timestamp, ip_address, user_agent
+                SELECT id, actor_id, action, target, secondary, timestamp, ip_address, user_agent
                 FROM audit_logs
                 {(where.Count > 0 ? $"WHERE {string.Join(" AND ", where)}" : "")}
                 ORDER BY timestamp DESC
@@ -52,9 +52,10 @@ public static class AuditStore
                     UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
                     Action = reader.GetString(2),
                     Target = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    Timestamp = reader.GetDateTime(4),
-                    IpAddress = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    UserAgent = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    Secondary = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    Timestamp = reader.GetDateTime(5),
+                    IpAddress = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    UserAgent = reader.IsDBNull(7) ? null : reader.GetString(7),
                 });
             }
             return list;
@@ -75,7 +76,7 @@ public static class AuditStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, action, target, timestamp, ip_address, user_agent
+                SELECT id, user_id, action, target, secondary, timestamp, ip_address, user_agent
                 FROM audit_logs
                 WHERE id = $id;
             """;
@@ -90,9 +91,10 @@ public static class AuditStore
                 UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
                 Action = reader.GetString(2),
                 Target = reader.IsDBNull(3) ? null : reader.GetString(3),
-                Timestamp = reader.GetDateTime(4),
-                IpAddress = reader.IsDBNull(5) ? null : reader.GetString(5),
-                UserAgent = reader.IsDBNull(6) ? null : reader.GetString(6),
+                Secondary = reader.IsDBNull(4) ? null : reader.GetString(4),
+                Timestamp = reader.GetDateTime(5),
+                IpAddress = reader.IsDBNull(6) ? null : reader.GetString(6),
+                UserAgent = reader.IsDBNull(7) ? null : reader.GetString(7),
             };
         });
     }
@@ -136,7 +138,7 @@ public static class AuditStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, timestamp, user_id, action, target, ip_address, user_agent
+                SELECT id, timestamp, user_id, action, target, secondary, ip_address, user_agent
                 FROM audit_logs
                 ORDER BY timestamp DESC
                 LIMIT $limit OFFSET $offset
@@ -156,8 +158,9 @@ public static class AuditStore
                     UserId = reader.IsDBNull(2) ? null : reader.GetString(2),
                     Action = reader.IsDBNull(3) ? null : reader.GetString(3),
                     Target = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    IpAddress = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    UserAgent = reader.IsDBNull(6) ? null : reader.GetString(6)
+                    Secondary = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    IpAddress = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    UserAgent = reader.IsDBNull(7) ? null : reader.GetString(7)
                 });
             }
 

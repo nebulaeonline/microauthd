@@ -141,13 +141,13 @@ public static class DbInitializer
         );
         CREATE TABLE IF NOT EXISTS audit_logs (
             id TEXT PRIMARY KEY,
-            user_id TEXT,
+            actor_id TEXT,
             action TEXT NOT NULL,
             target TEXT,
+            secondary TEXT,
             timestamp TEXT NOT NULL,
             ip_address TEXT,
-            user_agent TEXT,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            user_agent TEXT
         );
         CREATE TABLE IF NOT EXISTS jti_denylist (
             jti TEXT PRIMARY KEY,
@@ -160,7 +160,6 @@ public static class DbInitializer
         CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions (expires_at);
         CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles (user_id);
         CREATE INDEX IF NOT EXISTS idx_user_roles_role_id ON user_roles (role_id);
-        CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs (user_id);
         CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);
         CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs (timestamp);
         CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);

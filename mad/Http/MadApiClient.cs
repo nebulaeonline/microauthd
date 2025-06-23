@@ -355,6 +355,7 @@ internal class MadApiClient
     {
         var content = JsonContent.Create(scope, (System.Text.Json.Serialization.Metadata.JsonTypeInfo<ScopeObject>)MadJsonContext.Default.ScopeObject);
         var res = await _http.PostAsync($"{BaseUrl}/scopes", content);
+
         if (!res.IsSuccessStatusCode)
             return null;
 

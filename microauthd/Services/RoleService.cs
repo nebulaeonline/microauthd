@@ -47,13 +47,9 @@ public static class RoleService
             if (role is null)
                 return ApiResult<RoleObject>.Fail("Role created but could not be retrieved from the database.");
 
-            AuditLogger.AuditLog(
-                config: config,
-                userId: userId,
+            Utils.Audit.Logg(
                 action: "role_created",
-                target: name,
-                ipAddress: ip,
-                userAgent: ua
+                target: name
             );
 
             return ApiResult<RoleObject>.Ok(role);
@@ -233,13 +229,10 @@ public static class RoleService
             if (!added)
                 return ApiResult<MessageResponse>.Fail("Failed to assign role (user or role not found, or already assigned)");
 
-            AuditLogger.AuditLog(
-                config: config,
-                userId: actorId,
+            Utils.Audit.Logg(
                 action: "role_assigned",
-                target: $"user:{userId} -> role:{roleId}",
-                ipAddress: ip,
-                userAgent: ua
+                target: userId,
+                secondary: roleId
             );
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Assigned role '{roleId}' to user '{userId}'"));
@@ -305,7 +298,7 @@ public static class RoleService
             if (!deleted)
                 return ApiResult<MessageResponse>.Fail("Failed to delete role (not found or constraint violation)");
 
-            AuditLogger.AuditLog(config, userId, "delete_role", roleId, ip, ua);
+            Utils.Audit.Logg("delete_role", roleId);
             return ApiResult<MessageResponse>.Ok(new(true, $"Role '{roleId}' deleted"));
         }
         catch (Exception ex)
@@ -348,13 +341,10 @@ public static class RoleService
             if (!removed)
                 return ApiResult<MessageResponse>.Fail("Failed to remove role (user or role not found, or not assigned)");
 
-            AuditLogger.AuditLog(
-                config: config,
-                userId: actorId,
+            Utils.Audit.Logg(
                 action: "role_unassigned",
-                target: $"user:{userId} -> role:{roleId}",
-                ipAddress: ip,
-                userAgent: ua
+                target: userId,
+                secondary: roleId
             );
 
             return ApiResult<MessageResponse>.Ok(

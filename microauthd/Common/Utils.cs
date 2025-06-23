@@ -1,4 +1,5 @@
 ﻿using microauthd.Config;
+using microauthd.Logging;
 using nebulae.dotArgon2;
 using System.Net;
 using System.Net.Mail;
@@ -9,6 +10,10 @@ namespace microauthd.Common
 {
     public static class Utils
     {
+        public static IServiceProvider Services { get; private set; } = null!;
+        public static void Init(IServiceProvider services) => Services = services;
+        public static AuditDos Audit => Services.GetRequiredService<AuditDos>();
+
         /// <summary>
         /// Determines whether the specified string is a valid IP address.
         /// </summary>
