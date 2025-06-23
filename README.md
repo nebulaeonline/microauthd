@@ -24,6 +24,8 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 **2025-06-22**
 
+Web-based GUI is available at `http://localhost:9041/Dashboard` (substitute your hostname / port as needed). 
+
 Still working on the web-based management GUI. The Razor Pages implementation is progressing well and should be ready for initial testing soon. The project is a good demonstration of using microauthd's auth capabilities, as it generates all tokens and handles logins for the admin site.
 
 **2025-06-21**
