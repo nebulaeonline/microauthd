@@ -2,20 +2,6 @@
 
 microauthd is a self-hosted, embedded-friendly identity provider designed for internal services, machine-to-machine workflows, and constrained environments. It is written in C# using the .NET 8 SDK. It is **not** a replacement for Keycloak, Auth0, or Dex. It's a small, hardened component that forms one pillar of a larger authentication and authorization architecture.
 
-Curent AOT status is: building & executing - 32MB executable, 57MB commit memory at rest, sub-50ms cold start time for both servers (slightly longer when enabling SSL), runs on Windows, Linux, and MacOS.
-
-AOT build (same command for mad in the mad directory):
-
-```bash
-
-$ dotnet publish -r linux-x64 -c Release
-
-or
-
-C:\microauthd\microauthd> dotnet publish -r win-x64 -c Release
-
-```
-
 microauthd uses a dual-port architecture with separate admin and auth endpoints, including separate signing keys for admin and auth tokens and completely separate API surfaces.
 
 ---
@@ -26,7 +12,7 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 **2025-06-23**
 
-The web-based GUI threw the AOT compilation for a loop; it is currently not working in AOT mode due to Razor Pages and their handling of [BindProperty] attributes. WIP guys.
+The web-based GUI threw the AOT compilation for a loop; this marks the end of the AOT compilation work for now. It is more important to have a robust web-based GUI than to shave 100ms off of startup time and 10-15MB of memory.
 
 **2025-06-22**
 
@@ -86,7 +72,7 @@ Understand that this is **NOT A PRODUCTION READY SYSTEM**. It is not even suitab
 
 - **Be a Component, not a Platform**: microauthd isn't trying to manage your entire auth strategy. It's built to handle **identity**, **token issuance**, and **role/scope enforcement** leaving broader policy and SSO integration to other layers.
 - **Zero Dependencies**: No Redis, no PostgreSQL, no external key services. SQLite is the only runtime requirement.
-- **AOT Compatibility**: microauthd is written in C# using the .NET 8 SDK, and has been architected from day one to be AOT-compatible. Our philosophy is that cold start time, memory footprint, and binary size matter.
+- ~~**AOT Compatibility**: microauthd is written in C# using the .NET 8 SDK, and has been architected from day one to be AOT-compatible. Our philosophy is that cold start time, memory footprint, and binary size matter.~~ (the AOT experiment is over)
 - **Secure by Default**: All sensitive operations are opt-in. No usernames in logs, no introspection leaks, no open scope writes.
 
 ## Security Posture
