@@ -26,6 +26,8 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 **2025-06-22**
 
+The web-based GUI through the AOT compilation for a loop; it is currently not working in AOT mode due to Razor Pages and their handling of [BindProperty] attributes. WIP guys.
+
 Web-based GUI is available at `http://localhost:9041/Dashboard` (substitute your hostname / port as needed). 
 
 Still working on the web-based management GUI. The Razor Pages implementation is progressing well and should be ready for initial testing soon. The project is a good demonstration of using microauthd's auth capabilities, as it generates all tokens and handles logins for the admin site.

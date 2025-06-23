@@ -1,4 +1,5 @@
-﻿using Microsoft.OpenApi.Models;
+﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.OpenApi.Models;
 
 namespace microauthd.Hosting;
 

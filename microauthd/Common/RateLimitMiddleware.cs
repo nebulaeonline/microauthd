@@ -1,4 +1,6 @@
-﻿namespace microauthd.Common;
+﻿using Microsoft.AspNetCore.Http;
+
+namespace microauthd.Common;
 
 public class RateLimitMiddleware
 {

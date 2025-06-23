@@ -2,7 +2,7 @@
 using madTypes.Api.Responses;
 using madTypes.Common;
 using System.Text.Json.Serialization.Metadata;
-
+using Microsoft.AspNetCore.Http;
 namespace microauthd.Common
 {
     public static class ApiResultExtensions

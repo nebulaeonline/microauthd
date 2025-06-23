@@ -9,6 +9,11 @@
       <InvariantGlobalization>true</InvariantGlobalization>
       <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
       <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+      <EnableAotAnalyzer>true</EnableAotAnalyzer>
+      <StripSymbolsDuringTrim>true</StripSymbolsDuringTrim>
+      <UseSystemTextJson>true</UseSystemTextJson>
+      <TrimmerDefaultAction>copyused</TrimmerDefaultAction>
+      <IlcDisableReflection>false</IlcDisableReflection>
       <SelfContained>true</SelfContained>
       <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
       <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
@@ -26,6 +31,7 @@
       <PackageReadmeFile>docs\README.md</PackageReadmeFile>
       <RazorCompileOnBuild>true</RazorCompileOnBuild>
       <RazorCompileOnPublish>true</RazorCompileOnPublish>
+      <RazorLangVersion>8.0</RazorLangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
@@ -37,6 +43,11 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <TrimmerRootAssembly Include="Microsoft.AspNetCore.Mvc.Core" />
+    </ItemGroup>
+    
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.17" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.17" />

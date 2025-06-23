@@ -14,6 +14,7 @@ using System.Net;
 using OtpNet;
 using static nebulae.dotArgon2.Argon2;
 using microauthd.Common;
+using Microsoft.AspNetCore.Http;
 
 namespace microauthd.Services;
 
@@ -688,7 +689,7 @@ public static class AuthService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> with the issued token details if the
     /// request is valid. Returns an error result if the request is invalid, such as unsupported grant type, missing or
     /// invalid client credentials.</returns>
-    public static ApiResult<TokenResponse> IssueOidcToken(IFormCollection form, AppConfig config)
+    public static ApiResult<TokenResponse> IssueOidcToken(Microsoft.AspNetCore.Http.IFormCollection form, AppConfig config)
     {
         var grantType = form["grant_type"].ToString();
         var clientId = form["client_id"].ToString();

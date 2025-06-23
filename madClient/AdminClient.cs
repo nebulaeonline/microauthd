@@ -275,7 +275,7 @@ namespace madClient
             var result = await PostAsync<AccessCheckResponse>("/check-access", req);
             return result.Allowed;
         }
-
+                
         public async Task<ClientObject> CreateClientAsync(CreateClientRequest req)
         {
             return await PostAsync<ClientObject>("/clients", req);
