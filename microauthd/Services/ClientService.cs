@@ -30,7 +30,7 @@ public static class ClientService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  If the client is successfully
     /// created, the result is successful and includes a message indicating the created client ID.  Otherwise, the
     /// result is a failure with an appropriate error message.</returns>
-    public static ApiResult<ClientObject> TryCreateClient(
+    public static ApiResult<ClientObject> CreateClient(
         CreateClientRequest req,
         AppConfig config,
         string? actorUserId = null,
@@ -43,72 +43,32 @@ public static class ClientService
         if (string.IsNullOrWhiteSpace(req.ClientSecret))
             return ApiResult<ClientObject>.Fail("Client secret required");
 
-        var hash = Argon2HashEncodedToString(
-            Argon2Algorithm.Argon2id,
-            (uint)config.Argon2Time,
-            (uint)config.Argon2Memory,
-            (uint)config.Argon2Parallelism,
-            Encoding.UTF8.GetBytes(req.ClientSecret),
-            Utils.GenerateSalt(config.Argon2SaltLength),
-            config.Argon2HashLength
-        );
-
-        var clientId = Guid.NewGuid().ToString();
-
-        var insertSuccess = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, audience, created_at, modified_at, is_active)
-                VALUES ($id, $cid, $hash, $name, $aud, datetime('now'), datetime('now'), 1);
-            """;
-            cmd.Parameters.AddWithValue("$id", clientId);
-            cmd.Parameters.AddWithValue("$cid", req.ClientId);
-            cmd.Parameters.AddWithValue("$hash", hash);
-            cmd.Parameters.AddWithValue("$name", req.DisplayName ?? "");
-            cmd.Parameters.AddWithValue("$aud", req.Audience ?? "microauthd");
+            var hash = AuthService.HashPassword(req.ClientSecret, config);
 
-            try
-            {
-                return cmd.ExecuteNonQuery() == 1;
-            }
-            catch (SqliteException)
-            {
-                return false;
-            }
-        });
+            var clientId = Guid.NewGuid().ToString();
 
-        if (!insertSuccess)
-            return ApiResult<ClientObject>.Fail("Client creation failed (duplicate client_id?)");
+            var clientObj = ClientStore.CreateClient(
+                clientId,
+                req.ClientId,
+                hash,
+                req.DisplayName ?? string.Empty,
+                req.Audience ?? "microauthd"
+            );
 
-        AuditLogger.AuditLog(config, actorUserId, "create_client", req.ClientId, ip, ua);
+            if (clientObj is null)
+                return ApiResult<ClientObject>.Fail("Client creation failed (duplicate client_id?)");
 
-        var client = Db.WithConnection(conn =>
+            AuditLogger.AuditLog(config, actorUserId, "create_client", req.ClientId, ip, ua);
+
+            return ApiResult<ClientObject>.Ok(clientObj);
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT id, client_identifier, display_name, created_at, is_active
-            FROM clients WHERE id = $id;
-        """;
-            cmd.Parameters.AddWithValue("$id", clientId);
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
-
-            return new ClientObject
-            {
-                Id = reader.GetString(0),
-                ClientId = reader.GetString(1),
-                DisplayName = reader.GetString(2),
-                CreatedAt = reader.GetDateTime(3),
-                IsActive = reader.GetBoolean(4)
-            };
-        });
-
-        if (client is null)
-            return ApiResult<ClientObject>.Fail("Created client could not be reloaded.");
-
-        return ApiResult<ClientObject>.Ok(client);
+            Log.Error(ex, "Error creating client with ID {ClientId}", req.ClientId);
+            return ApiResult<ClientObject>.Fail("Internal error occurred while creating client.");
+        }
     }
 
     /// <summary>
@@ -136,71 +96,31 @@ public static class ClientService
         if (!Utils.IsValidTokenName(updated.ClientId))
             return ApiResult<ClientObject>.Fail("Client identifier is not valid.");
 
-        // Check for identifier conflicts
-        var conflict = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT COUNT(*) FROM clients
-                WHERE client_identifier = $cid AND id != $id;
-            """;
-            cmd.Parameters.AddWithValue("$cid", updated.ClientId);
-            cmd.Parameters.AddWithValue("$id", id);
-            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-        });
+            // Check for identifier conflicts
+            var conflict = ClientStore.DoesClientIdExist(updated.ClientId);
 
-        if (conflict)
-            return ApiResult<ClientObject>.Fail("Another client already uses that identifier.");
+            if (conflict)
+                return ApiResult<ClientObject>.Fail("Another client already uses that identifier.");
 
-        var success = Db.WithConnection(conn =>
+            var success = ClientStore.UpdateClient(id, updated);
+
+            if (!success)
+                return ApiResult<ClientObject>.Fail("Client update failed or client not found.");
+
+            // Reload full object to return
+            var client = ClientStore.GetClientObjById(id);
+
+            return client is not null
+                ? ApiResult<ClientObject>.Ok(client)
+                : ApiResult<ClientObject>.Fail("Updated client could not be retrieved.");
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE clients
-                SET client_identifier = $cid,
-                    audience = $aud,
-                    display_name = $name,
-                    modified_at = datetime('now')
-                WHERE id = $id;
-            """;
-            cmd.Parameters.AddWithValue("$cid", updated.ClientId);
-            cmd.Parameters.AddWithValue("$name", updated.DisplayName ?? "");
-            cmd.Parameters.AddWithValue("$aud", updated.Audience);
-            cmd.Parameters.AddWithValue("$id", id);
-            return cmd.ExecuteNonQuery() == 1;
-        });
-
-        if (!success)
-            return ApiResult<ClientObject>.Fail("Client update failed or client not found.");
-
-        // Reload full object to return
-        var client = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT id, client_identifier, display_name, audience, created_at
-            FROM clients
-            WHERE id = $id;
-        """;
-            cmd.Parameters.AddWithValue("$id", id);
-
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
-
-            return new ClientObject
-            {
-                Id = reader.GetString(0),
-                ClientId = reader.GetString(1),
-                DisplayName = reader.GetString(2),
-                Audience = reader.GetString(3),
-                CreatedAt = reader.GetDateTime(4)
-            };
-        });
-
-        return client is not null
-            ? ApiResult<ClientObject>.Ok(client)
-            : ApiResult<ClientObject>.Fail("Updated client could not be retrieved.");
+            Log.Error(ex, "Error updating client with ID {ClientId}", id);
+            return ApiResult<ClientObject>.Fail("Internal error occurred while updating client.");
+        }
     }
 
     /// <summary>
@@ -213,35 +133,17 @@ public static class ClientService
     /// clients. If no active clients are found, the list will be empty.</returns>
     public static ApiResult<List<ClientObject>> GetAllClients()
     {
-        var clients = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT id, client_identifier, display_name, created_at, is_active
-            FROM clients
-            WHERE is_active = 1
-            ORDER BY client_identifier ASC;
-        """;
+            var clients = ClientStore.ListAllClients();
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<ClientObject>();
-
-            while (reader.Read())
-            {
-                list.Add(new ClientObject
-                {
-                    Id = reader.GetString(0),
-                    ClientId = reader.GetString(1),
-                    DisplayName = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                    CreatedAt = reader.GetDateTime(3),
-                    IsActive = reader.GetInt64(4) == 1
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<ClientObject>>.Ok(clients);
+            return ApiResult<List<ClientObject>>.Ok(clients);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving all clients");
+            return ApiResult<List<ClientObject>>.Fail("Internal error occurred while retrieving clients.");
+        }
     }
 
     /// <summary>
@@ -255,33 +157,19 @@ public static class ClientService
     /// with the specified identifier.</returns>
     public static ApiResult<ClientObject> GetClientById(string id)
     {
-        var client = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, client_identifier, display_name, created_at, is_active
-                FROM clients
-                WHERE id = $id
-            """;
-            cmd.Parameters.AddWithValue("$id", id);
+            var client = ClientStore.GetClientObjById(id);
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
-
-            return new ClientObject
-            {
-                Id = reader.GetString(0),
-                ClientId = reader.GetString(1),
-                DisplayName = reader.GetString(2),
-                CreatedAt = reader.GetDateTime(3),
-                IsActive = reader.GetBoolean(4)
-            };
-        });
-
-        return client is null
-            ? ApiResult<ClientObject>.NotFound($"Client '{id}' not found.")
-            : ApiResult<ClientObject>.Ok(client);
+            return client is null
+                ? ApiResult<ClientObject>.NotFound($"Client '{id}' not found.")
+                : ApiResult<ClientObject>.Ok(client);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving client with ID {ClientId}", id);
+            return ApiResult<ClientObject>.Fail("Internal error occurred while retrieving client.");
+        }
     }
 
     /// <summary>
@@ -336,57 +224,32 @@ public static class ClientService
         string? ip = null,
         string? ua = null)
     {
-        // Revoke sessions
-        Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE sessions SET is_revoked = 1 WHERE client_identifier = $cid;";
-            cmd.Parameters.AddWithValue("$cid", clientId);
-            cmd.ExecuteNonQuery();
-        });
+            // Revoke sessions
+            ClientStore.RevokeClientSessions(clientId);
 
-        // Revoke refresh tokens
-        Db.WithConnection(conn =>
+            // Revoke refresh tokens
+            ClientStore.RevokeClientRefreshTokens(clientId);
+
+            // Delete client scopes
+            ClientStore.DeleteClientScopes(clientId);
+
+            // Finally delete the client
+            var deleted = ClientStore.DeleteClientByClientId(clientId);
+
+            if (!deleted)
+                return ApiResult<MessageResponse>.Fail("Failed to delete client");
+
+            AuditLogger.AuditLog(config, actorUserId, "delete_client", clientId, ip, ua);
+
+            return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientId}' deleted"));
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE refresh_tokens SET is_revoked = 1 WHERE client_identifier = $cid;";
-            cmd.Parameters.AddWithValue("$cid", clientId);
-            cmd.ExecuteNonQuery();
-        });
-
-        // Delete from client_scopes
-        Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM client_scopes WHERE client_id = $cid;";
-            cmd.Parameters.AddWithValue("$cid", clientId);
-            cmd.ExecuteNonQuery();
-        });
-
-        // Finally delete the client
-        var deleted = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM clients WHERE id = $id;";
-            cmd.Parameters.AddWithValue("$id", clientId);
-
-            try
-            {
-                return cmd.ExecuteNonQuery() > 0;
-            }
-            catch (SqliteException ex)
-            {
-                Log.Error(ex, "Failed to delete client {ClientId}", clientId);
-                return false;
-            }
-        });
-
-        if (!deleted)
-            return ApiResult<MessageResponse>.Fail("Failed to delete client");
-
-        AuditLogger.AuditLog(config, actorUserId, "delete_client", clientId, ip, ua);
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientId}' deleted"));
+            Log.Error(ex, "Error deleting client with ID {ClientId}", clientId);
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while deleting client.");
+        }
     }
 
     /// <summary>

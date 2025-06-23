@@ -37,53 +37,22 @@ namespace microauthd.Services
 
             var permissionId = Guid.NewGuid().ToString();
 
-            var success = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                INSERT INTO permissions (id, name, created_at, is_active)
-                VALUES ($id, $name, datetime('now'), 1);
-            """;
-                cmd.Parameters.AddWithValue("$id", permissionId);
-                cmd.Parameters.AddWithValue("$name", name);
-                try
-                {
-                    return cmd.ExecuteNonQuery() == 1;
-                }
-                catch (SqliteException)
-                {
-                    return false;
-                }
-            });
+                var permissionObj = PermissionStore.CreatePermission(permissionId, name);
 
-            if (!success)
+                if (permissionObj is null)
+                    return ApiResult<PermissionObject>.Fail("Permission creation failed (maybe duplicate?)");
+
+                AuditLogger.AuditLog(config, userId, "create_permission", name, ip, ua);
+
+                return ApiResult<PermissionObject>.Ok(permissionObj);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to create permission with name {Name}", name);
                 return ApiResult<PermissionObject>.Fail("Permission creation failed (maybe duplicate?)");
-
-            AuditLogger.AuditLog(config, userId, "create_permission", name, ip, ua);
-
-            var permission = Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                SELECT id, name FROM permissions WHERE id = $id;
-            """;
-                cmd.Parameters.AddWithValue("$id", permissionId);
-
-                using var reader = cmd.ExecuteReader();
-                if (!reader.Read())
-                    return null;
-
-                return new PermissionObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1)
-                };
-            });
-
-            if (permission is null)
-                return ApiResult<PermissionObject>.Fail("Created permission could not be reloaded.");
-
-            return ApiResult<PermissionObject>.Ok(permission);
+            }
         }
 
         /// <summary>
@@ -111,64 +80,26 @@ namespace microauthd.Services
             if (string.IsNullOrWhiteSpace(updated.Name))
                 return ApiResult<PermissionObject>.Fail("Permission name is required.");
 
-            // Check if another permission with same name exists
-            var conflict = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                SELECT COUNT(*) FROM permissions
-                WHERE name = $name AND id != $id;
-            """;
-                cmd.Parameters.AddWithValue("$name", updated.Name);
-                cmd.Parameters.AddWithValue("$id", id);
-                return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-            });
+                // Check if another permission with same name exists
+                var conflict = PermissionStore.DoesPermissionNameExist(id, updated.Name);
 
-            if (conflict)
-                return ApiResult<PermissionObject>.Fail("Another permission already uses that name.");
+                if (conflict)
+                    return ApiResult<PermissionObject>.Fail("Another permission already uses that name.");
 
-            var success = Db.WithConnection(conn =>
+                var permissionObj = PermissionStore.UpdatePermission(id, updated);
+
+                if (permissionObj is null)
+                    return ApiResult<PermissionObject>.Fail("Permission update failed or not found.");
+
+                return ApiResult<PermissionObject>.Ok(permissionObj);
+            }
+            catch (Exception ex)
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                UPDATE permissions
-                SET name = $name,
-                    modified_at = datetime('now')
-                WHERE id = $id;
-            """;
-                cmd.Parameters.AddWithValue("$name", updated.Name);
-                cmd.Parameters.AddWithValue("$id", id);
-                return cmd.ExecuteNonQuery() == 1;
-            });
-
-            if (!success)
-                return ApiResult<PermissionObject>.Fail("Permission update failed or not found.");
-
-            // Fetch updated record
-            var permission = Db.WithConnection(conn =>
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                SELECT id, name
-                FROM permissions
-                WHERE id = $id;
-            """;
-                cmd.Parameters.AddWithValue("$id", id);
-
-                using var reader = cmd.ExecuteReader();
-                if (!reader.Read())
-                    return null;
-
-                return new PermissionObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1)
-                };
-            });
-
-            return permission is not null
-                ? ApiResult<PermissionObject>.Ok(permission)
-                : ApiResult<PermissionObject>.Fail("Updated permission could not be retrieved.");
+                Log.Error(ex, "Failed to update permission with ID {Id}", id);
+                return ApiResult<PermissionObject>.Fail("Permission update failed.");
+            }
         }
 
         /// <summary>
@@ -180,30 +111,17 @@ namespace microauthd.Services
         /// permissions are found.</returns>
         public static ApiResult<List<PermissionObject>> ListAllPermissions()
         {
-            var permissions = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                SELECT id, name FROM permissions
-                WHERE is_active = 1
-                ORDER BY name ASC;
-            """;
+                var permissions = PermissionStore.ListAllPermissions();
 
-                using var reader = cmd.ExecuteReader();
-                var list = new List<PermissionObject>();
-                while (reader.Read())
-                {
-                    list.Add(new PermissionObject
-                    {
-                        Id = reader.GetString(0),
-                        Name = reader.GetString(1)
-                    });
-                }
-
-                return list;
-            });
-
-            return ApiResult<List<PermissionObject>>.Ok(permissions);
+                return ApiResult<List<PermissionObject>>.Ok(permissions);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to list all permissions");
+                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve permissions");
+            }
         }
 
         /// <summary>
@@ -217,29 +135,19 @@ namespace microauthd.Services
         /// if no permission with the specified identifier exists.</returns>
         public static ApiResult<PermissionObject> GetPermissionById(string id)
         {
-            var permission = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-            SELECT id, name
-            FROM permissions
-            WHERE id = $id
-        """;
-                cmd.Parameters.AddWithValue("$id", id);
+                var permission = PermissionStore.GetPermissionById(id);
 
-                using var reader = cmd.ExecuteReader();
-                if (!reader.Read()) return null;
-
-                return new PermissionObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1)
-                };
-            });
-
-            return permission is null
-                ? ApiResult<PermissionObject>.NotFound($"Permission '{id}' not found.")
-                : ApiResult<PermissionObject>.Ok(permission);
+                return permission is null
+                    ? ApiResult<PermissionObject>.NotFound($"Permission '{id}' not found.")
+                    : ApiResult<PermissionObject>.Ok(permission);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving permission by ID {Id}", id);
+                return ApiResult<PermissionObject>.Fail("Internal error occurred", 500);
+            }
         }
 
         /// <summary>
@@ -297,28 +205,21 @@ namespace microauthd.Services
             string? ip = null,
             string? ua = null)
         {
-            var deleted = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "DELETE FROM permissions WHERE id = $id;";
-                cmd.Parameters.AddWithValue("$id", permissionId);
+                var deleted = PermissionStore.DeletePermission(permissionId);
 
-                try
-                {
-                    return cmd.ExecuteNonQuery() > 0;
-                }
-                catch (SqliteException ex)
-                {
-                    Log.Error(ex, "Failed to delete permission {PermissionId}", permissionId);
-                    return false;
-                }
-            });
+                if (!deleted)
+                    return ApiResult<MessageResponse>.Fail("Failed to delete permission");
 
-            if (!deleted)
+                AuditLogger.AuditLog(config, userId, "delete_permission", permissionId, ip, ua);
+                return ApiResult<MessageResponse>.Ok(new(true, $"Permission '{permissionId}' deleted"));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to delete permission with ID {PermissionId}", permissionId);
                 return ApiResult<MessageResponse>.Fail("Failed to delete permission");
-
-            AuditLogger.AuditLog(config, userId, "delete_permission", permissionId, ip, ua);
-            return ApiResult<MessageResponse>.Ok(new(true, $"Permission '{permissionId}' deleted"));
+            }
         }
 
         /// <summary>
@@ -347,52 +248,21 @@ namespace microauthd.Services
             if (string.IsNullOrWhiteSpace(roleId) || permissionId == null)
                 return ApiResult<MessageResponse>.Fail("Role Id and at least one Permission Id are required");
 
-            return Db.WithConnection(conn =>
+            try
             {
-                string? lookedUpRoleId = null;
-                using (var cmd = conn.CreateCommand())
-                {
-                    cmd.CommandText = "SELECT id FROM roles WHERE id = $rid AND is_active = 1;";
-                    cmd.Parameters.AddWithValue("$rid", roleId);
-                    lookedUpRoleId = cmd.ExecuteScalar() as string;
-                }
+                var assigned = PermissionStore.AssignPermissionToRole(roleId, permissionId);
 
-                if (lookedUpRoleId is null)
-                    return ApiResult<MessageResponse>.NotFound("Role not found or inactive");
+                if (!assigned)
+                    return ApiResult<MessageResponse>.Fail("Failed to assign permission to role or permission already exists");
 
-                int assigned = 0;
-
-                string? lookedUpPermId = null;
-                using (var cmd = conn.CreateCommand())
-                {
-                    cmd.CommandText = "SELECT id FROM permissions WHERE id = $pid AND is_active = 1;";
-                    cmd.Parameters.AddWithValue("$pid", permissionId);
-                    lookedUpPermId = cmd.ExecuteScalar() as string;
-                }
-
-                if (lookedUpPermId is null)
-                    return ApiResult<MessageResponse>.Fail("No permissions were assigned — check if permission IDs are valid");
-
-                using var cmdInsert = conn.CreateCommand();
-                cmdInsert.CommandText = """
-                INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, assigned_at)
-                VALUES ($id, $roleId, $permId, datetime('now'));
-            """;
-                cmdInsert.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-                cmdInsert.Parameters.AddWithValue("$roleId", lookedUpRoleId);
-                cmdInsert.Parameters.AddWithValue("$permId", lookedUpPermId);
-
-                assigned = cmdInsert.ExecuteNonQuery();
-
-
-                if (assigned > 0)
-                {
-                    AuditLogger.AuditLog(config, actorUserId, "assigned_permission", roleId, ip, ua);
-                    return ApiResult<MessageResponse>.Ok(new(true, $"Permission assigned to role {roleId}"));
-                }
-
-                return ApiResult<MessageResponse>.Fail("No permissions were assigned — check if permission IDs are valid");
-            });
+                AuditLogger.AuditLog(config, actorUserId, "assigned_permission", roleId, ip, ua);
+                return ApiResult<MessageResponse>.Ok(new(true, $"Permission assigned to role {roleId}"));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to assign permission {PermissionId} to role {RoleId}", permissionId, roleId);
+                return ApiResult<MessageResponse>.Fail("Failed to assign permission to role");
+            }
         }
 
 
@@ -422,38 +292,12 @@ namespace microauthd.Services
             if (string.IsNullOrWhiteSpace(roleId) || string.IsNullOrWhiteSpace(permissionId))
                 return ApiResult<MessageResponse>.Fail("Role Id and Permission Id are required");
 
-            return Db.WithConnection(conn =>
+            try
             {
-                string? lookedUpRoleId;
-                using (var cmd = conn.CreateCommand())
-                {
-                    cmd.CommandText = "SELECT id FROM roles WHERE id = $rid AND is_active = 1;";
-                    cmd.Parameters.AddWithValue("$rid", roleId);
-                    lookedUpRoleId = cmd.ExecuteScalar() as string;
-                }
+                var removed = PermissionStore.RemovePermissionFromRole(roleId, permissionId);
 
-                string? lookedUpPermId;
-                using (var cmd = conn.CreateCommand())
-                {
-                    cmd.CommandText = "SELECT id FROM permissions WHERE id = $pid AND is_active = 1;";
-                    cmd.Parameters.AddWithValue("$pid", permissionId);
-                    lookedUpPermId = cmd.ExecuteScalar() as string;
-                }
-
-                if (lookedUpRoleId is null || lookedUpPermId is null)
-                    return ApiResult<MessageResponse>.Fail("Role or permission not found");
-
-                using var cmdDel = conn.CreateCommand();
-                cmdDel.CommandText = """
-                DELETE FROM role_permissions
-                WHERE role_id = $rid AND permission_id = $pid;
-            """;
-                cmdDel.Parameters.AddWithValue("$rid", lookedUpRoleId);
-                cmdDel.Parameters.AddWithValue("$pid", lookedUpPermId);
-
-                var removed = cmdDel.ExecuteNonQuery();
-                if (removed == 0)
-                    return ApiResult<MessageResponse>.Fail("Link not found or already removed");
+                if (!removed)
+                    return ApiResult<MessageResponse>.Fail("Failed to remove permission from role or permission does not exist");
 
                 AuditLogger.AuditLog(
                     config: config,
@@ -466,9 +310,13 @@ namespace microauthd.Services
 
                 return ApiResult<MessageResponse>.Ok(
                     new(true, $"Permission '{permissionId}' removed from role '{roleId}'"));
-            });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to remove permission {PermissionId} from role {RoleId}", permissionId, roleId);
+                return ApiResult<MessageResponse>.Fail("Failed to remove permission from role");
+            }
         }
-
 
         /// <summary>
         /// Retrieves the effective permissions for a specified user.
@@ -486,40 +334,17 @@ namespace microauthd.Services
             if (string.IsNullOrWhiteSpace(userId))
                 return ApiResult<List<PermissionObject>>.Fail("User Id is required");
 
-            var list = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                SELECT DISTINCT p.id, p.name
-                FROM users u
-                JOIN user_roles ur ON u.id = ur.user_id
-                JOIN roles r ON ur.role_id = r.id
-                JOIN role_permissions rp ON r.id = rp.role_id
-                JOIN permissions p ON rp.permission_id = p.id
-                WHERE u.id = $uid
-                  AND u.is_active = 1
-                  AND ur.is_active = 1
-                  AND r.is_active = 1
-                  AND p.is_active = 1
-                ORDER BY p.name ASC;
-            """;
-                cmd.Parameters.AddWithValue("$uid", userId);
+                var list = PermissionStore.GetEffectivePermissionsForUser(userId);
 
-                using var reader = cmd.ExecuteReader();
-                var results = new List<PermissionObject>();
-                while (reader.Read())
-                {
-                    results.Add(new PermissionObject
-                    {
-                        Id = reader.GetString(0),
-                        Name = reader.GetString(1)
-                    });
-                }
-
-                return results;
-            });
-
-            return ApiResult<List<PermissionObject>>.Ok(list);
+                return ApiResult<List<PermissionObject>>.Ok(list);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to retrieve effective permissions for user {UserId}", userId);
+                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve effective permissions");
+            }
         }
 
         /// <summary>
@@ -540,32 +365,17 @@ namespace microauthd.Services
                 return ApiResult<AccessCheckResponse>.Fail("User Id and Permission Id are required");
             }
 
-            var hasAccess = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                SELECT 1
-                FROM users u
-                JOIN user_roles ur ON u.id = ur.user_id
-                JOIN roles r ON ur.role_id = r.id
-                JOIN role_permissions rp ON r.id = rp.role_id
-                JOIN permissions p ON rp.permission_id = p.id
-                WHERE u.id = $uid
-                  AND p.id = $pid
-                  AND u.is_active = 1
-                  AND ur.is_active = 1
-                  AND r.is_active = 1
-                  AND p.is_active = 1
-                LIMIT 1;
-            """;
-                cmd.Parameters.AddWithValue("$uid", userId);
-                cmd.Parameters.AddWithValue("$pid", permissionId);
+                var hasAccess = PermissionStore.UserHasPermission(userId, permissionId);
 
-                using var reader = cmd.ExecuteReader();
-                return reader.Read();
-            });
-
-            return ApiResult<AccessCheckResponse>.Ok(new AccessCheckResponse(userId, permissionId, hasAccess));
+                return ApiResult<AccessCheckResponse>.Ok(new AccessCheckResponse(userId, permissionId, hasAccess));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error checking permission for user {UserId} and permission {PermissionId}", userId, permissionId);
+                return ApiResult<AccessCheckResponse>.Fail("Internal error occurred", 500);
+            }
         }
 
         /// <summary>
@@ -583,33 +393,17 @@ namespace microauthd.Services
             if (string.IsNullOrWhiteSpace(roleId))
                 return ApiResult<List<PermissionObject>>.Fail("Role Id is required");
 
-            var list = Db.WithConnection(conn =>
+            try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                SELECT p.id, p.name
-                FROM role_permissions rp
-                JOIN roles r ON rp.role_id = r.id
-                JOIN permissions p ON rp.permission_id = p.id
-                WHERE r.id = $rid AND r.is_active = 1 AND p.is_active = 1;
-            """;
-                cmd.Parameters.AddWithValue("$rid", roleId);
+                var list = PermissionStore.GetPermissionsForRole(roleId);
 
-                using var reader = cmd.ExecuteReader();
-                var results = new List<PermissionObject>();
-                while (reader.Read())
-                {
-                    results.Add(new PermissionObject
-                    {
-                        Id = reader.GetString(0),
-                        Name = reader.GetString(1)
-                    });
-                }
-
-                return results;
-            });
-
-            return ApiResult<List<PermissionObject>>.Ok(list);
+                return ApiResult<List<PermissionObject>>.Ok(list);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to retrieve permissions for role {RoleId}", roleId);
+                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve permissions for role");
+            }
         }
 
         /// <summary>

@@ -39,57 +39,22 @@ public static class ScopeService
 
         var scopeId = Guid.NewGuid().ToString();
 
-        var created = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            INSERT INTO scopes (id, name, description, created_at, is_active)
-            VALUES ($id, $name, $desc, datetime('now'), 1);
-        """;
-            cmd.Parameters.AddWithValue("$id", scopeId);
-            cmd.Parameters.AddWithValue("$name", req.Name);
-            cmd.Parameters.AddWithValue("$desc", req.Description ?? "");
+            var scopeObj = ScopeStore.CreateScope(scopeId, req);
 
-            try
-            {
-                return cmd.ExecuteNonQuery() == 1;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Exception while adding scope: {ex.Message}");
-                return false;
-            }
-        });
+            if (scopeObj is null)
+                return ApiResult<ScopeObject>.Fail("Scope creation failed (duplicate name?)");
 
-        if (!created)
-            return ApiResult<ScopeObject>.Fail("Scope creation failed (duplicate name?)");
+            AuditLogger.AuditLog(config, actorUserId, "create_scope", req.Name, ip, ua);
 
-        AuditLogger.AuditLog(config, actorUserId, "create_scope", req.Name, ip, ua);
-
-        var scope = Db.WithConnection(conn =>
+            return ApiResult<ScopeObject>.Ok(scopeObj);
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT id, name, description FROM scopes WHERE id = $id;
-        """;
-            cmd.Parameters.AddWithValue("$id", scopeId);
-
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
-
-            return new ScopeObject
-            {
-                Id = reader.GetString(0),
-                Name = reader.GetString(1),
-                Description = reader.GetString(2)
-            };
-        });
-
-        if (scope is null)
-            return ApiResult<ScopeObject>.Fail("Created scope could not be reloaded.");
-
-        return ApiResult<ScopeObject>.Ok(scope);
+            Log.Error(ex, "Failed to create scope {ScopeName}", req.Name);
+            return ApiResult<ScopeObject>.Fail("Internal error occurred while creating scope");
+        }
     }
 
     /// <summary>
@@ -116,69 +81,26 @@ public static class ScopeService
         if (!Utils.IsValidTokenName(updated.Name))
             return ApiResult<ScopeObject>.Fail("Scope name must be a valid token identifier.");
 
-        // Check for name collision
-        var conflict = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT COUNT(*) FROM scopes
-            WHERE name = $name AND id != $id;
-        """;
-            cmd.Parameters.AddWithValue("$name", updated.Name);
-            cmd.Parameters.AddWithValue("$id", id);
-            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-        });
+            // Check for name collision
+            var conflict = ScopeStore.DoesScopeNameExist(id, updated.Name);
 
-        if (conflict)
-            return ApiResult<ScopeObject>.Fail("Another scope already uses that name.");
+            if (conflict)
+                return ApiResult<ScopeObject>.Fail("Another scope already uses that name.");
 
-        var success = Db.WithConnection(conn =>
+            var scopeObj = ScopeStore.UpdateScope(id, updated);
+
+            if (scopeObj is null)
+                return ApiResult<ScopeObject>.Fail("Scope update failed or not found.");
+
+            return ApiResult<ScopeObject>.Ok(scopeObj);
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            UPDATE scopes
-            SET name = $name,
-                description = $desc,
-                modified_at = datetime('now')
-            WHERE id = $id;
-        """;
-            cmd.Parameters.AddWithValue("$name", updated.Name);
-            cmd.Parameters.AddWithValue("$desc", updated.Description ?? "");
-            cmd.Parameters.AddWithValue("$id", id);
-            return cmd.ExecuteNonQuery() == 1;
-        });
-
-        if (!success)
-            return ApiResult<ScopeObject>.Fail("Scope update failed or not found.");
-
-        // Re-fetch and return updated
-        var scope = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT id, name, description, created_at, is_active
-            FROM scopes
-            WHERE id = $id;
-        """;
-            cmd.Parameters.AddWithValue("$id", id);
-
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
-
-            return new ScopeObject
-            {
-                Id = reader.GetString(0),
-                Name = reader.GetString(1),
-                Description = reader.GetString(2),
-                CreatedAt = reader.GetDateTime(3),
-                IsActive = reader.GetBoolean(4)
-            };
-        });
-
-        return scope is not null
-            ? ApiResult<ScopeObject>.Ok(scope)
-            : ApiResult<ScopeObject>.Fail("Updated scope could not be retrieved.");
+            Log.Error(ex, "Failed to update scope {ScopeId}", id);
+            return ApiResult<ScopeObject>.Fail("Internal error occurred while updating scope");
+        }
     }
 
     /// <summary>
@@ -191,35 +113,17 @@ public static class ScopeService
     /// scopes. If no active scopes are found, the list will be empty.</returns>
     public static ApiResult<List<ScopeObject>> ListAllScopes()
     {
-        var scopes = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, name, description, created_at, is_active
-                FROM scopes
-                WHERE is_active = 1
-                ORDER BY name ASC;
-            """;
+            var scopes = ScopeStore.ListAllScopes();
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<ScopeObject>();
-
-            while (reader.Read())
-            {
-                list.Add(new ScopeObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    CreatedAt = reader.GetDateTime(3),
-                    IsActive = reader.GetInt64(4) == 1
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<ScopeObject>>.Ok(scopes);
+            return ApiResult<List<ScopeObject>>.Ok(scopes);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to list all scopes");
+            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while listing scopes");
+        }
     }
 
     /// <summary>
@@ -233,31 +137,19 @@ public static class ScopeService
     /// cref="ApiResult{T}"/> indicating that the scope was not found.</returns>
     public static ApiResult<ScopeObject> GetScopeById(string id)
     {
-        var scope = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT id, name, description
-            FROM scopes
-            WHERE id = $id
-        """;
-            cmd.Parameters.AddWithValue("$id", id);
+            var scope = ScopeStore.GetScopeById(id);
 
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read())
-                return null;
-
-            return new ScopeObject
-            {
-                Id = reader.GetString(0),
-                Name = reader.GetString(1),
-                Description = reader.GetString(2)
-            };
-        });
-
-        return scope is null
-            ? ApiResult<ScopeObject>.NotFound($"Scope '{id}' not found.")
-            : ApiResult<ScopeObject>.Ok(scope);
+            return scope is null
+                ? ApiResult<ScopeObject>.NotFound($"Scope '{id}' not found.")
+                : ApiResult<ScopeObject>.Ok(scope);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving scope by ID: {ScopeId}", id);
+            return ApiResult<ScopeObject>.Fail("Internal error occurred while retrieving scope");
+        }
     }
 
     /// <summary>
@@ -311,28 +203,21 @@ public static class ScopeService
         string? ip = null,
         string? ua = null)
     {
-        var deleted = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM scopes WHERE id = $id AND is_protected = 0;";
-            cmd.Parameters.AddWithValue("$id", scopeId);
+            var deleted = ScopeStore.DeleteScope(scopeId);
 
-            try
-            {
-                return cmd.ExecuteNonQuery() > 0;
-            }
-            catch (SqliteException ex)
-            {
-                Log.Error(ex, "Failed to delete scope {ScopeId}", scopeId);
-                return false;
-            }
-        });
+            if (!deleted)
+                return ApiResult<MessageResponse>.Fail("Failed to delete scope");
 
-        if (!deleted)
-            return ApiResult<MessageResponse>.Fail("Failed to delete scope");
-
-        AuditLogger.AuditLog(config, actorUserId, "delete_scope", scopeId, ip, ua);
-        return ApiResult<MessageResponse>.Ok(new(true, $"Scope '{scopeId}' deleted"));
+            AuditLogger.AuditLog(config, actorUserId, "delete_scope", scopeId, ip, ua);
+            return ApiResult<MessageResponse>.Ok(new(true, $"Scope '{scopeId}' deleted"));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to delete scope {ScopeId}", scopeId);
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while deleting scope");
+        }
     }
 
     /// <summary>
@@ -364,79 +249,22 @@ public static class ScopeService
         if (req.ScopeIds is null || req.ScopeIds.Count == 0)
             return ApiResult<MessageResponse>.Fail("At least one scope ID is required");
 
-        int added = Db.WithConnection(conn =>
+        try
         {
-            int count = 0;
+            var added = ScopeStore.AddScopesToClient(clientId, req);
 
-            foreach (var scopeId in req.ScopeIds.Distinct())
-            {
-                string? lookedUpScopeId = null;
+            if (added == 0)
+                return ApiResult<MessageResponse>.Fail("No scopes were assigned. Check scope IDs or duplicates.");
 
-                using (var getCmd = conn.CreateCommand())
-                {
-                    getCmd.CommandText = "SELECT id FROM scopes WHERE id = $sid AND is_active = 1;";
-                    getCmd.Parameters.AddWithValue("$sid", scopeId);
-                    lookedUpScopeId = getCmd.ExecuteScalar() as string;
-                }
+            AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_client", clientId, ip, ua);
 
-                if (lookedUpScopeId is null)
-                    continue;
-
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                INSERT OR IGNORE INTO client_scopes (id, client_id, scope_id, assigned_at, is_active)
-                VALUES ($id, $cid, $sid, datetime('now'), 1);
-            """;
-                cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-                cmd.Parameters.AddWithValue("$cid", clientId);
-                cmd.Parameters.AddWithValue("$sid", lookedUpScopeId);
-                count += cmd.ExecuteNonQuery();
-            }
-
-            return count;
-        });
-
-        if (added == 0)
-            return ApiResult<MessageResponse>.Fail("No scopes were assigned. Check scope IDs or duplicates.");
-
-        AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_client", clientId, ip, ua);
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Assigned {added} scope(s) to client."));
-    }
-
-    /// <summary>
-    /// Retrieves the list of active scopes associated with a specified client.
-    /// </summary>
-    /// <remarks>This method queries the database to retrieve the active scopes linked to the
-    /// specified client.  Only scopes, clients, and client-scope relationships marked as active are included in the
-    /// result.</remarks>
-    /// <param name="clientId">The unique identifier of the client for which to retrieve the associated scopes.  This value cannot be null
-    /// or empty.</param>
-    /// <returns>A list of strings representing the names of the active scopes associated with the specified client.  The
-    /// list will be empty if no active scopes are found.</returns>
-    public static List<string> ListScopesForClient(string clientId)
-    {
-        return Db.WithConnection(conn =>
+            return ApiResult<MessageResponse>.Ok(new(true, $"Assigned {added} scope(s) to client."));
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT s.name
-                    FROM user_scopes us
-                    JOIN scopes s ON us.scope_id = s.id
-                    WHERE us.user_id = $uid
-                      AND us.is_active = 1
-                      AND s.is_active = 1
-                      AND s.name IS NOT NULL;
-            """;
-            cmd.Parameters.AddWithValue("$cid", clientId);
-
-            using var reader = cmd.ExecuteReader();
-            var scopes = new List<string>();
-            while (reader.Read())
-                scopes.Add(reader.GetString(0));
-
-            return scopes;
-        });
+            Log.Error(ex, "Failed to assign scopes to client {ClientId}", clientId);
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while assigning scopes to client");
+        }
     }
 
     /// <summary>
@@ -454,38 +282,18 @@ public static class ScopeService
         if (string.IsNullOrWhiteSpace(clientId))
             return ApiResult<List<ScopeObject>>.Fail("Client ID is required");
 
-        var scopes = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT s.id, s.name, s.description, s.created_at, s.is_active
-            FROM client_scopes cs
-            JOIN scopes s ON cs.scope_id = s.id
-            WHERE cs.client_id = $id AND cs.is_active = 1 AND s.is_active = 1;
-        """;
-            cmd.Parameters.AddWithValue("$id", clientId);
+            var scopes = ScopeStore.GetScopesForClient(clientId);
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<ScopeObject>();
-
-            while (reader.Read())
-            {
-                list.Add(new ScopeObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    CreatedAt = reader.GetDateTime(3),
-                    IsActive = reader.GetInt64(4) == 1
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<ScopeObject>>.Ok(scopes);
+            return ApiResult<List<ScopeObject>>.Ok(scopes);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to retrieve scopes for client {ClientId}", clientId);
+            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while retrieving scopes for client");
+        }
     }
-
 
     /// <summary>
     /// Removes a specified scope from a client.
@@ -509,27 +317,23 @@ public static class ScopeService
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(scopeId))
             return ApiResult<MessageResponse>.Fail("Client ID and Scope ID are required");
 
-        var affected = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            DELETE FROM client_scopes
-            WHERE client_id = $cid AND scope_id = $sid;
-        """;
-            cmd.Parameters.AddWithValue("$cid", clientId);
-            cmd.Parameters.AddWithValue("$sid", scopeId);
+            var affected = ScopeStore.RemoveScopeFromClient(clientId, scopeId);
 
-            return cmd.ExecuteNonQuery();
-        });
+            if (affected == 0)
+                return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
 
-        if (affected == 0)
-            return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
+            AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_client", $"{clientId}:{scopeId}", ip, ua);
 
-        AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_client", $"{clientId}:{scopeId}", ip, ua);
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Removed scope '{scopeId}' from client '{clientId}'"));
+            return ApiResult<MessageResponse>.Ok(new(true, $"Removed scope '{scopeId}' from client '{clientId}'"));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to remove scope {ScopeId} from client {ClientId}", scopeId, clientId);
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while removing scope from client");
+        }
     }
-
 
     /// <summary>
     /// Retrieves a list of active scopes assigned to a specified user.
@@ -544,33 +348,17 @@ public static class ScopeService
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<List<ScopeObject>>.Fail("User ID is required");
 
-        var scopes = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            SELECT s.id, s.name, s.description
-            FROM user_scopes us
-            JOIN scopes s ON us.scope_id = s.id
-            WHERE us.user_id = $uid AND us.is_active = 1 AND s.is_active = 1;
-        """;
-            cmd.Parameters.AddWithValue("$uid", userId);
+            var scopes = ScopeStore.GetUserScopeObjs(userId);
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<ScopeObject>();
-            while (reader.Read())
-            {
-                list.Add(new ScopeObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? "" : reader.GetString(2)
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<ScopeObject>>.Ok(scopes);
+            return ApiResult<List<ScopeObject>>.Ok(scopes);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to list scopes for user {UserId}", userId);
+            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while listing scopes for user");
+        }
     }
 
     /// <summary>
@@ -601,44 +389,22 @@ public static class ScopeService
         if (req.ScopeIds.Count == 0)
             return ApiResult<MessageResponse>.Fail("At least one scope ID is required");
 
-        var added = Db.WithConnection(conn =>
+        try
         {
-            int added = 0;
+            var added = ScopeStore.AddScopesToUser(userId, req);
 
-            foreach (var scopeId in req.ScopeIds.Distinct())
-            {
-                string? lookedUpScopeId = null;
+            if (added == 0)
+                return ApiResult<MessageResponse>.Fail("No scopes were assigned — check if they exist or were already assigned");
 
-                using (var getCmd = conn.CreateCommand())
-                {
-                    getCmd.CommandText = "SELECT id FROM scopes WHERE id = $sid AND is_active = 1;";
-                    getCmd.Parameters.AddWithValue("$sid", scopeId);
-                    lookedUpScopeId = getCmd.ExecuteScalar() as string;
-                }
+            AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_user", userId, ip, ua);
 
-                if (lookedUpScopeId is null)
-                    continue;
-
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                INSERT OR IGNORE INTO user_scopes (id, user_id, scope_id, assigned_at, is_active)
-                VALUES ($id, $uid, $sid, datetime('now'), 1);
-            """;
-                cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-                cmd.Parameters.AddWithValue("$uid", userId);
-                cmd.Parameters.AddWithValue("$sid", lookedUpScopeId);
-                added += cmd.ExecuteNonQuery();
-            }
-
-            return added;
-        });
-
-        if (added == 0)
-            return ApiResult<MessageResponse>.Fail("No scopes were assigned — check if they exist or were already assigned");
-
-        AuditLogger.AuditLog(config, actorUserId, "assign_scope_to_user", userId, ip, ua);
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Assigned {added} scope(s) to user."));
+            return ApiResult<MessageResponse>.Ok(new(true, $"Assigned {added} scope(s) to user."));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to assign scopes to user {UserId}", userId);
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while assigning scopes to user");
+        }   
     }
 
     /// <summary>
@@ -666,38 +432,22 @@ public static class ScopeService
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(scopeId))
             return ApiResult<MessageResponse>.Fail("User ID and Scope ID are required");
 
-        var affected = Db.WithConnection(conn =>
+        try
         {
-            string? lookedUpScopeId = null;
+            var affected = ScopeStore.RemoveScopeFromUser(userId, scopeId);
 
-            using (var getCmd = conn.CreateCommand())
-            {
-                getCmd.CommandText = "SELECT id FROM scopes WHERE id = $sid AND is_active = 1;";
-                getCmd.Parameters.AddWithValue("$sid", scopeId);
-                lookedUpScopeId = getCmd.ExecuteScalar() as string;
-            }
+            if (affected == 0)
+                return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
 
-            if (lookedUpScopeId is null)
-                return 0;
+            AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_user", $"{userId}:{scopeId}", ip, ua);
 
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE user_scopes
-                SET is_active = 0
-                WHERE user_id = $uid AND scope_id = $sid AND is_active = 1;
-            """;
-            cmd.Parameters.AddWithValue("$uid", userId);
-            cmd.Parameters.AddWithValue("$sid", lookedUpScopeId);
-
-            return cmd.ExecuteNonQuery();
-        });
-
-        if (affected == 0)
-            return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
-
-        AuditLogger.AuditLog(config, actorUserId, "remove_scope_from_user", $"{userId}:{scopeId}", ip, ua);
-
-        return ApiResult<MessageResponse>.Ok(new(true, $"Removed scope '{scopeId}' from user '{userId}'."));
+            return ApiResult<MessageResponse>.Ok(new(true, $"Removed scope '{scopeId}' from user '{userId}'."));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to remove scope {ScopeId} from user {UserId}", scopeId, userId);
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while removing scope from user");
+        }
     }
 
     /// <summary>

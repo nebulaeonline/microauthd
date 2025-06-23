@@ -1,6 +1,8 @@
 ﻿using madTypes.Api.Common;
 using madTypes.Api.Responses;
+using Microsoft.Data.Sqlite;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 
 namespace microauthd.Data;
 
@@ -22,6 +24,70 @@ public class Client
 /// interact with the database and return the requested information.</remarks>
 public static class ClientStore
 {
+    /// <summary>
+    /// Creates a new client record in the database and returns the corresponding <see cref="ClientObject"/>.
+    /// </summary>
+    /// <remarks>This method inserts a new client record into the database and retrieves the created client
+    /// details. If the insertion fails (e.g., due to a database constraint violation), the method returns <see
+    /// langword="null"/>.</remarks>
+    /// <param name="id">The unique identifier for the client. This value must be unique across all clients.</param>
+    /// <param name="clientIdent">The client identifier used for authentication purposes.</param>
+    /// <param name="secretHash">The hashed secret associated with the client for secure authentication.</param>
+    /// <param name="displayName">The display name of the client. If null, an empty string will be used.</param>
+    /// <param name="audience">The audience associated with the client. If null, the default value "microauthd" will be used.</param>
+    /// <returns>A <see cref="ClientObject"/> representing the newly created client, or <see langword="null"/> if the client
+    /// could not be created.</returns>
+    public static ClientObject? CreateClient(string id, string clientIdent, string secretHash, string displayName, string audience)
+    {
+        var created = Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO clients (id, client_identifier, client_secret_hash, display_name, audience, created_at, modified_at, is_active)
+                VALUES ($id, $cid, $hash, $name, $aud, datetime('now'), datetime('now'), 1);
+            """;
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.Parameters.AddWithValue("$hash", secretHash);
+            cmd.Parameters.AddWithValue("$name", displayName ?? "");
+            cmd.Parameters.AddWithValue("$aud", audience ?? "microauthd");
+
+            try
+            {
+                return cmd.ExecuteNonQuery() == 1;
+            }
+            catch (SqliteException)
+            {
+                return false;
+            }
+        });
+
+        if (!created)
+            return null;
+
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            SELECT id, client_identifier, display_name, created_at, is_active
+            FROM clients WHERE id = $id;
+        """;
+            cmd.Parameters.AddWithValue("$id", id);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new ClientObject
+            {
+                Id = reader.GetString(0),
+                ClientId = reader.GetString(1),
+                DisplayName = reader.GetString(2),
+                CreatedAt = reader.GetDateTime(3),
+                IsActive = reader.GetBoolean(4)
+            };
+        });
+    }
+
     /// <summary>
     /// Retrieves a client record from the database based on the specified client identifier.
     /// </summary>
@@ -59,6 +125,95 @@ public static class ClientStore
         });
     }
 
+    /// <summary>
+    /// Updates the client record in the database with the specified values.
+    /// </summary>
+    /// <remarks>This method performs an update operation on the database. If the specified <paramref
+    /// name="id"/> does not  match any existing client record, the method will return <see langword="false"/> without
+    /// making any changes. The <paramref name="updated"/> object must contain valid data for the update operation to
+    /// succeed.</remarks>
+    /// <param name="id">The unique identifier of the client to update. This value must match an existing client record.</param>
+    /// <param name="updated">An object containing the updated client information. The <see cref="ClientObject.ClientId"/>,  <see
+    /// cref="ClientObject.Audience"/>, and optionally <see cref="ClientObject.DisplayName"/> properties  are used to
+    /// update the corresponding fields in the database.</param>
+    /// <returns><see langword="true"/> if the client record was successfully updated; otherwise, <see langword="false"/>.</returns>
+    public static bool UpdateClient(string id, ClientObject updated)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE clients
+                SET client_identifier = $cid,
+                    audience = $aud,
+                    display_name = $name,
+                    modified_at = datetime('now')
+                WHERE id = $id;
+            """;
+            cmd.Parameters.AddWithValue("$cid", updated.ClientId);
+            cmd.Parameters.AddWithValue("$name", updated.DisplayName ?? "");
+            cmd.Parameters.AddWithValue("$aud", updated.Audience);
+            cmd.Parameters.AddWithValue("$id", id);
+            return cmd.ExecuteNonQuery() == 1;
+        });
+    }
+
+    /// <summary>
+    /// Determines whether a client identifier exists in the database.
+    /// </summary>
+    /// <remarks>This method queries the database to check for the presence of the specified client
+    /// identifier. It performs a case-sensitive comparison and returns <see langword="false"/> if the identifier is not
+    /// found.</remarks>
+    /// <param name="clientId">The client identifier to check for existence. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the specified client identifier exists in the database;  otherwise, <see
+    /// langword="false"/>. </returns>
+    public static bool DoesClientIdExist(string clientId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM clients WHERE client_identifier = $id;";
+            cmd.Parameters.AddWithValue("$id", clientId);
+            var result = cmd.ExecuteScalar();
+            return result != null && Convert.ToInt32(result) > 0;
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a <see cref="ClientObject"/> instance by its unique identifier.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve client information based on the provided
+    /// identifier. Ensure that the <paramref name="id"/> parameter corresponds to a valid client record in the
+    /// database.</remarks>
+    /// <param name="id">The unique identifier of the client object to retrieve. Cannot be null or empty.</param>
+    /// <returns>A <see cref="ClientObject"/> representing the client with the specified identifier,  or <see langword="null"/>
+    /// if no matching client is found.</returns>
+    public static ClientObject? GetClientObjById(string id)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, client_identifier, display_name, audience, is_active, created_at
+                FROM clients
+                WHERE id = $id
+                LIMIT 1;
+            """;
+            cmd.Parameters.AddWithValue("$id", id);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+            return new ClientObject
+            {
+                Id = reader.GetString(0),
+                ClientId = reader.GetString(1),
+                DisplayName = reader.GetString(2),
+                Audience = reader.GetString(3),
+                IsActive = reader.GetBoolean(4),
+                CreatedAt = reader.GetDateTime(5)
+            };
+        });
+    }
 
     /// <summary>
     /// Retrieves a client record from the database by its unique identifier.
@@ -202,6 +357,43 @@ public static class ClientStore
     }
 
     /// <summary>
+    /// Retrieves a list of all clients from the database.
+    /// </summary>
+    /// <remarks>This method queries the database to fetch all client records, including their identifiers,
+    /// display names,  audience information, active status, and creation timestamps. The results are ordered by the
+    /// display name.</remarks>
+    /// <returns>A list of <see cref="ClientObject"/> instances representing all clients in the database.  The list will be empty
+    /// if no clients are found.</returns>
+    public static List<ClientObject> ListAllClients()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, client_identifier, display_name, audience, is_active, created_at
+                FROM clients
+                ORDER BY display_name;
+            """;
+            using var reader = cmd.ExecuteReader();
+            var results = new List<ClientObject>();
+            
+            while (reader.Read())
+            {
+                results.Add(new ClientObject
+                {
+                    Id = reader.GetString(0),
+                    ClientId = reader.GetString(1),
+                    DisplayName = reader.GetString(2),
+                    Audience = reader.GetString(3),
+                    IsActive = reader.GetBoolean(4),
+                    CreatedAt = reader.GetDateTime(5)
+                });
+            }
+            return results;
+        });
+    }
+
+    /// <summary>
     /// Retrieves a paginated list of active clients from the database.
     /// </summary>
     /// <remarks>This method queries the database for clients that are marked as active and returns them in
@@ -270,6 +462,109 @@ public static class ClientStore
             cmd.Parameters.AddWithValue("$cid", clientId);
 
             return cmd.ExecuteNonQuery() == 1;
+        });
+    }
+
+    /// <summary>
+    /// Revokes all active sessions associated with the specified client identifier.
+    /// </summary>
+    /// <remarks>This method marks all sessions for the specified client as inactive by updating the database.
+    /// The <c>modified_at</c> field is also updated to the current timestamp.</remarks>
+    /// <param name="clientIdent">The unique identifier of the client whose sessions should be revoked.  This value must match the
+    /// <c>client_identifier</c> field in the database.</param>
+    public static void RevokeClientSessions(string clientIdent)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE sessions
+                SET is_active = 0, modified_at = datetime('now')
+                WHERE client_id = (SELECT id FROM clients WHERE client_identifier = $cid);
+            """;
+            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// Revokes all active refresh tokens associated with the specified client identifier.
+    /// </summary>
+    /// <remarks>This method updates the database to mark all refresh tokens for the specified client as
+    /// inactive. It is typically used to invalidate tokens when a client is deauthorized or compromised.</remarks>
+    /// <param name="clientIdent">The unique identifier of the client whose refresh tokens should be revoked. This value must not be null or
+    /// empty.</param>
+    public static void RevokeClientRefreshTokens(string clientIdent)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE refresh_tokens
+                SET is_active = 0, modified_at = datetime('now')
+                WHERE client_id = (SELECT id FROM clients WHERE client_identifier = $cid);
+            """;
+            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// Deletes all client scopes associated with the specified client identifier.
+    /// </summary>
+    /// <remarks>This method removes all entries in the <c>client_scopes</c> table that are linked to the 
+    /// client specified by <paramref name="clientIdent"/>. The client is identified by its  <c>client_identifier</c> in
+    /// the <c>clients</c> table.</remarks>
+    /// <param name="clientIdent">The unique identifier of the client whose scopes are to be deleted.  This value must not be null or empty.</param>
+    public static void DeleteClientScopes(string clientIdent)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                DELETE FROM client_scopes
+                WHERE client_id = (SELECT id FROM clients WHERE client_identifier = $cid);
+            """;
+            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// Deletes a client record from the database based on the specified client ID.
+    /// </summary>
+    /// <remarks>This method attempts to delete a client record from the database using the provided client
+    /// ID. If the operation fails due to a database error, the method logs the error and returns <see
+    /// langword="false"/>.</remarks>
+    /// <param name="id">The unique identifier of the client to delete. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the client record was successfully deleted; otherwise, <see langword="false"/>. </returns>
+    public static bool DeleteClient(string id)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM clients WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", id);
+
+            return cmd.ExecuteNonQuery() > 0;            
+        });
+    }
+
+    /// <summary>
+    /// Deletes a client record from the database based on the specified client identifier.
+    /// </summary>
+    /// <remarks>This method executes a SQL DELETE operation to remove the client record associated with the
+    /// given identifier. Ensure that the database connection is properly configured and accessible.</remarks>
+    /// <param name="clientId">The unique identifier of the client to be deleted. This value must not be <see langword="null"/> or empty.</param>
+    /// <returns><see langword="true"/> if the client record was successfully deleted; otherwise, <see langword="false"/>.</returns>
+    public static bool DeleteClientByClientId(string clientId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM clients WHERE client_identifier = $cid;";
+            cmd.Parameters.AddWithValue("$cid", clientId);
+            return cmd.ExecuteNonQuery() > 0;
         });
     }
 

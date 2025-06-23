@@ -31,7 +31,7 @@ public class CreateModel : BasePageModel
 
         ModelState.Clear();
 
-        var result = ClientService.TryCreateClient(ClientForm.ToClientRequest(), Config, UserId, IpAddress, UserAgent);
+        var result = ClientService.CreateClient(ClientForm.ToClientRequest(), Config, UserId, IpAddress, UserAgent);
 
         if (!result.Success || result.Value == null)
         {

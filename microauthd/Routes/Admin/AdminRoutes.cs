@@ -902,7 +902,7 @@ public static class AdminRoutes
             HttpContext ctx
 ) =>
         {
-            var result = ClientService.TryCreateClient(
+            var result = ClientService.CreateClient(
                 req,
                 config,
                 ctx.User.GetUserId(),

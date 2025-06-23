@@ -38,64 +38,31 @@ public static class RoleService
         if (string.IsNullOrWhiteSpace(name))
             return ApiResult<RoleObject>.Fail("Role name is required");
 
-        var roleId = Guid.NewGuid().ToString();
-        var success = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT INTO roles (id, name, description, created_at, modified_at, is_active)
-                VALUES ($id, $name, $desc, datetime('now'), datetime('now'), 1);
-            """;
-            cmd.Parameters.AddWithValue("$id", roleId);
-            cmd.Parameters.AddWithValue("$name", name);
-            cmd.Parameters.AddWithValue("$desc", description ?? "");
+            var roleId = Guid.NewGuid().ToString();
 
-            try
-            {
-                return cmd.ExecuteNonQuery() == 1;
-            }
-            catch (SqliteException)
-            {
-                return false;
-            }
-        });
+            var role = RoleStore.CreateRole(roleId, name, description ?? string.Empty);
 
-        if (!success)
-            return ApiResult<RoleObject>.Fail("Role creation failed (maybe duplicate?)");
+            if (role is null)
+                return ApiResult<RoleObject>.Fail("Role created but could not be retrieved from the database.");
 
-        AuditLogger.AuditLog(
-            config: config,
-            userId: userId,
-            action: "role_created",
-            target: name,
-            ipAddress: ip,
-            userAgent: ua
-        );
+            AuditLogger.AuditLog(
+                config: config,
+                userId: userId,
+                action: "role_created",
+                target: name,
+                ipAddress: ip,
+                userAgent: ua
+            );
 
-        var role = Db.WithConnection(conn =>
+            return ApiResult<RoleObject>.Ok(role);
+        }
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, name, description, is_protected FROM roles WHERE id = $id;";
-            cmd.Parameters.AddWithValue("$id", roleId);
-            using var reader = cmd.ExecuteReader();
-
-            if (reader.Read())
-            {
-                return new RoleObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    IsProtected = reader.GetInt32(3) == 1
-                };
-            }
-            return null;
-        });
-
-        if (role is null)
-            return ApiResult<RoleObject>.Fail("Role created but could not be retrieved from the database.");
-
-        return ApiResult<RoleObject>.Ok(role);
+            Log.Error(ex, "Failed to create role {RoleName}", name);
+            return ApiResult<RoleObject>.Fail("Failed to create role", 500);
+        }
     }
 
     /// <summary>
@@ -122,47 +89,30 @@ public static class RoleService
         if (updated.IsProtected)
             return ApiResult<RoleObject>.Fail("Cannot mark a role as protected through this API.");
 
-        // Check for name collision only if name is being updated
-        if (!string.IsNullOrWhiteSpace(updated.Name))
+        try
         {
-            var conflict = Db.WithConnection(conn =>
+            // Check for name collision only if name is being updated
+            if (!string.IsNullOrWhiteSpace(updated.Name))
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-                    SELECT COUNT(*) FROM roles
-                    WHERE name = $name AND id != $id;
-                """;
-                cmd.Parameters.AddWithValue("$name", updated.Name);
-                cmd.Parameters.AddWithValue("$id", id);
-                return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-            });
+                var conflict = RoleStore.DoesNameConflictExist(id, updated.Name);
 
-            if (conflict)
-                return ApiResult<RoleObject>.Fail("Another role already uses that name.");
+                if (conflict)
+                    return ApiResult<RoleObject>.Fail("Another role already uses that name.");
+            }
+
+            // Perform the update dynamically
+            var updatedRole = RoleStore.UpdateRole(id, updated);
+
+            if (updatedRole is null)
+                return ApiResult<RoleObject>.Fail("Role update failed. Role may be protected or not found.");
+
+            return ApiResult<RoleObject>.Ok(updatedRole);
         }
-
-        // Perform the update dynamically
-        var success = Db.WithConnection(conn =>
+        catch (Exception ex)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE roles
-                SET
-                    name = COALESCE(NULLIF($name, ''), name),
-                    description = COALESCE($desc, description),
-                    modified_at = datetime('now')
-                WHERE id = $id AND is_protected = 0;
-            """;
-            cmd.Parameters.AddWithValue("$name", updated.Name ?? "");
-            cmd.Parameters.AddWithValue("$desc", (object?)updated.Description ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("$id", id);
-            return cmd.ExecuteNonQuery() == 1;
-        });
-
-        if (!success)
-            return ApiResult<RoleObject>.Fail("Role update failed. Role may be protected or not found.");
-
-        return GetRoleById(id); // re-fetch using existing method
+            Log.Error(ex, "Failed to update role {RoleId}", id);
+            return ApiResult<RoleObject>.Fail("Failed to update role", 500);
+        }
     }
 
     /// <summary>
@@ -174,33 +124,17 @@ public static class RoleService
     /// are found.</returns>
     public static ApiResult<List<RoleObject>> ListAllRoles()
     {
-        var roles = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, name, description, is_protected
-                FROM roles
-                WHERE is_active = 1
-                ORDER BY name ASC;
-            """;
+            var roles = RoleStore.ListAllRoles();
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<RoleObject>();
-            while (reader.Read())
-            {
-                list.Add(new RoleObject
-                {
-                    Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    IsProtected = reader.GetInt32(3) == 1
-                });
-            }
-
-            return list;
-        });
-
-        return ApiResult<List<RoleObject>>.Ok(roles);
+            return ApiResult<List<RoleObject>>.Ok(roles);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to retrieve all roles");
+            return ApiResult<List<RoleObject>>.Fail("Unable to retrieve roles", 500);
+        }
     }
 
     /// <summary>
@@ -214,30 +148,19 @@ public static class RoleService
     /// with the specified identifier.</returns>
     public static ApiResult<RoleObject> GetRoleById(string id)
     {
-        var role = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, name, description, is_protected
-                FROM roles
-                WHERE id = $id;
-            """;
-            cmd.Parameters.AddWithValue("$id", id);
-            using var reader = cmd.ExecuteReader();
-            if (!reader.Read()) return null;
+            var role = RoleStore.GetRoleById(id);
 
-            return new RoleObject
-            {
-                Id = reader.GetString(0),
-                Name = reader.GetString(1),
-                Description = reader.GetString(2),
-                IsProtected = reader.GetBoolean(3)
-            };
-        });
-
-        return role is null
-            ? ApiResult<RoleObject>.NotFound($"Role '{id}' not found.")
-            : ApiResult<RoleObject>.Ok(role);
+            return role is null
+                ? ApiResult<RoleObject>.NotFound($"Role '{id}' not found.")
+                : ApiResult<RoleObject>.Ok(role);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving role by ID: {RoleId}", id);
+            return ApiResult<RoleObject>.Fail("Internal error occurred", 500);
+        }
     }
 
     /// <summary>
@@ -303,39 +226,12 @@ public static class RoleService
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(roleId))
             return ApiResult<MessageResponse>.Fail("User Id and Role Id are required");
 
-        return Db.WithConnection(conn =>
+        try
         {
-            // Look up user
-            string? lookedUpUserId;
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT id FROM users WHERE id = $uid;";
-                cmd.Parameters.AddWithValue("$uid", userId.ToLowerInvariant());
-                lookedUpUserId = cmd.ExecuteScalar() as string;
-            }
+            var added = RoleStore.AddRoleToUser(userId, roleId);
 
-            // Look up role
-            string? lookedUpRoleId;
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT id FROM roles WHERE id = $rid;";
-                cmd.Parameters.AddWithValue("$rid", roleId.ToLowerInvariant());
-                lookedUpRoleId = cmd.ExecuteScalar() as string;
-            }
-
-            if (lookedUpUserId is null || lookedUpRoleId is null)
-                return ApiResult<MessageResponse>.Fail("User or role not found.");
-
-            // Insert role assignment
-            using var cmd2 = conn.CreateCommand();
-            cmd2.CommandText = """
-                INSERT INTO user_roles (id, user_id, role_id, assigned_at)
-                VALUES ($id, $uid, $rid, datetime('now'));
-            """;
-            cmd2.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-            cmd2.Parameters.AddWithValue("$uid", lookedUpUserId);
-            cmd2.Parameters.AddWithValue("$rid", lookedUpRoleId);
-            cmd2.ExecuteNonQuery();
+            if (!added)
+                return ApiResult<MessageResponse>.Fail("Failed to assign role (user or role not found, or already assigned)");
 
             AuditLogger.AuditLog(
                 config: config,
@@ -347,7 +243,12 @@ public static class RoleService
             );
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Assigned role '{roleId}' to user '{userId}'"));
-        });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to assign role {RoleId} to user {UserId}", roleId, userId);
+            return ApiResult<MessageResponse>.Fail("Failed to assign role", 500);
+        }
     }
 
     /// <summary>
@@ -364,29 +265,17 @@ public static class RoleService
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<List<string>>.Fail("User Id is required");
 
-        var roles = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT r.name FROM user_roles ur
-                JOIN roles r ON ur.role_id = r.id
-                JOIN users u ON ur.user_id = u.id
-                WHERE u.id = $uid
-                  AND ur.is_active = 1
-                  AND r.is_active = 1
-                ORDER BY r.name ASC;
-            """;
-            cmd.Parameters.AddWithValue("$uid", userId);
+            var roles = RoleStore.GetUserRoles(userId);
 
-            using var reader = cmd.ExecuteReader();
-            var list = new List<string>();
-            while (reader.Read())
-                list.Add(reader.GetString(0));
-
-            return list;
-        });
-
-        return ApiResult<List<string>>.Ok(roles);
+            return ApiResult<List<string>>.Ok(roles);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to retrieve roles for user {UserId}", userId);
+            return ApiResult<List<string>>.Fail("Unable to retrieve user roles", 500);
+        }
     }
 
     /// <summary>
@@ -409,28 +298,21 @@ public static class RoleService
     string? ip = null,
     string? ua = null)
     {
-        var deleted = Db.WithConnection(conn =>
+        try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM roles WHERE id = $id AND is_protected = 0;";
-            cmd.Parameters.AddWithValue("$id", roleId);
+            var deleted = RoleStore.DeleteRole(roleId);
 
-            try
-            {
-                return cmd.ExecuteNonQuery() > 0;
-            }
-            catch (SqliteException ex)
-            {
-                Log.Error(ex, "Failed to delete role {RoleId}", roleId);
-                return false;
-            }
-        });
+            if (!deleted)
+                return ApiResult<MessageResponse>.Fail("Failed to delete role (not found or constraint violation)");
 
-        if (!deleted)
-            return ApiResult<MessageResponse>.Fail("Failed to delete role (not found or constraint violation)");
-
-        AuditLogger.AuditLog(config, userId, "delete_role", roleId, ip, ua);
-        return ApiResult<MessageResponse>.Ok(new(true, $"Role '{roleId}' deleted"));
+            AuditLogger.AuditLog(config, userId, "delete_role", roleId, ip, ua);
+            return ApiResult<MessageResponse>.Ok(new(true, $"Role '{roleId}' deleted"));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to delete role {RoleId}", roleId);
+            return ApiResult<MessageResponse>.Fail("Failed to delete role", 500);
+        }
     }
     
     /// <summary>
@@ -459,38 +341,12 @@ public static class RoleService
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(roleId))
             return ApiResult<MessageResponse>.Fail("User Id and Role Id are required");
 
-        return Db.WithConnection(conn =>
+        try
         {
-            string? lookedUpUserId;
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT id FROM users WHERE id = $uid;";
-                cmd.Parameters.AddWithValue("$uid", userId);
-                lookedUpUserId = cmd.ExecuteScalar() as string;
-            }
+            var removed = RoleStore.RemoveRoleFromUser(userId, roleId);
 
-            string? lookedUpRoleId;
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT id FROM roles WHERE id = $rid;";
-                cmd.Parameters.AddWithValue("$rid", roleId);
-                lookedUpRoleId = cmd.ExecuteScalar() as string;
-            }
-
-            if (lookedUpUserId is null || lookedUpRoleId is null)
-                return ApiResult<MessageResponse>.Fail("User or role not found");
-
-            using var deleteCmd = conn.CreateCommand();
-            deleteCmd.CommandText = """
-                DELETE FROM user_roles
-                WHERE user_id = $uid AND role_id = $rid;
-            """;
-            deleteCmd.Parameters.AddWithValue("$uid", userId);
-            deleteCmd.Parameters.AddWithValue("$rid", roleId);
-            var removed = deleteCmd.ExecuteNonQuery();
-
-            if (removed == 0)
-                return ApiResult<MessageResponse>.Fail("Role was not assigned or already removed");
+            if (!removed)
+                return ApiResult<MessageResponse>.Fail("Failed to remove role (user or role not found, or not assigned)");
 
             AuditLogger.AuditLog(
                 config: config,
@@ -503,7 +359,12 @@ public static class RoleService
 
             return ApiResult<MessageResponse>.Ok(
                 new(true, $"Removed role '{roleId}' from user '{userId}'"));
-        });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to remove role {RoleId} from user {UserId}", roleId, userId);
+            return ApiResult<MessageResponse>.Fail("Failed to remove role", 500);
+        }
     }
 
     /// <summary>
