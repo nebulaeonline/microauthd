@@ -26,7 +26,7 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 **2025-06-23**
 
-The web-based GUI through the AOT compilation for a loop; it is currently not working in AOT mode due to Razor Pages and their handling of [BindProperty] attributes. WIP guys.
+The web-based GUI threw the AOT compilation for a loop; it is currently not working in AOT mode due to Razor Pages and their handling of [BindProperty] attributes. WIP guys.
 
 **2025-06-22**
 
