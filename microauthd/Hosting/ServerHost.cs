@@ -189,6 +189,10 @@ public static class ServerHost
                 {
                     opts.SerializerOptions.TypeInfoResolverChain.Insert(0, MicroauthJsonContext.Default);
                 });
+                
+                // Add our http context accessor on the admin side for audit logging
+                builder.Services.AddHttpContextAccessor();
+
                 builder.Services.AddAuthorization();
                 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .AddJwtBearer(options =>

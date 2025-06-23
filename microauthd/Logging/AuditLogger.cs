@@ -1,8 +1,10 @@
-﻿using System;
-using System.Net;
-using microauthd.Config;
+﻿using microauthd.Config;
 using Microsoft.AspNetCore.Http;
 using Serilog;
+using System;
+using System.Net;
+using static System.Net.WebRequestMethods;
+using System.Security.Claims;
 
 namespace microauthd.Common;
 

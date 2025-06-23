@@ -12,6 +12,8 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 **2025-06-23**
 
+Big changes coming to the audit logger. It was poorly thought out and implemented, so I'm going to be reworking it to use a more structured aproach. The current implementation is static and has no access to the HttpContext which results in many log entries having incorrect (or blank) values for the user id. Time to make it a bona-fide instance class and do it right. I should have the refactor done by tomorrow.
+
 The web-based GUI threw the AOT compilation for a loop; this marks the end of the AOT compilation work for now. It is more important to have a robust web-based GUI than to shave 100ms off of startup time and 10-15MB of memory.
 
 **2025-06-22**
