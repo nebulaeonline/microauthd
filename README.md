@@ -24,9 +24,11 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
-**2025-06-22**
+**2025-06-23**
 
 The web-based GUI through the AOT compilation for a loop; it is currently not working in AOT mode due to Razor Pages and their handling of [BindProperty] attributes. WIP guys.
+
+**2025-06-22**
 
 Web-based GUI is available at `http://localhost:9041/Dashboard` (substitute your hostname / port as needed). 
 
