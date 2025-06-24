@@ -263,6 +263,13 @@ public static class AuthService
             // Get the audience for the client identifier
             var audience = ClientStore.GetClientAudienceByIdentifier(clientIdent);
 
+            // Must have a valid audience
+            if (string.IsNullOrWhiteSpace(audience))
+            {
+                Log.Warning("Client identifier not found or missing audience: {ClientId}", clientIdent);
+                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            }
+
             // Authenticate user
             var result = AuthenticateUser(username, password, config);
             if (result is not { Success: true } r)

@@ -283,20 +283,20 @@ public static class ClientStore
     /// empty.</param>
     /// <returns>A string representing the audience associated with the specified client identifier. If no audience is found,
     /// returns the default value "microauthd".</returns>
-    public static string GetClientAudienceByIdentifier(string clientIdentifier)
+    public static string? GetClientAudienceByIdentifier(string clientIdentifier)
     {
         var audience = Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                        SELECT audience FROM clients
-                        WHERE client_identifier = $cid LIMIT 1;
-                    """;
+                SELECT audience FROM clients
+                WHERE client_identifier = $cid LIMIT 1;
+            """;
             cmd.Parameters.AddWithValue("$cid", clientIdentifier);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? reader.GetString(0) : null;
 
-        }) ?? "microauthd";
+        });
 
         return audience;
     }
