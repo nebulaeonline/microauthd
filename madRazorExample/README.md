@@ -21,3 +21,11 @@ Once signed in, the user is authenticated via cookie, and their session is autom
 The app includes a secure page (/SecurePage) protected with [Authorize], which displays user claims and allows them to logout. The logout handler signs the user out and revokes the current access token via madAuthClient, ensuring the session is terminated on both client and server sides.
 
 To see how this is wired together, or to start building your own app using madAuthClient, review Program.cs, Login.cshtml.cs, and SecurePage.cshtml. You’ll see how little code is required to achieve a robust and secure integration with microauthd.
+
+It's important to note that you should store your client secret in a secure manner, unlike the example here which uses a hardcoded value. In production, consider using an envinronment variable or a secure file (or even a secure vault depending on platform). Something like this:
+
+```csharp
+
+ClientSecret = Environment.GetEnvironmentVariable("MAD_CLIENT_SECRET") ?? throw new InvalidOperationException("MAD_CLIENT_SECRET is not set")
+
+```
