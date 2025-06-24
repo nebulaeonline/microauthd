@@ -238,6 +238,7 @@ public static class AuthService
         var username = form["username"].ToString();
         var password = form["password"].ToString();
         var clientIdent = form["client_id"].ToString();
+        var clientSecret = form["client_secret"].ToString();
 
         if (string.IsNullOrWhiteSpace(username) ||
             string.IsNullOrWhiteSpace(password) ||
@@ -248,6 +249,12 @@ public static class AuthService
         if (string.IsNullOrEmpty(clientIdent))
         {
             Log.Warning("Unknown or inactive client_identifier {ClientIdent}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        if (!ValidateOidcClient(clientIdent, clientSecret, config))
+        {
+            Log.Warning("Client authentication failed for {ClientId}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
@@ -349,9 +356,17 @@ public static class AuthService
         {
             // Get the raw token and make sure it's not empty
             var raw = form["refresh_token"].ToString();
+            var clientId = form["client_id"].ToString();
+            var clientSecret = form["client_secret"].ToString();
 
             if (string.IsNullOrWhiteSpace(raw))
                 return ApiResult<TokenResponse>.Fail("Missing refresh token", 400);
+
+            if (!ValidateOidcClient(clientId, clientSecret, config))
+            {
+                Log.Warning("Refresh token request failed client validation: {ClientId}", clientId);
+                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            }
 
             // Lookup the refresh token by sha256 hash
             var sha256 = Utils.Sha256Base64(raw);

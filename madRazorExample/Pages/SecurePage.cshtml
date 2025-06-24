@@ -1,0 +1,26 @@
+﻿@page
+@model madRazorExample.Pages.SecurePageModel
+@using System.Security.Claims
+@{
+    ViewData["Title"] = "Secure Page";
+    Layout = "_Layout";
+}
+
+<h2>Secure Page</h2>
+
+<p>Welcome, <strong>@User.Identity?.Name ?? "unknown"</strong>!</p>
+
+<ul>
+    <li><strong>User ID:</strong> @User.FindFirst("sub")?.Value</li>
+    <li><strong>Email:</strong> @User.FindFirst(ClaimTypes.Email)?.Value</li>
+    <li>
+        <strong>Roles:</strong>
+        @foreach (var role in User.FindAll(ClaimTypes.Role))
+        {
+            <span class="badge bg-secondary me-1">@role.Value</span>
+        }
+    </li>
+    <li><strong>Expires:</strong> @User.FindFirst("exp")?.Value</li>
+</ul>
+
+<a asp-page="/Logout" class="btn btn-danger">Log Out</a>

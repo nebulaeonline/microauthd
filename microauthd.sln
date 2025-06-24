@@ -19,6 +19,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "madTypes", "madTypes\madTyp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "madClient", "madClient\madClient.csproj", "{974F9512-832C-4129-8543-A054C00973C4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "madAuthClient", "madAuthClient\madAuthClient.csproj", "{F08826A2-6C44-406F-8AEA-F73F35382102}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "madRazorExample", "madRazorExample\madRazorExample.csproj", "{6C3536F1-21F1-4C20-A6BD-D1D498E12F48}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +45,14 @@ Global
 		{974F9512-832C-4129-8543-A054C00973C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{974F9512-832C-4129-8543-A054C00973C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{974F9512-832C-4129-8543-A054C00973C4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F08826A2-6C44-406F-8AEA-F73F35382102}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F08826A2-6C44-406F-8AEA-F73F35382102}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F08826A2-6C44-406F-8AEA-F73F35382102}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F08826A2-6C44-406F-8AEA-F73F35382102}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C3536F1-21F1-4C20-A6BD-D1D498E12F48}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C3536F1-21F1-4C20-A6BD-D1D498E12F48}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C3536F1-21F1-4C20-A6BD-D1D498E12F48}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C3536F1-21F1-4C20-A6BD-D1D498E12F48}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

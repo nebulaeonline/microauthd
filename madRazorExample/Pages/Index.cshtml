@@ -1,0 +1,13 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Welcome";
+}
+
+<h2>Welcome to madRazorExample</h2>
+<p>This is a demo application using <strong>madAuthClient</strong> for authentication.</p>
+
+<ul>
+    <li><a asp-page="/Login">Log In</a> to start a session</li>
+    <li><a asp-page="/SecurePage">Visit a protected page</a> (requires login)</li>
+</ul>
