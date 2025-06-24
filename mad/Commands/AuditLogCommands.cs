@@ -72,11 +72,11 @@ internal static class AuditLogCommands
                     return;
                 }
 
-                Console.WriteLine($"{"Id",-36}  {"User",-36}  {"Action",-20}  {"Target",-20}  Time");
+                Console.WriteLine($"{"Id",-36}  {"User",-36}  {"Action",-20}  {"Target",-20}  {"Secondary",-20} Time");
                 Console.WriteLine(new string('-', 140));
                 foreach (var e in entries)
                 {
-                    Console.WriteLine($"{e.Id,-36}  {e.UserId,-36}  {e.Action,-20}  {e.Target,-20}  {e.Timestamp:u}");
+                    Console.WriteLine($"{e.Id,-36}  {e.UserId,-36}  {e.Action,-20}  {e.Target,-20}  {e.Secondary,-20} {e.Timestamp:u}");
                 }
             }
             catch (Exception ex)
@@ -145,6 +145,7 @@ internal static class AuditLogCommands
                     Console.WriteLine($"UserId:     {entry.UserId}");
                     Console.WriteLine($"Action:     {entry.Action}");
                     Console.WriteLine($"Target:     {entry.Target}");
+                    Console.WriteLine($"Secondary:  {entry.Secondary ?? "(none)"}");
                     Console.WriteLine($"Timestamp:  {entry.Timestamp:u}");
                     Console.WriteLine($"IP Address: {entry.IpAddress ?? "(none)"}");
                     Console.WriteLine($"User Agent: {entry.UserAgent ?? "(none)"}");

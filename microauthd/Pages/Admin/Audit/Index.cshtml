@@ -14,6 +14,7 @@
             <th>User ID</th>
             <th>Action</th>
             <th>Target</th>
+            <th>Secondary</th>
             <th>IP</th>
             <th>User Agent</th>
         </tr>
@@ -26,6 +27,7 @@
                 <td class="text-break">@log.UserId</td>
                 <td>@log.Action</td>
                 <td class="text-break">@log.Target</td>
+                <td class="text-break">@log.Secondary</td>"
                 <td>@log.IpAddress</td>
                 <td class="text-break">@log.UserAgent</td>
             </tr>
@@ -61,6 +63,7 @@
         <option value="10" selected="@((Model.PageSize == 10).ToString().ToLower())">10</option>
         <option value="25" selected="@((Model.PageSize == 25).ToString().ToLower())">25</option>
         <option value="50" selected="@((Model.PageSize == 50).ToString().ToLower())">50</option>
+        <option value="100" selected="@((Model.PageSize == 100).ToString().ToLower())">100</option>
     </select>
 </form>
 
