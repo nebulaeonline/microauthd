@@ -10,6 +10,12 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
+**2025-06-24**
+
+Some people are confused about what exactly microauthd is. You would use this instead of the built-in ASP.NET Core Identity system when you need real authentication across multiple platforms — not just a website. microauthd is built for shared login across web, SPA, mobile, and desktop apps, with proper token issuance, refresh, revocation, and machine-to-machine support. It separates identity from UI, so your backend services, CI jobs, and clients all speak the same auth language — without tying your auth logic to Razor Pages or EF Core.
+
+I am going to begin working on the machinery needed to be reliably hosted behind a reverse proxy. This will include the forwarded headers along with support for trusted proxies. I hope to have this in an working by tomorrow.
+
 **2025-06-23**
 
 I put together a client library (madAuthClient) to bridge the token-based authentication of microauthd with ASP.NET Core's cookie authentication. This allows you to use microauthd as a drop-in replacement for ASP.NET Core's built-in authentication system, while still using the same token-based authentication that microauthd provides. There is an example project in madRazorExample which uses this library to set up its auth provider.
