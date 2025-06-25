@@ -878,7 +878,7 @@ public static class UserService
     /// <see langword="true"/>, no sessions will be purged, and the method will return a message indicating that no
     /// action was taken. Audit logging is performed for all purge operations, including details about the number of
     /// sessions purged and the conditions used.</remarks>
-    /// <param name="olderThan">The time span used to determine the cutoff for expired sessions. Sessions older than this value will be
+    /// <param name="cutoffUtc">The time span used to determine the cutoff for expired sessions. Sessions older than this value will be
     /// considered for purging if <paramref name="purgeExpired"/> is <see langword="true"/>.</param>
     /// <param name="purgeExpired">A value indicating whether to purge sessions that have expired.</param>
     /// <param name="purgeRevoked">A value indicating whether to purge sessions that have been explicitly revoked.</param>
@@ -890,7 +890,7 @@ public static class UserService
     /// operation. If no sessions match the specified conditions, the message will indicate that nothing was purged.
     /// Otherwise, the message will specify the number of sessions that were purged.</returns>
     public static ApiResult<MessageResponse> PurgeSessions(
-    TimeSpan olderThan,
+    DateTime cutoffUtc,
     bool purgeExpired,
     bool purgeRevoked,
     AppConfig config,
@@ -901,7 +901,7 @@ public static class UserService
         try
         {
             (bool success, int purged) = UserStore.PurgeSessions(
-                olderThan: olderThan,
+                olderThanUtc: cutoffUtc,
                 purgeExpired: purgeExpired,
                 purgeRevoked: purgeRevoked
             );
@@ -1076,8 +1076,11 @@ public static class UserService
     {
         try
         {
+            var span = TimeSpan.FromSeconds(req.OlderThanSeconds);
+            var cutoffUtc = DateTime.UtcNow - span;
+
             (bool success, int purged) = UserStore.PurgeRefreshTokens(
-                olderThan: TimeSpan.FromSeconds(req.OlderThanSeconds),
+                olderThanUtc: cutoffUtc,
                 purgeExpired: req.PurgeExpired,
                 purgeRevoked: req.PurgeRevoked
             );
@@ -1348,4 +1351,10 @@ public static class UserService
     /// </summary>
     /// <returns>The total count of active user sessions. Returns 0 if there are no active sessions.</returns>
     public static int GetUserSessionCount() => UserStore.GetUserSessionCount();
+
+    /// <summary>
+    /// Retrieves the number of active user sessions currently tracked by the system.
+    /// </summary>
+    /// <returns>The total count of active user sessions. Returns 0 if no active sessions are found.</returns>
+    public static int GetActiveUserSessionCount() => UserStore.GetActiveUserSessionCount();
 }

@@ -11,5 +11,6 @@ public static class SystemMetrics
     public static int ClientCount => ClientService.GetClientCount();
     public static int ScopeCount => ScopeService.GetScopeCount();
     public static int AuditLogCount => AuditService.GetAuditLogCount();
-    public static int ActiveSessionCount => UserService.GetUserSessionCount();
+    public static int ActiveSessionCount => UserService.GetActiveUserSessionCount();
+    public static int TotalSessionCount => UserService.GetUserSessionCount();
 }

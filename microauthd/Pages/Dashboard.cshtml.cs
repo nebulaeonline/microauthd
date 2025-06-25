@@ -14,6 +14,7 @@ public class DashboardModel : BasePageModel
     public int ScopeCount { get; private set; }
     public int AuditLogCount { get; private set; }
     public int ActiveSessionCount { get; private set; }
+    public int TotalSessionCount { get; private set; }
 
     public void OnGet()
     {
@@ -24,5 +25,6 @@ public class DashboardModel : BasePageModel
         ScopeCount = SystemMetrics.ScopeCount;
         AuditLogCount = SystemMetrics.AuditLogCount;
         ActiveSessionCount = SystemMetrics.ActiveSessionCount;
+        TotalSessionCount = SystemMetrics.TotalSessionCount;
     }
 }

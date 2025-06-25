@@ -8,6 +8,8 @@ public sealed class RefreshTokenResponse
     public string Id { get; init; } = string.Empty;
     [JsonPropertyName("user_id")]
     public string UserId { get; init; } = string.Empty;
+    [JsonPropertyName("username")]
+    public string Username { get; init; } = string.Empty;
     [JsonPropertyName("session_id")]
     public string SessionId { get; init; } = string.Empty;
     [JsonPropertyName("client_id")]

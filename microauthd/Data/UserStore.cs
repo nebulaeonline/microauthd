@@ -452,7 +452,7 @@ public static class UserStore
     /// <remarks>This method updates the session records in the database to mark them as revoked. Once
     /// revoked, the sessions will no longer be valid for authentication or access.</remarks>
     /// <param name="userId">The unique identifier of the user whose sessions should be revoked.  This parameter cannot be null or empty.</param>
-    public static void RevokeUserSessions(string userId)
+    public static bool RevokeUserSessions(string userId)
     {
         Db.WithConnection(conn =>
         {
@@ -461,6 +461,8 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$uid", userId);
             cmd.ExecuteNonQuery();
         });
+
+        return true;
     }
 
     /// <summary>
@@ -536,6 +538,61 @@ public static class UserStore
         });
 
         return token;
+    }
+
+    /// <summary>
+    /// Retrieves a paginated list of refresh tokens along with associated user information.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve refresh tokens and their associated user
+    /// information. The results are paginated using the <paramref name="offset"/> and <paramref name="limit"/>
+    /// parameters.</remarks>
+    /// <param name="offset">The zero-based index of the first refresh token to retrieve. Must be non-negative.</param>
+    /// <param name="limit">The maximum number of refresh tokens to retrieve. Must be greater than zero.</param>
+    /// <returns>A list of <see cref="RefreshTokenResponse"/> objects, each containing details about a refresh token and its
+    /// associated user. The list is ordered by the issuance date of the refresh tokens in descending order.</returns>
+    public static List<RefreshTokenResponse> ListRefreshTokensWithUsername(int offset = 0, int limit = 50)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT
+                    rt.id,
+                    rt.user_id,
+                    u.username,
+                    rt.session_id,
+                    rt.client_identifier,
+                    rt.issued_at,
+                    rt.expires_at,
+                    rt.is_revoked
+                FROM refresh_tokens rt
+                JOIN users u ON rt.user_id = u.id
+                ORDER BY rt.issued_at DESC
+                LIMIT $limit OFFSET $offset;
+            """;
+            cmd.Parameters.AddWithValue("$limit", limit);
+            cmd.Parameters.AddWithValue("$offset", offset);
+
+            using var reader = cmd.ExecuteReader();
+            var results = new List<RefreshTokenResponse>();
+
+            while (reader.Read())
+            {
+                results.Add(new RefreshTokenResponse
+                {
+                    Id = reader.GetString(0),
+                    UserId = reader.GetString(1),
+                    Username = reader.GetString(2),
+                    SessionId = reader.GetString(3),
+                    ClientIdentifier = reader.GetString(4),
+                    IssuedAt = reader.GetDateTime(5),
+                    ExpiresAt = reader.GetDateTime(6),
+                    IsRevoked = reader.GetBoolean(7)
+                });
+            }
+
+            return results;
+        });
     }
 
     /// <summary>
@@ -625,8 +682,8 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked)
-                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0);
+                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, token_use)
+                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $use);
                 """;
             cmd.Parameters.AddWithValue("$id", token.Jti);
             cmd.Parameters.AddWithValue("$uid", token.UserId);
@@ -634,6 +691,7 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$token", token.Token);
             cmd.Parameters.AddWithValue("$iat", token.IssuedAt.ToString("o"));
             cmd.Parameters.AddWithValue("$exp", token.ExpiresAt.ToString("o"));
+            cmd.Parameters.AddWithValue("$use", token.TokenUse);
             cmd.ExecuteNonQuery();
         });
     }
@@ -684,6 +742,60 @@ public static class UserStore
         });
 
         return sessions;
+    }
+
+    /// <summary>
+    /// Retrieves a paginated list of session records from the database.
+    /// </summary>
+    /// <remarks>The sessions are ordered by their issuance time in descending order. This method is useful
+    /// for retrieving session data for auditing, monitoring, or user activity tracking.</remarks>
+    /// <param name="offset">The zero-based index of the first session record to retrieve. Must be non-negative.</param>
+    /// <param name="limit">The maximum number of session records to retrieve. Must be greater than zero.</param>
+    /// <returns>A list of <see cref="SessionResponse"/> objects representing session records. The list will be empty if no
+    /// sessions match the specified criteria.</returns>
+    public static List<SessionResponse> ListSessions(int offset = 0, int limit = 50)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT
+                    s.id,
+                    s.user_id,
+                    u.username,
+                    s.client_identifier,
+                    s.issued_at,
+                    s.expires_at,
+                    s.is_revoked,
+                    s.token_use
+                FROM sessions s
+                LEFT JOIN users u ON s.user_id = u.id
+                ORDER BY s.issued_at DESC
+                LIMIT $limit OFFSET $offset;
+            """;
+            cmd.Parameters.AddWithValue("$limit", limit);
+            cmd.Parameters.AddWithValue("$offset", offset);
+
+            using var reader = cmd.ExecuteReader();
+            var sessions = new List<SessionResponse>();
+
+            while (reader.Read())
+            {
+                sessions.Add(new SessionResponse
+                {
+                    Id = reader.GetString(0),
+                    UserId = reader.GetString(1),
+                    Username = reader.GetString(2),
+                    ClientIdentifier = reader.GetString(3),
+                    IssuedAt = reader.GetDateTime(4),
+                    ExpiresAt = reader.GetDateTime(5),
+                    IsRevoked = reader.GetBoolean(6),
+                    TokenUse = reader.GetString(7)
+                });
+            }
+
+            return sessions;
+        });
     }
 
     /// <summary>
@@ -960,27 +1072,31 @@ public static class UserStore
     /// <summary>
     /// Deletes session records from the database based on specified criteria.
     /// </summary>
-    /// <remarks>This method performs a bulk deletion of session records based on the specified criteria. If
-    /// neither  <paramref name="purgeExpired"/> nor <paramref name="purgeRevoked"/> is <see langword="true"/>, no
-    /// records will  be deleted, and the method will return a success value of <see langword="true"/> with a purged
-    /// count of 0.</remarks>
-    /// <param name="olderThan">A <see cref="TimeSpan"/> representing the age threshold for expired sessions. Sessions older than this value 
-    /// will be considered for deletion if <paramref name="purgeExpired"/> is <see langword="true"/>.</param>
-    /// <param name="purgeExpired">A <see langword="bool"/> indicating whether to delete sessions that have expired. If <see langword="true"/>, 
-    /// sessions with an expiration date older than the current time minus <paramref name="olderThan"/> will be purged.</param>
-    /// <param name="purgeRevoked">A <see langword="bool"/> indicating whether to delete sessions that have been explicitly revoked. If  <see
-    /// langword="true"/>, sessions marked as revoked will be purged.</param>
-    /// <returns>A tuple containing two values: <list type="bullet"> <item> <description> <see langword="success"/>: A <see
-    /// langword="bool"/> indicating whether the operation completed successfully. </description> </item> <item>
-    /// <description> <see langword="purged"/>: An <see langword="int"/> representing the number of session records that
-    /// were deleted. </description> </item> </list></returns>
-    public static (bool success, int purged) PurgeSessions(TimeSpan olderThan, bool purgeExpired, bool purgeRevoked)
+    /// <remarks>This method performs a bulk deletion of session records based on the specified criteria. At
+    /// least one of <paramref name="purgeExpired"/> or <paramref name="purgeRevoked"/> must be <see langword="true"/>
+    /// for any records to be purged.</remarks>
+    /// <param name="olderThanUtc">The cutoff date and time in UTC. Sessions older than this value may be purged if the relevant criteria are
+    /// enabled.</param>
+    /// <param name="purgeExpired">A value indicating whether expired sessions should be purged. If <see langword="true"/>, sessions with an
+    /// expiration date earlier than <paramref name="olderThanUtc"/> will be deleted.</param>
+    /// <param name="purgeRevoked">A value indicating whether revoked sessions should be purged. If <see langword="true"/>, sessions marked as
+    /// revoked will be deleted.</param>
+    /// <returns>A tuple containing the result of the operation: <list type="bullet"> <item> <term><c>success</c></term>
+    /// <description><see langword="true"/> if the operation completed successfully; otherwise, <see
+    /// langword="false"/>.</description> </item> <item> <term><c>purged</c></term> <description>The number of session
+    /// records that were deleted.</description> </item> </list></returns>
+    public static (bool success, int purged) PurgeSessions(DateTime olderThanUtc, bool purgeExpired, bool purgeRevoked)
     {
         var conditions = new List<string>();
+
+        const string cutoffExpr = "strftime('%s', $cutoff)";
+        const string expiresExpr = "strftime('%s', datetime(substr(expires_at, 1, 19)))";
+
         if (purgeExpired)
-            conditions.Add("expires_at < datetime('now', $cutoff)");
+            conditions.Add($"(is_revoked = 0 AND {expiresExpr} < {cutoffExpr})");
+
         if (purgeRevoked)
-            conditions.Add("is_revoked = 1");
+            conditions.Add($"(is_revoked = 1 AND {expiresExpr} < {cutoffExpr})");
 
         if (conditions.Count == 0)
             return (true, 0);
@@ -992,8 +1108,9 @@ public static class UserStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = $"DELETE FROM sessions WHERE {whereClause};";
 
-            if (purgeExpired)
-                cmd.Parameters.AddWithValue("$cutoff", $"-{(int)olderThan.TotalSeconds} seconds");
+            // 👇 Assume input is already UTC — do NOT call ToUniversalTime()
+            var cutoffStr = olderThanUtc.ToString("yyyy-MM-dd HH:mm:ss");
+            cmd.Parameters.AddWithValue("$cutoff", cutoffStr);
 
             return cmd.ExecuteNonQuery();
         });
@@ -1129,31 +1246,32 @@ public static class UserStore
     }
 
     /// <summary>
-    /// Deletes refresh tokens from the database based on specified conditions.
+    /// Deletes refresh tokens from the database based on specified criteria.
     /// </summary>
-    /// <remarks>At least one of <paramref name="purgeExpired"/> or <paramref name="purgeRevoked"/> must be
-    /// <see langword="true"/> for the method to perform any deletions. If neither condition is specified, the method
-    /// will return a success result with zero tokens purged.</remarks>
-    /// <param name="olderThan">A <see cref="TimeSpan"/> representing the age threshold for tokens to be purged. Tokens older than this duration
-    /// will be considered for deletion if <paramref name="purgeExpired"/> is <see langword="true"/>.</param>
-    /// <param name="purgeExpired">A <see langword="bool"/> indicating whether expired tokens should be purged. If <see langword="true"/>, tokens
-    /// with an expiration date earlier than the cutoff will be deleted.</param>
-    /// <param name="purgeRevoked">A <see langword="bool"/> indicating whether revoked tokens should be purged. If <see langword="true"/>, tokens
-    /// marked as revoked will be deleted.</param>
-    /// <returns>A tuple containing: <list type="bullet"> <item> <term><see langword="success"/></term> <description>A <see
-    /// langword="bool"/> indicating whether the operation completed successfully.</description> </item> <item>
-    /// <term><see langword="purged"/></term> <description>An <see cref="int"/> representing the number of tokens that
-    /// were deleted.</description> </item> </list></returns>
-    public static (bool success, int purged) PurgeRefreshTokens(TimeSpan olderThan, bool purgeExpired, bool purgeRevoked)
+    /// <remarks>This method allows selective purging of refresh tokens based on expiration and revocation
+    /// status. If neither <paramref name="purgeExpired"/> nor <paramref name="purgeRevoked"/> is <see
+    /// langword="true"/>, no tokens will be purged.</remarks>
+    /// <param name="olderThanUtc">A <see cref="DateTime"/> value representing the cutoff date and time in UTC. Tokens created before this date may
+    /// be purged, depending on the specified criteria.</param>
+    /// <param name="purgeExpired">A <see langword="true"/> value indicates that expired tokens should be purged; otherwise, <see
+    /// langword="false"/>.</param>
+    /// <param name="purgeRevoked">A <see langword="true"/> value indicates that revoked tokens should be purged; otherwise, <see
+    /// langword="false"/>.</param>
+    /// <returns>A tuple containing two values: <list type="bullet"> <item> <description><see langword="success"/>: A <see
+    /// langword="true"/> value indicates the operation completed successfully.</description> </item> <item>
+    /// <description><see langword="purged"/>: An <see cref="int"/> representing the number of tokens that were
+    /// deleted.</description> </item> </list></returns>
+    public static (bool success, int purged) PurgeRefreshTokens(DateTime olderThanUtc, bool purgeExpired, bool purgeRevoked)
     {
         var conditions = new List<string>();
+
         if (purgeExpired)
-            conditions.Add("expires_at < datetime('now', $cutoff)");
+            conditions.Add("strftime('%s', expires_at) < strftime('%s', $cutoff)");
         if (purgeRevoked)
-            conditions.Add("is_revoked = 1");
+            conditions.Add("(is_revoked = 1 AND strftime('%s', expires_at) < strftime('%s', $cutoff))");
 
         if (conditions.Count == 0)
-            return (true, 0);
+            return (true, 0); // nothing to do
 
         var whereClause = string.Join(" OR ", conditions);
 
@@ -1161,10 +1279,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = $"DELETE FROM refresh_tokens WHERE {whereClause};";
-
-            if (purgeExpired)
-                cmd.Parameters.AddWithValue("$cutoff", $"-{(int)olderThan.TotalSeconds} seconds");
-
+            cmd.Parameters.AddWithValue("$cutoff", olderThanUtc);
             return cmd.ExecuteNonQuery();
         });
 
@@ -1358,17 +1473,66 @@ public static class UserStore
     }
 
     /// <summary>
-    /// Retrieves the count of active user sessions.
+    /// Retrieves the total number of user sessions from the database.
     /// </summary>
-    /// <remarks>An active session is defined as a session that has not been revoked and has an expiration
-    /// time later than the current time.</remarks>
-    /// <returns>The total number of active user sessions.</returns>
+    /// <remarks>This method executes a query against the database to count the entries in the "sessions"
+    /// table. Ensure that the database connection is properly configured and accessible before calling this
+    /// method.</remarks>
+    /// <returns>The total count of active user sessions. Returns 0 if no sessions are found.</returns>
     public static int GetUserSessionCount()
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM sessions WHERE is_revoked = 0 AND expires_at > datetime('now');";
+            cmd.CommandText = "SELECT COUNT(*) FROM sessions;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the count of active user sessions from the database.
+    /// </summary>
+    /// <remarks>An active session is defined as a session that has not been revoked and has an expiration
+    /// time later than the current time.</remarks>
+    /// <returns>The total number of active user sessions. Returns 0 if no active sessions are found.</returns>
+    public static int GetActiveUserSessionCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM sessions WHERE is_revoked = 0 AND strftime('%s', expires_at) > strftime('%s', 'now');";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the count of active refresh tokens.
+    /// </summary>
+    /// <remarks>A refresh token is considered active if it has not been revoked and its expiration time is in
+    /// the future. This method queries the database to calculate the count of such tokens.</remarks>
+    /// <returns>The total number of active refresh tokens.</returns>
+    public static int GetActiveRefreshTokenCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM refresh_tokens WHERE is_revoked = 0 AND strftime('%s', expires_at) > strftime('%s', 'now');";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the total number of refresh tokens stored in the database.
+    /// </summary>
+    /// <remarks>This method executes a SQL query to count the rows in the "refresh_tokens" table. Ensure that
+    /// the database connection is properly configured before calling this method.</remarks>
+    /// <returns>The total count of refresh tokens as an integer. Returns 0 if no refresh tokens are found.</returns>
+    public static int GetRefreshTokenCount()
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM refresh_tokens;";
             return Convert.ToInt32(cmd.ExecuteScalar());
         });
     }

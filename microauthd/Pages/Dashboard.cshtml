@@ -47,7 +47,10 @@
         <div class="card text-bg-dark">
             <div class="card-body">
                 <h5 class="card-title">Active Sessions</h5>
-                <p class="card-text display-6">@Model.ActiveSessionCount</p>
+                <p class="card-text display-6 d-flex justify-content-between align-items-end">
+                    @Model.ActiveSessionCount
+                    <small>(@Model.TotalSessionCount total)</small>
+                </p>                
             </div>
         </div>
     </div>

@@ -8,6 +8,8 @@ public sealed class SessionResponse
     public string Id { get; init; } = string.Empty;
     [JsonPropertyName("user_id")]
     public string UserId { get; init; } = string.Empty;
+    [JsonPropertyName("username")]
+    public string Username { get; init; } = string.Empty;
     [JsonPropertyName("client_id")]
     public string ClientIdentifier { get; init; } = string.Empty;
     [JsonPropertyName("issued_at")]

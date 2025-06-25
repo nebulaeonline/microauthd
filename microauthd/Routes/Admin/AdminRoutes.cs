@@ -382,7 +382,8 @@ public static class AdminRoutes
             var userId = ctx.User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
             var span = TimeSpan.FromSeconds(req.OlderThanSeconds);
-            var result = UserService.PurgeSessions(span, req.PurgeExpired, req.PurgeRevoked, config, userId, ip, ua);
+            var cutoffUtc = DateTime.UtcNow - span;
+            var result = UserService.PurgeSessions(cutoffUtc, req.PurgeExpired, req.PurgeRevoked, config, userId, ip, ua);
             return result.ToHttpResult();
         })
         .RequireAuthorization()

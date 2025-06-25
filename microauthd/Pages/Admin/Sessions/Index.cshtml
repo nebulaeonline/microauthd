@@ -1,0 +1,130 @@
+﻿@page
+@model microauthd.Pages.Admin.Sessions.IndexModel
+@{
+    ViewData["Title"] = "Session Management";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">Sessions</h2>
+<div class="d-flex justify-content-between align-items-end mb-3">
+    <!-- Left: Page size dropdown -->
+    <form method="get" class="mb-3">
+        <label for="pageSize" class="form-label me-2">Sessions per page:</label>
+        <select name="pageSize" id="pageSize" class="form-select d-inline w-auto me-2" onchange="this.form.submit()">
+            <option value="10" selected="@((Model.PageSize == 10) ? "selected" : null)">10</option>
+            <option value="25" selected="@((Model.PageSize == 25) ? "selected" : null)">25</option>
+            <option value="50" selected="@((Model.PageSize == 50) ? "selected" : null)">50</option>
+            <option value="100" selected="@((Model.PageSize == 100) ? "selected" : null)">100</option>
+        </select>
+        <input type="hidden" name="page" value="1" />
+    </form>
+
+    <!-- Right: Purge form -->
+    <form method="post" asp-page-handler="Purge" class="d-flex flex-wrap align-items-end gap-2">
+        <div>
+            <label asp-for="OlderThan" class="form-label mb-0 small">Purge older than</label>
+            <input asp-for="OlderThan" class="form-control" type="datetime-local" required />
+        </div>
+
+        <div class="form-check align-self-center">
+            <input asp-for="PurgeExpired" class="form-check-input" type="checkbox" />
+            <label asp-for="PurgeExpired" class="form-check-label small">Expired</label>
+        </div>
+
+        <div class="form-check align-self-center">
+            <input asp-for="PurgeRevoked" class="form-check-input" type="checkbox" />
+            <label asp-for="PurgeRevoked" class="form-check-label small">Revoked</label>
+        </div>
+
+        <button type="submit" class="btn btn-outline-danger">Purge Sessions</button>
+    </form>
+</div>
+@if (!string.IsNullOrWhiteSpace(TempData["Success"] as string))
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (!string.IsNullOrWhiteSpace(TempData["Error"] as string))
+{
+    <div class="alert alert-success">@TempData["Error"]</div>
+}
+<table class="table table-dark table-bordered align-middle">
+    <thead>
+        <tr>
+            <th>User ID</th>
+            <th>Client</th>
+            <th>Issued At</th>
+            <th>Expires</th>
+            <th>Revoked</th>
+            <th>Token Use</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var s in Model.Sessions)
+        {
+            <tr>
+                <td>
+                    <div class="fw-bold">@s.Username</div>
+                    <div class="small text-break">@s.UserId</div>
+                    <form method="post"
+                          asp-page-handler="RevokeAllForUser"
+                          asp-route-userId="@s.UserId"
+                          class="mt-1">
+                        <button type="submit"
+                                class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Revoke all sessions for @s.Username?');">
+                            Revoke All for @s.Username
+                        </button>
+                    </form>
+                </td>
+                <td>@s.ClientIdentifier</td>
+                <td>@s.IssuedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>
+                    @s.ExpiresAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                    @if (s.ExpiresAt.ToUniversalTime() < DateTime.UtcNow)
+                    {
+                        <span title="Expired">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="red" class="ms-2" viewBox="0 0 24 24">
+                                <path d="m9 7l2 5l-2 5h2l1-2.5l1 2.5h2l-2-5l2-5h-2l-1 2.5L11 7zM5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2" />
+                            </svg>
+                        </span>
+                    }
+                </td>
+                <td>
+                    @if (s.IsRevoked)
+                    {
+                        <span class="badge bg-secondary">Yes</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-success me-2">No</span>
+                        <form method="post" asp-page-handler="Revoke" asp-route-id="@s.Id" class="d-inline">
+                            <button class="btn btn-sm btn-warning">Revoke</button>
+                        </form>
+                    }
+                </td>
+                <td>@s.TokenUse</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (Model.TotalCount > Model.PageSize)
+{
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                var totalPages = (int)Math.Ceiling(Model.TotalCount / (double)Model.PageSize);
+                for (int i = 1; i <= totalPages; i++)
+                {
+                    var active = i == Model.CurrentPage ? "active" : "";
+                    <li class="page-item @active">
+                        <a class="page-link"
+                           asp-page="/Admin/Sessions/Index"
+                           asp-route-pg="@i"
+                           asp-route-pageSize="@Model.PageSize">@i</a>
+                    </li>
+                }
+            }
+        </ul>
+    </nav>
+}

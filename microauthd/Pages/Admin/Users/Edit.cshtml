@@ -27,10 +27,15 @@
         <label asp-for="UserForm.IsActive" class="form-label">Active</label>
         <input asp-for="UserForm.IsActive" class="form-check-input ms-2" type="checkbox" />
     </div>
-    <div class="mb-3">
-        <label asp-for="UserForm.LockoutUntil" class="form-label">Lockout Until (UTC)</label>
-        <input asp-for="UserForm.LockoutUntil" type="datetime-local" class="form-control w-50" />
-        <span asp-validation-for="UserForm.LockoutUntil" class="text-danger"></span>
+    <div class="mb-3 d-flex align-items-end gap-2">
+        <div class="flex-grow-1">
+            <label asp-for="UserForm.LockoutUntil" class="form-label">Lockout Until (UTC)</label>
+            <input asp-for="UserForm.LockoutUntil" type="datetime-local" class="form-control" id="lockoutUntilInput" />
+            <span asp-validation-for="UserForm.LockoutUntil" class="text-danger"></span>
+        </div>
+        <div class="mb-2">
+            <button type="button" class="btn btn-outline-secondary" onclick="clearLockout()">Clear</button>
+        </div>
     </div>
     <div class="mb-3 form-check">
         <input asp-for="UserForm.PermanentLockout" class="form-check-input" />
@@ -48,4 +53,9 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        function clearLockout() {
+            document.getElementById("lockoutUntilInput").value = "";
+        }
+    </script>
 }
