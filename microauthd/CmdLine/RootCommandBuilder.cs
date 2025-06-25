@@ -67,6 +67,8 @@ public static class RootCommandBuilder
 
         root.AddOption(Options.TrustedProxies);
 
+        root.AddOption(Options.ServePublicAuthFiles);
+
         return root;
     }
 }
