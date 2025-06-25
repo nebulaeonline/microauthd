@@ -66,6 +66,9 @@ internal class OobeState
 
     public List<string> TrustedProxies = new();
 
+    public bool EnablePkce = false;
+    public int PkceCodeLifetime = 0;
+
     public OobeState(AppConfig config)
     {
         Config = config;

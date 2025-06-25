@@ -1,5 +1,6 @@
 ﻿using madTypes.Api.Requests;
 using madTypes.Api.Responses;
+using madTypes.Api.Common;
 using madTypes.Common;
 using microauthd.Config;
 using microauthd.Tokens;
@@ -147,6 +148,197 @@ public static class AuthService
         return VerifyEncoded(Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret))
             ? client
             : null;
+    }
+
+    /// <summary>
+    /// Handles an OAuth 2.0 authorization request and generates an authorization code.
+    /// </summary>
+    /// <remarks>This method processes the query parameters of an incoming HTTP request to validate and handle
+    /// an authorization request in accordance with the OAuth 2.0 specification. It validates required parameters,
+    /// checks for supported values, and generates an authorization code if the request is valid. The generated code is
+    /// stored for later use in the authorization flow.</remarks>
+    /// <param name="req">The incoming HTTP request containing the authorization query parameters. The request must include the following
+    /// parameters: <list type="bullet"> <item><term>response_type</term>: Must be "code".</item>
+    /// <item><term>client_id</term>: The client identifier.</item> <item><term>redirect_uri</term>: The URI to redirect
+    /// the user after authorization.</item> <item><term>scope</term>: The requested scope of access (optional).</item>
+    /// <item><term>state</term>: A value used to maintain state between the request and callback (optional).</item>
+    /// <item><term>code_challenge</term>: The PKCE code challenge.</item> <item><term>code_challenge_method</term>: The
+    /// method used to transform the code challenge. Must be "S256" or "plain".</item> </list></param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a dictionary with the following keys: <list type="bullet">
+    /// <item><term>code</term>: The generated authorization code.</item> <item><term>state</term>: The state value
+    /// provided in the request, if any.</item> </list> If the request is invalid, the result contains an error message
+    /// and a corresponding HTTP status code.</returns>
+    public static ApiResult<Dictionary<string, object>> HandleAuthorizationRequest(HttpRequest req)
+    {
+        var query = req.Query;
+
+        var responseType = query["response_type"].ToString();
+        var clientId = query["client_id"].ToString();
+        var redirectUri = query["redirect_uri"].ToString();
+        var scope = query["scope"].ToString();
+        var state = query["state"].ToString();
+        var codeChallenge = query["code_challenge"].ToString();
+        var codeChallengeMethod = query["code_challenge_method"].ToString();
+
+        if (string.IsNullOrWhiteSpace(responseType) || responseType != "code")
+            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(redirectUri))
+            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+
+        if (string.IsNullOrWhiteSpace(codeChallenge))
+            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+
+        if (codeChallengeMethod != "S256" && codeChallengeMethod != "plain")
+            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+
+        // Generate auth code
+        var code = Utils.GenerateBase64EncodedRandomBytes(32);
+
+        AuthStore.StorePkceCode(new PkceCode
+        {
+            Code = code,
+            ClientId = clientId,
+            UserId = "",
+            RedirectUri = redirectUri,
+            CodeChallenge = codeChallenge,
+            CodeChallengeMethod = codeChallengeMethod,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(2),
+            IsUsed = false
+        });
+
+        var result = new Dictionary<string, object>
+        {
+            ["code"] = code,
+            ["state"] = state
+        };
+
+        return ApiResult<Dictionary<string, object>>.Ok(result);
+    }
+
+    /// <summary>
+    /// Exchanges a PKCE authorization code for a token response.
+    /// </summary>
+    /// <remarks>This method validates the provided PKCE authorization code and associated parameters,
+    /// ensuring that the code has not expired or been used, and that the client ID, redirect URI, and code verifier
+    /// match the expected values. If validation succeeds, the method marks the authorization code as used and attempts
+    /// to issue a token response. Currently, the PKCE flow is not fully implemented to associate the authorization code
+    /// with a user session.</remarks>
+    /// <param name="form">A collection of form data containing the required parameters for the PKCE exchange. The following keys are
+    /// expected: <list type="bullet"> <item><term>code</term><description>The PKCE authorization
+    /// code.</description></item> <item><term>client_id</term><description>The client identifier associated with the
+    /// authorization code.</description></item> <item><term>code_verifier</term><description>The code verifier used to
+    /// validate the code challenge.</description></item> <item><term>redirect_uri</term><description>The redirect URI
+    /// used during the authorization request.</description></item> </list></param>
+    /// <returns>An <see cref="ApiResult{TokenResponse}"/> containing the token response if the exchange is successful. If
+    /// validation fails, the result contains an error message and an appropriate HTTP status code.</returns>
+    public static ApiResult<TokenResponse> ExchangePkceCode(IFormCollection form, AppConfig config)
+    {
+        if (!config.EnablePkce)
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+
+        var code = form["code"].ToString();
+        var clientId = form["client_id"].ToString();
+        var codeVerifier = form["code_verifier"].ToString();
+        var redirectUri = form["redirect_uri"].ToString();
+
+        if (string.IsNullOrWhiteSpace(code) ||
+            string.IsNullOrWhiteSpace(clientId) ||
+            string.IsNullOrWhiteSpace(codeVerifier) ||
+            string.IsNullOrWhiteSpace(redirectUri))
+        {
+            Log.Warning("PKCE exchange failed: missing required fields. client_id={ClientId}, redirect_uri={RedirectUri}", clientId, redirectUri);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        var pkce = AuthStore.GetPkceCode(code);
+        if (pkce is null)
+        {
+            Log.Warning("PKCE exchange failed: code not found. client_id={ClientId}, code={Code}", clientId, code);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        if (pkce.IsUsed)
+        {
+            Log.Warning("PKCE exchange failed: code already used. client_id={ClientId}, code={Code}", clientId, code);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        if (pkce.ExpiresAt < DateTime.UtcNow)
+        {
+            Log.Warning("PKCE exchange failed: code expired. client_id={ClientId}, code={Code}, expired_at={ExpiredAt}", clientId, code, pkce.ExpiresAt);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        if (!string.Equals(pkce.ClientId, clientId, StringComparison.Ordinal) ||
+            !string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
+        {
+            Log.Warning("PKCE exchange failed: client_id or redirect_uri mismatch. client_id={ClientId}, expected_client_id={Expected}, redirect_uri={RedirectUri}, expected_redirect_uri={ExpectedUri}",
+                clientId, pkce.ClientId, redirectUri, pkce.RedirectUri);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        var challengeValid = pkce.CodeChallengeMethod.ToLowerInvariant() switch
+        {
+            "plain" => pkce.CodeChallenge == codeVerifier,
+            "s256" => pkce.CodeChallenge == Utils.ComputeS256Challenge(codeVerifier),
+            _ => false
+        };
+
+        if (!challengeValid)
+        {
+            Log.Warning("PKCE exchange failed: code_verifier did not match challenge. client_id={ClientId}, method={Method}", clientId, pkce.CodeChallengeMethod);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        AuthStore.MarkPkceCodeAsUsed(code);
+
+        if (string.IsNullOrWhiteSpace(pkce.UserId))
+        {
+            Log.Warning("PKCE exchange failed: no user associated with code. client_id={ClientId}, code={Code}", clientId, code);
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        }
+
+        var claims = AuthStore.GetUserClaims(pkce.UserId);
+        claims.Insert(0, new Claim(JwtRegisteredClaimNames.Sub, pkce.UserId));
+        claims.Add(new Claim("client_id", pkce.ClientId));
+
+        var scopeValues = claims
+            .Where(c => c.Type == "scope")
+            .Select(c => c.Value)
+            .Distinct()
+            .ToArray();
+
+        if (scopeValues.Any())
+            claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
+
+        var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientId);
+
+        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience);
+
+        UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientId);
+
+        string? refreshToken = null;
+        if (config.EnableTokenRefresh)
+        {
+            refreshToken = UserService.GenerateAndStoreRefreshToken(
+                config, pkce.UserId, tokenInfo.Jti, pkce.ClientId);
+        }
+
+        // attach the JTI to the PKCE code for later reference
+        AuthStore.AttachJtiToPkceCode(code, tokenInfo.Jti);
+
+        Log.Information("PKCE exchange successful. client_id={ClientId}, user_id={UserId}, jti={Jti}", clientId, pkce.UserId, tokenInfo.Jti);
+
+        return ApiResult<TokenResponse>.Ok(new TokenResponse
+        {
+            AccessToken = tokenInfo.Token,
+            TokenType = "bearer",
+            ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
+            Jti = tokenInfo.Jti,
+            RefreshToken = refreshToken,
+            Audience = audience
+        });
     }
 
     /// <summary>

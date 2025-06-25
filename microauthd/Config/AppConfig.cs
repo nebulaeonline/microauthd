@@ -67,4 +67,7 @@ public class AppConfig
     public bool EnableAdminSwagger { get; set; } = false;
 
     public List<string> TrustedProxies { get; set; } = new();
+
+    public bool EnablePkce { get; set; } = false;
+    public int PkceCodeLifetime { get; set; } = 0;
 }

@@ -1,11 +1,151 @@
-﻿using microauthd.Config;
+﻿using madTypes.Api.Common;
+using microauthd.Config;
 using Serilog;
 using System.Security.Claims;
 
 namespace microauthd.Data
 {
+    /// <summary>
+    /// Stores a PKCE (Proof Key for Code Exchange) code into the database
+    /// </summary>
     public static class AuthStore
     {
+        public static void StorePkceCode(PkceCode pkce)
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    INSERT INTO pkce_codes 
+                    (code, client_id, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti)
+                    VALUES
+                    ($code, $client_id, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti);
+                """;
+
+                cmd.Parameters.AddWithValue("$code", pkce.Code);
+                cmd.Parameters.AddWithValue("$client_id", pkce.ClientId);
+                cmd.Parameters.AddWithValue("$redirect_uri", pkce.RedirectUri);
+                cmd.Parameters.AddWithValue("$challenge", pkce.CodeChallenge);
+                cmd.Parameters.AddWithValue("$method", pkce.CodeChallengeMethod);
+                cmd.Parameters.AddWithValue("$expires", pkce.ExpiresAt.ToString("o")); // ISO 8601
+                cmd.Parameters.AddWithValue("$used", pkce.IsUsed ? 1 : 0);
+                cmd.Parameters.AddWithValue("$user_id", pkce.UserId);
+                cmd.Parameters.AddWithValue("$jti", (object?)pkce.Jti ?? DBNull.Value);
+
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        /// <summary>
+        /// Retrieves a PKCE code from the database based on the provided code identifier.
+        /// </summary>
+        /// <remarks>This method queries the database for a PKCE code matching the specified identifier.
+        /// If no matching code is found, the method returns <see langword="null"/>. The returned <see cref="PkceCode"/>
+        /// object includes information such as the client ID, redirect URI, code challenge, code challenge method,
+        /// expiration time, and usage status.</remarks>
+        /// <param name="code">The unique identifier of the PKCE code to retrieve. This value must not be null or empty.</param>
+        /// <returns>A <see cref="PkceCode"/> object containing the details of the PKCE code if found; otherwise, <see
+        /// langword="null"/>.</returns>
+        public static PkceCode? GetPkceCode(string code)
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    SELECT code, client_id, redirect_uri, code_challenge, code_challenge_method,
+                           expires_at, is_used, user_id, jti
+                    FROM pkce_codes
+                    WHERE code = $code
+                    LIMIT 1;
+                """;
+                cmd.Parameters.AddWithValue("$code", code);
+
+                using var reader = cmd.ExecuteReader();
+                if (!reader.Read()) return null;
+
+                return new PkceCode
+                {
+                    Code = reader.GetString(0),
+                    ClientId = reader.GetString(1),
+                    RedirectUri = reader.GetString(2),
+                    CodeChallenge = reader.GetString(3),
+                    CodeChallengeMethod = reader.GetString(4),
+                    ExpiresAt = DateTime.Parse(reader.GetString(5)), // ISO 8601
+                    IsUsed = reader.GetBoolean(6),
+                    UserId = reader.GetString(7),
+                    Jti = reader.IsDBNull(8) ? null : reader.GetString(8)
+                };
+            });
+        }
+
+        /// <summary>
+        /// Associates a user with a PKCE code in the database.
+        /// </summary>
+        /// <remarks>This method updates the database to associate the specified user with the given PKCE
+        /// code. The operation will only succeed if the code exists and has not already been used.</remarks>
+        /// <param name="code">The PKCE code to be updated. This must correspond to an existing, unused code in the database.</param>
+        /// <param name="userId">The unique identifier of the user to associate with the PKCE code.</param>
+        public static void AttachUserToPkceCode(string code, string userId)
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    UPDATE pkce_codes
+                    SET user_id = $userId
+                    WHERE code = $code AND is_used = 0;
+                """;
+                cmd.Parameters.AddWithValue("$code", code);
+                cmd.Parameters.AddWithValue("$userId", userId);
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        /// <summary>
+        /// Associates a JSON Web Token ID (JTI) with a PKCE code in the database.
+        /// </summary>
+        /// <remarks>This method updates the database to attach the specified JTI to the given PKCE code,
+        /// provided the code has not already been used. The operation is performed within a database
+        /// connection.</remarks>
+        /// <param name="code">The PKCE code to which the JTI will be attached. This value must correspond to an existing, unused code in
+        /// the database.</param>
+        /// <param name="jti">The JSON Web Token ID (JTI) to associate with the specified PKCE code. This value is typically used to track
+        /// and validate token usage.</param>
+        public static void AttachJtiToPkceCode(string code, string jti)
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    UPDATE pkce_codes
+                    SET jti = $jti
+                    WHERE code = $code AND is_used = 0;
+                """;
+                cmd.Parameters.AddWithValue("$code", code);
+                cmd.Parameters.AddWithValue("$jti", jti);
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        /// <summary>
+        /// Marks the specified PKCE code as used in the database.
+        /// </summary>
+        /// <remarks>This method updates the database to indicate that the provided PKCE code has been
+        /// used. Ensure that the <paramref name="code"/> corresponds to a valid entry in the database.</remarks>
+        /// <param name="code">The PKCE code to mark as used. This value must not be null or empty.</param>
+        public static void MarkPkceCodeAsUsed(string code)
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    UPDATE pkce_codes SET is_used = 1 WHERE code = $code;
+                """;
+                cmd.Parameters.AddWithValue("$code", code);
+                cmd.ExecuteNonQuery();
+            });
+        }
+
         /// <summary>
         /// Retrieves a list of claims associated with the specified user.
         /// </summary>

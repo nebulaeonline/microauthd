@@ -170,6 +170,8 @@ public static class ConfigLoader
             EnableAuthSwagger = GetBool(Options.EnableAuthSwagger),
             EnableAdminSwagger = GetBool(Options.EnableAdminSwagger),
             TrustedProxies = GetStringList(Options.TrustedProxies),
+            EnablePkce = GetBool(Options.EnablePkce),
+            PkceCodeLifetime = GetInt(Options.PkceCodeLifetime),
         };
     }
 

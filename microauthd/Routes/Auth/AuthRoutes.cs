@@ -110,6 +110,17 @@ public static class AuthRoutes
         .WithTags("me")
         .WithOpenApi();
 
+        // authorize for pkce endpoint**************************************************************
+        if (config.EnablePkce)
+        {
+            group.MapGet("/authorize", (HttpRequest request, HttpContext ctx) =>
+            {
+                return AuthService.HandleAuthorizationRequest(request).ToHttpResult();
+            })
+            .WithName("Authorize")
+            .WithTags("oidc")
+            .Produces<Dictionary<string, object>>(StatusCodes.Status200OK);
+        }
         // token request endpoint*******************************************************************
         group.MapPost("/token", async (AppConfig config, HttpContext ctx) =>
         {
@@ -137,7 +148,12 @@ public static class AuthRoutes
                     form, 
                     config)
                 .ToHttpResult(),
-                
+
+                "authorization_code" => AuthService.ExchangePkceCode(
+                    form,
+                    config)
+                .ToHttpResult(),
+
                 _ => ApiResult<TokenResponse>.Fail("Unsupported grant_type", 400).ToHttpResult()
             };            
         })

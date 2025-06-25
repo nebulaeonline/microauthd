@@ -518,10 +518,30 @@ internal static class Options
     /// X-Forwarded-For header. It can be configured via the environment variable <c>MAD_TRUSTED_PROXIES</c>. Multiple
     /// arguments can be provided per token.</remarks>
     public static readonly Option<List<string>> TrustedProxies =
-    new Option<List<string>>(
-        name: "--trusted-proxies",
-        description: "Comma-separated list of IP addresses to trust in X-Forwarded-For (env var MAD_TRUSTED_PROXIES)")
+        new Option<List<string>>(name: "--trusted-proxies", description: "Comma-separated list of IP addresses to trust in X-Forwarded-For (env var MAD_TRUSTED_PROXIES)")
     {
         AllowMultipleArgumentsPerToken = true
     };
+
+    /// <summary>
+    /// Represents an option to enable or disable PKCE (Proof Key for Code Exchange) support.
+    /// </summary>
+    /// <remarks>PKCE is a security feature used in OAuth 2.0 authorization flows to mitigate certain attack
+    /// vectors. By default, this option is enabled (<see langword="true"/>). The value can be overridden using the
+    /// environment variable <c>MAD_ENABLE_PKCE</c> set to <c>1</c>.</remarks>
+    public static readonly Option<bool> EnablePkce = 
+        new Option<bool>("--enable-pkce", () => true, "Enable PKCE (Proof Key for Code Exchange) support (defaults to true) (env var MAD_ENABLE_PKCE = 1)");
+
+    /// <summary>
+    /// Represents the PKCE code lifetime option, specifying the duration in seconds for which a PKCE code remains
+    /// valid.
+    /// </summary>
+    /// <remarks>The default value for this option is 120 seconds. This option can be configured via the
+    /// environment variable  <c>MAD_PKCE_CODE_LIFETIME</c>. The option requires exactly one argument to be
+    /// provided.</remarks>
+    public static readonly Option<int> PkceCodeLifetime = 
+        new Option<int>("--pkce-code-lifetime", () => 120, "PKCE code lifetime in seconds (defaults to 120) (env var MAD_PKCE_CODE_LIFETIME)")
+        {
+            Arity = ArgumentArity.ExactlyOne
+        };
 }

@@ -256,6 +256,14 @@ internal static class OobePrompts
             .ToList();
     }
 
+    public static void PromptPkceConfig(OobeState state)
+    {
+        state.EnablePkce = PromptYesNo("Enable PKCE Login Flow?");
+
+        if (state.EnablePkce)
+            state.Argon2Time = PromptInt("PKCE Code Lifetime (in seconds)", state.Config.PkceCodeLifetime, 1, 600);        
+    }
+
     public static void WriteConfig(OobeState state)
     {
         var dbPassLine = string.IsNullOrEmpty(state.DbPass) ? "no-db-pass = true" : "no-db-pass = false";
@@ -330,7 +338,11 @@ internal static class OobePrompts
             $"seconds-to-reset-login-failures = {state.SecondsToResetLoginFailures}",
             $"failed-password-lockout-duration = {state.FailedPasswordLockoutDuration}",
             $"enable-audit-logging = {state.AuditLoggingEnabled}",
-            $"audit-log-retention-days = {state.AuditLogRetentionDays}\n"
+            $"audit-log-retention-days = {state.AuditLogRetentionDays}\n",
+
+            "# Pkce config",
+            $"enable-pkce = {state.EnablePkce.ToString().ToLower()}",
+            $"pkce-code-lifetime = {state.PkceCodeLifetime}\n"
         };
 
         if (state.TrustedProxies.Any())

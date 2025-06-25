@@ -258,5 +258,24 @@ namespace microauthd.Common
 
             return ip;
         }
+
+        /// <summary>
+        /// Computes the S256 code challenge for the given code verifier.
+        /// </summary>
+        /// <remarks>The method computes the SHA-256 hash of the provided code verifier, encodes the hash 
+        /// using Base64 URL encoding, and removes padding characters to produce the final code challenge.</remarks>
+        /// <param name="codeVerifier">The code verifier string used to generate the S256 code challenge.  Must be a non-empty string consisting of
+        /// valid ASCII characters.</param>
+        /// <returns>A Base64 URL-encoded string representing the S256 code challenge. The result is suitable for use in OAuth
+        /// 2.0 PKCE (Proof Key for Code Exchange) flows.</returns>
+        public static string ComputeS256Challenge(string codeVerifier)
+        {
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
+            return Convert.ToBase64String(hash)
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
     }
 }
