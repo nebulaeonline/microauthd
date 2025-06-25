@@ -29,6 +29,7 @@ namespace microauthd.Config
                 OobePrompts.PromptFeatureFlags(state);
                 OobePrompts.PromptLoginSecurity(state);
                 OobePrompts.PromptOidcClient(state);
+                OobePrompts.PromptTrustedProxies(state);
                 OobePrompts.WriteConfig(state);
             }
 

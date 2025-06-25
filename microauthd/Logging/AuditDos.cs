@@ -1,4 +1,5 @@
-﻿using microauthd.Config;
+﻿using microauthd.Common;
+using microauthd.Config;
 using Serilog;
 using System.Net;
 
@@ -20,7 +21,7 @@ public class AuditDos
         var ctx = _http.HttpContext;
 
         var userId = ctx?.User?.FindFirst("sub")?.Value ?? "anonymous";
-        var ip = ctx?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
+        var ip = (ctx is not null) ? Utils.GetRealIp(ctx) : "unknown";
         var ua = ctx?.Request?.Headers["User-Agent"].ToString() ?? "unknown";
 
         LogToStore(userId, action, target, secondary, ip, ua);

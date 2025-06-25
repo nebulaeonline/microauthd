@@ -64,6 +64,8 @@ internal class OobeState
     public string AdminEmail = string.Empty;
     public string AdminPass = string.Empty;
 
+    public List<string> TrustedProxies = new();
+
     public OobeState(AppConfig config)
     {
         Config = config;

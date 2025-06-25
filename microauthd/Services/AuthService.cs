@@ -812,6 +812,14 @@ public static class AuthService
                 if (isRevoked)
                     return ApiResult<Dictionary<string, object>>.Ok(new() { ["active"] = false });
             }
+            else
+            {
+                Log.Debug("Introspection for non-auth token (use = {Use})", tokenUse);
+                Utils.Audit.Logg(
+                    action: "token.introspect.non_auth",
+                    target: $"client={clientId} token_use={tokenUse}"
+                );
+            }
 
             var dict = new Dictionary<string, object>
             {
@@ -819,14 +827,14 @@ public static class AuthService
                 ["iss"] = jwt.Issuer,
                 ["jti"] = jwt.Id,
                 ["sub"] = jwt.Subject,
-                ["exp"] = jwt.Payload.Expiration,
+                ["exp"] = jwt.Payload.Expiration ?? 0L,
                 ["iat"] = new DateTimeOffset(jwt.Payload.IssuedAt).ToUnixTimeSeconds(),
-                ["nbf"] = jwt.Payload.NotBefore,
-                ["aud"] = jwt.Audiences.FirstOrDefault(),
+                ["nbf"] = jwt.Payload.NotBefore ?? 0L,
+                ["aud"] = jwt.Audiences.FirstOrDefault() ?? "unknown",
                 ["scope"] = jwt.Claims.Where(c => c.Type == "scope").Select(c => c.Value).ToArray(),
-                ["client_id"] = jwt.Claims.FirstOrDefault(c => c.Type == "client_id")?.Value,
-                ["username"] = jwt.Claims.FirstOrDefault(c => c.Type == "username")?.Value,
-                ["token_use"] = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value
+                ["client_id"] = jwt.Claims.FirstOrDefault(c => c.Type == "client_id")?.Value ?? "unknown",
+                ["username"] = jwt.Claims.FirstOrDefault(c => c.Type == "username")?.Value ?? "unknown",
+                ["token_use"] = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "auth"
             };
 
             Utils.Audit.Logg(

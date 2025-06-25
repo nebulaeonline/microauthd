@@ -509,5 +509,19 @@ internal static class Options
     /// <remarks>By default, this option is disabled. To enable it, set the value to <see langword="true"/> 
     /// or use the environment variable <c>MAD_ENABLE_ADMIN_SWAGGER</c> with a value of <c>1</c>.</remarks>
     public static readonly Option<bool> EnableAdminSwagger =
-        new Option<bool>("--enable-admin-swagger", () => false, "Enable Swagger UI for the admin service (defaults to false) (env var MAD_ENABLE_ADMIN_SWAGGER = 1)");        
+        new Option<bool>("--enable-admin-swagger", () => false, "Enable Swagger UI for the admin service (defaults to false) (env var MAD_ENABLE_ADMIN_SWAGGER = 1)");
+
+    /// <summary>
+    /// Represents a configuration option for specifying a list of trusted proxy IP addresses.
+    /// </summary>
+    /// <remarks>This option is used to define a comma-separated list of IP addresses that are trusted in the 
+    /// X-Forwarded-For header. It can be configured via the environment variable <c>MAD_TRUSTED_PROXIES</c>. Multiple
+    /// arguments can be provided per token.</remarks>
+    public static readonly Option<List<string>> TrustedProxies =
+    new Option<List<string>>(
+        name: "--trusted-proxies",
+        description: "Comma-separated list of IP addresses to trust in X-Forwarded-For (env var MAD_TRUSTED_PROXIES)")
+    {
+        AllowMultipleArgumentsPerToken = true
+    };
 }

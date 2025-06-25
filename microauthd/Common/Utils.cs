@@ -236,5 +236,27 @@ namespace microauthd.Common
             rng.GetBytes(bytes);
             return Convert.ToHexString(bytes).ToLowerInvariant();
         }
+
+        /// <summary>
+        /// Retrieves the actual client IP address, accounting for trusted X-Forwarded-For headers.
+        /// </summary>
+        /// <param name="ctx">The current HTTP context.</param>
+        /// <returns>The best-effort IP address of the client as a string.</returns>
+        public static string GetRealIp(HttpContext ctx)
+        {
+            // Check for X-Forwarded-For (if UseForwardedHeaders applied it)
+            var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+            // Defensive fallback: if the forwarded IP is available manually, use first hop
+            var forwarded = ctx.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(forwarded))
+            {
+                var parts = forwarded.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 0 && IsValidIpAddress(parts[0]))
+                    return parts[0].Trim();
+            }
+
+            return ip;
+        }
     }
 }

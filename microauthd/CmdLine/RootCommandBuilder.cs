@@ -65,6 +65,8 @@ public static class RootCommandBuilder
         root.AddOption(Options.EnableAuthSwagger);
         root.AddOption(Options.EnableAdminSwagger);
 
+        root.AddOption(Options.TrustedProxies);
+
         return root;
     }
 }

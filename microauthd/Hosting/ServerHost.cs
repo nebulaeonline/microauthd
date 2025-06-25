@@ -161,6 +161,32 @@ public static class ServerHost
             },
             app =>
             {
+                // set up forwarded headers if behind a reverse proxy
+                if (config.TrustedProxies.Any())
+                {
+                    var forwarded = new ForwardedHeadersOptions
+                    {
+                        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+                        ForwardLimit = null,
+                        RequireHeaderSymmetry = false
+                    };
+
+                    foreach (var ip in config.TrustedProxies)
+                    {
+                        if (IPAddress.TryParse(ip, out var parsed))
+                            forwarded.KnownProxies.Add(parsed);
+                        else
+                            Log.Warning("Invalid trusted proxy: {Ip}", ip);
+                    }
+
+                    app.UseForwardedHeaders(forwarded);
+                }
+                else
+                {
+                    Log.Information("No trusted proxies configured — forwarded headers will be ignored.");
+                }
+
+                // Use rate limiting middleware for auth routes
                 app.UseMiddleware<RateLimitMiddleware>("auth");
 
                 app.UseAuthentication();
@@ -304,10 +330,29 @@ public static class ServerHost
             app =>
             {
                 // Use forwarded headers if behind a reverse proxy
-                app.UseForwardedHeaders(new ForwardedHeadersOptions
+                if (config.TrustedProxies.Any())
                 {
-                    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-                });
+                    var forwarded = new ForwardedHeadersOptions
+                    {
+                        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+                        ForwardLimit = null,
+                        RequireHeaderSymmetry = false
+                    };
+
+                    foreach (var ip in config.TrustedProxies)
+                    {
+                        if (IPAddress.TryParse(ip, out var parsed))
+                            forwarded.KnownProxies.Add(parsed);
+                        else
+                            Log.Warning("Invalid trusted proxy: {Ip}", ip);
+                    }
+
+                    app.UseForwardedHeaders(forwarded);
+                }
+                else
+                {
+                    Log.Information("No trusted proxies configured — forwarded headers will be ignored.");
+                }
 
                 // Use rate limiting middleware for admin routes too
                 app.UseMiddleware<RateLimitMiddleware>("admin");

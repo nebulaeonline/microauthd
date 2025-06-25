@@ -23,12 +23,10 @@ public static class SimpleIniParser
             string value;
             if (valuePart.StartsWith('"') && valuePart.EndsWith('"'))
             {
-                // quoted string, strip quotes but keep any inline comment
                 value = valuePart[1..^1];
             }
             else
             {
-                // unquoted: remove comment at first # or ;
                 int commentIdx = valuePart.IndexOfAny(new[] { '#', ';' });
                 if (commentIdx >= 0)
                     valuePart = valuePart[..commentIdx].Trim();
@@ -41,4 +39,6 @@ public static class SimpleIniParser
 
         return dict;
     }
+
+
 }

@@ -65,4 +65,6 @@ public class AppConfig
 
     public bool EnableAuthSwagger { get; set; } = false;
     public bool EnableAdminSwagger { get; set; } = false;
+
+    public List<string> TrustedProxies { get; set; } = new();
 }

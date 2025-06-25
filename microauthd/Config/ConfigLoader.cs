@@ -102,6 +102,20 @@ public static class ConfigLoader
             return null;
         }
 
+        List<string> GetStringList(Option<List<string>> opt)
+        {
+            if (cli.HasOption(opt) && cli.GetValueForOption(opt) is { } list && list.Count > 0)
+                return list;
+
+            if (env.TryGetValue(Options.EnvKeyFor(opt, envPrefix), out var val))
+                return val.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+
+            if (ini.TryGetValue(opt.Name, out var iniVal))
+                return iniVal.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+
+            return new();
+        }
+
         return new AppConfig
         {
             ConfigFile = configFile,
@@ -154,7 +168,8 @@ public static class ConfigLoader
             EnableAuditLogging = GetBool(Options.EnableAuditLogging),
             AuditLogRetentionDays = GetInt(Options.AuditLogRetentionDays),
             EnableAuthSwagger = GetBool(Options.EnableAuthSwagger),
-            EnableAdminSwagger = GetBool(Options.EnableAdminSwagger)
+            EnableAdminSwagger = GetBool(Options.EnableAdminSwagger),
+            TrustedProxies = GetStringList(Options.TrustedProxies),
         };
     }
 

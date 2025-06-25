@@ -244,6 +244,18 @@ internal static class OobePrompts
         }
     }
 
+    public static void PromptTrustedProxies(OobeState state)
+    {
+        var input = Prompt("Enter comma-separated list of trusted proxies (or leave blank for none)",
+            string.Join(",", state.Config.TrustedProxies));
+
+        state.TrustedProxies = input
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToList();
+    }
+
     public static void WriteConfig(OobeState state)
     {
         var dbPassLine = string.IsNullOrEmpty(state.DbPass) ? "no-db-pass = true" : "no-db-pass = false";
@@ -318,8 +330,14 @@ internal static class OobePrompts
             $"seconds-to-reset-login-failures = {state.SecondsToResetLoginFailures}",
             $"failed-password-lockout-duration = {state.FailedPasswordLockoutDuration}",
             $"enable-audit-logging = {state.AuditLoggingEnabled}",
-            $"audit-log-retention-days = {state.AuditLogRetentionDays}"
+            $"audit-log-retention-days = {state.AuditLogRetentionDays}\n"
         };
+
+        if (state.TrustedProxies.Any())
+        {
+            lines.Add("# Trusted proxy IPs for forwarded header support");
+            lines.Add($"trusted-proxies = {string.Join(",", state.TrustedProxies)}");
+        }
 
         File.WriteAllLines(state.ConfigFilePath, lines);
         Console.WriteLine($"\nConfiguration written to {state.ConfigFilePath}\n");
