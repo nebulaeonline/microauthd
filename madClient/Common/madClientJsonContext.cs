@@ -54,8 +54,6 @@ namespace madClient.Common;
 [JsonSerializable(typeof(PermissionObject))]
 [JsonSerializable(typeof(List<PermissionObject>))]
 [JsonSerializable(typeof(TokenIntrospectionRequest))]
-[JsonSerializable(typeof(CreatedResponse))]
-[JsonSerializable(typeof(List<CreatedResponse>))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(int))]

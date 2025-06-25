@@ -20,6 +20,10 @@ internal static class ClientCommands
         cmd.AddCommand(GetClientByIdCommand());
         cmd.AddCommand(DeleteClientCommand());
 
+        cmd.AddCommand(AddRedirectUriCommand());
+        cmd.AddCommand(ListRedirectUrisCommand());
+        cmd.AddCommand(DeleteRedirectUriCommand());
+
         cmd.AddCommand(AssignScopesCommand());
         cmd.AddCommand(ListScopesCommand());
         cmd.AddCommand(RemoveScopeCommand());
@@ -35,6 +39,7 @@ internal static class ClientCommands
         var secret = new Option<string?>("--secret", "Client secret to use (omit to auto-generate)");
         var genLen = new Option<int?>("--gen-password", "Generate a random secret of the given length");
         var name = new Option<string?>("--display-name", () => string.Empty);
+        var redirectUri = new Option<string?>("--redirect-uri", "Redirect URI for the client (optional, defaults to empty)");
         var audience = new Option<string?>("--audience", "Audience for the client (optional. Defaults to 'microauthd'") { IsRequired = false };
 
         var adminUrl = SharedOptions.AdminUrl;
@@ -407,6 +412,149 @@ internal static class ClientCommands
                 }
             }
         }, adminUrl, adminToken, id, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command AddRedirectUriCommand()
+    {
+        var cmd = new Command("add-redirect-uri", "Add a valid redirect URI to a client");
+
+        var clientGuid = new Option<string>("--id", "GUID of the client") { IsRequired = true };
+        var redirectUri = new Option<string>("--uri", "Redirect URI to allow") { IsRequired = true };
+
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientGuid);
+        cmd.AddOption(redirectUri);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string id, string uri, bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var created = await client.AddRedirectUri(id, uri); // id is GUID here
+
+            if (created == null)
+            {
+                var err = new ErrorResponse(false, "Failed to add redirect URI.");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(created, MadJsonContext.Default.ClientRedirectUriObject));
+            }
+            else
+            {
+                Console.WriteLine($"Added redirect URI '{created.RedirectUri}' to client {id}");
+            }
+        }, adminUrl, adminToken, clientGuid, redirectUri, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command ListRedirectUrisCommand()
+    {
+        var cmd = new Command("list-redirect-uris", "List redirect URIs for a client");
+
+        var clientId = new Option<string>("--client-id", "The GUID of the client") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientId);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string cid, bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var list = await client.ListRedirectUris(cid);
+
+            if (list.Count == 0)
+            {
+                Console.WriteLine(json ? "[]" : "(no redirect URIs)");
+                return;
+            }
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(list, MadJsonContext.Default.ListClientRedirectUriObject));
+            }
+            else
+            {
+                Console.WriteLine($"{"Id",-36}  {"Redirect URI"}");
+                Console.WriteLine(new string('-', 80));
+                foreach (var uri in list)
+                    Console.WriteLine($"{uri.Id,-36}  {uri.RedirectUri}");
+            }
+        }, adminUrl, adminToken, clientId, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command DeleteRedirectUriCommand()
+    {
+        var cmd = new Command("delete-redirect-uri", "Delete a redirect URI by its ID");
+
+        var uriId = new Option<string>("--id", "The ID of the redirect URI to delete") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(uriId);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string id, bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var ok = await client.DeleteRedirectUri(id);
+
+            if (ok)
+            {
+                var msg = new MessageResponse(true, $"Redirect URI {id} deleted.");
+                Console.WriteLine(json
+                    ? JsonSerializer.Serialize(msg, MadJsonContext.Default.MessageResponse)
+                    : msg.Message);
+            }
+            else
+            {
+                var err = new ErrorResponse(false, $"Failed to delete redirect URI {id}.");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, adminUrl, adminToken, uriId, jsonOut);
 
         return cmd;
     }

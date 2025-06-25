@@ -343,6 +343,95 @@ public static class ClientService
     }
 
     /// <summary>
+    /// Adds a redirect URI to the specified client.
+    /// </summary>
+    /// <remarks>This method attempts to add the specified redirect URI to the client identified by <paramref
+    /// name="clientId"/>. If the operation fails due to an internal error, a status code of 500 is returned.</remarks>
+    /// <param name="clientId">The unique identifier of the client to which the redirect URI will be added. Cannot be null, empty, or
+    /// whitespace.</param>
+    /// <param name="redirectUri">The redirect URI to associate with the client. Must be a valid URI and cannot be null, empty, or whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing the result of the operation.  If successful, the result includes the
+    /// added <see cref="ClientRedirectUriObject"/> and a status code of 201. If the operation fails, the result
+    /// includes an error message and an appropriate status code.</returns>
+    public static ApiResult<ClientRedirectUriObject> AddRedirectUri(string clientId, string redirectUri)
+    {
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(redirectUri))
+            return ApiResult<ClientRedirectUriObject>.Fail("Client ID and redirect URI are required", 400);
+
+        try
+        {
+            var result = ClientStore.InsertRedirectUri(clientId, redirectUri);
+            return result is not null
+                ? ApiResult<ClientRedirectUriObject>.Ok(result, 201)
+                : ApiResult<ClientRedirectUriObject>.Fail("Failed to add redirect URI", 500);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error adding redirect URI for client {ClientId}", clientId);
+            return ApiResult<ClientRedirectUriObject>.Fail("Internal server error", 500);
+        }
+    }
+
+    /// <summary>
+    /// Retrieves the list of redirect URIs associated with the specified client.
+    /// </summary>
+    /// <remarks>This method attempts to retrieve redirect URIs from the underlying client store. If the
+    /// client ID is invalid or an error occurs during retrieval, the method returns a failure result with an error
+    /// message and status code.</remarks>
+    /// <param name="clientId">The unique identifier of the client for which redirect URIs are being retrieved. Must not be null, empty, or
+    /// consist solely of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="ClientRedirectUriObject"/> instances representing
+    /// the redirect URIs for the specified client. If the operation fails, the result will include an error message and
+    /// an appropriate HTTP status code.</returns>
+    public static ApiResult<List<ClientRedirectUriObject>> GetRedirectUrisForClient(string clientId)
+    {
+        if (string.IsNullOrWhiteSpace(clientId))
+            return ApiResult<List<ClientRedirectUriObject>>.Fail("Client ID is required", 400);
+
+        try
+        {
+            var uris = ClientStore.GetRedirectUrisByClientId(clientId);
+            return ApiResult<List<ClientRedirectUriObject>>.Ok(uris);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to list redirect URIs for client {ClientId}", clientId);
+            return ApiResult<List<ClientRedirectUriObject>>.Fail("Failed to list redirect URIs", 500);
+        }
+    }
+
+    /// <summary>
+    /// Deletes a redirect URI identified by the specified ID.
+    /// </summary>
+    /// <remarks>This method attempts to delete a redirect URI from the underlying store. If the specified ID
+    /// does not exist,  the method returns a "not found" result. In case of an unexpected error, the method logs the
+    /// exception and  returns a failure result.</remarks>
+    /// <param name="id">The unique identifier of the redirect URI to delete. This parameter cannot be null, empty, or consist solely of
+    /// whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
+    /// operation. If the redirect URI is successfully deleted, the response contains a success message. If the redirect
+    /// URI is not found, the response indicates a "not found" status. If an error occurs during the operation, the
+    /// response contains an error message and a status code of 500.</returns>
+    public static ApiResult<MessageResponse> DeleteRedirectUri(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return ApiResult<MessageResponse>.Fail("Redirect URI ID is required", 400);
+
+        try
+        {
+            var ok = ClientStore.DeleteRedirectUriById(id);
+            return ok
+                ? ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Redirect URI deleted"))
+                : ApiResult<MessageResponse>.NotFound("Redirect URI not found");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to delete redirect URI {Id}", id);
+            return ApiResult<MessageResponse>.Fail("Failed to delete redirect URI", 500);
+        }
+    }
+
+    /// <summary>
     /// Retrieves the total number of clients currently stored in the system.
     /// </summary>
     /// <returns>The total count of clients as an integer. Returns 0 if no clients are stored.</returns>

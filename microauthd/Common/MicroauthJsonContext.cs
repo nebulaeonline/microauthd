@@ -56,8 +56,6 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(PermissionObject))]
 [JsonSerializable(typeof(List<PermissionObject>))]
 [JsonSerializable(typeof(TokenIntrospectionRequest))]
-[JsonSerializable(typeof(CreatedResponse))]
-[JsonSerializable(typeof(List<CreatedResponse>))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(int))]
@@ -83,6 +81,8 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(ScopeDto))]
 [JsonSerializable(typeof(List<ScopeDto>))]
 [JsonSerializable(typeof(ScopeAssignmentDto))]
+[JsonSerializable(typeof(ClientRedirectUriObject))]
+[JsonSerializable(typeof(List<ClientRedirectUriObject>))]
 public partial class MicroauthJsonContext : JsonSerializerContext
 {
 }

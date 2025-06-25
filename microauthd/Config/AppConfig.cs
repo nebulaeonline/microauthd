@@ -70,4 +70,6 @@ public class AppConfig
 
     public bool EnablePkce { get; set; } = false;
     public int PkceCodeLifetime { get; set; } = 0;
+
+    public bool ServePublicAuthFiles { get; set; } = false;
 }

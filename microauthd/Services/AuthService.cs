@@ -140,7 +140,7 @@ public static class AuthService
     public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
     {
         // Look up client in database
-        var client = ClientStore.GetClientByClientId(clientId);
+        var client = ClientStore.GetClientByClientIdentifier(clientId);
         if (client is null || !client.IsActive)
             return null;
 
@@ -168,12 +168,12 @@ public static class AuthService
     /// <item><term>code</term>: The generated authorization code.</item> <item><term>state</term>: The state value
     /// provided in the request, if any.</item> </list> If the request is invalid, the result contains an error message
     /// and a corresponding HTTP status code.</returns>
-    public static ApiResult<Dictionary<string, object>> HandleAuthorizationRequest(HttpRequest req)
+    public static IResult HandleAuthorizationRequest(HttpRequest req, AppConfig config)
     {
         var query = req.Query;
 
         var responseType = query["response_type"].ToString();
-        var clientId = query["client_id"].ToString();
+        var clientId = query["client_id"].ToString(); // Client identifier (not row id)
         var redirectUri = query["redirect_uri"].ToString();
         var scope = query["scope"].ToString();
         var state = query["state"].ToString();
@@ -181,16 +181,22 @@ public static class AuthService
         var codeChallengeMethod = query["code_challenge_method"].ToString();
 
         if (string.IsNullOrWhiteSpace(responseType) || responseType != "code")
-            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+            return Results.BadRequest("Invalid credentials");
 
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(redirectUri))
-            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+            return Results.BadRequest("Invalid credentials");
 
         if (string.IsNullOrWhiteSpace(codeChallenge))
-            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+            return Results.BadRequest("Invalid credentials");
 
         if (codeChallengeMethod != "S256" && codeChallengeMethod != "plain")
-            return ApiResult<Dictionary<string, object>>.Fail("Invalid credentials", 400);
+            return Results.BadRequest("Invalid credentials");
+
+        if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
+        {
+            Log.Warning("Authorization request rejected: invalid redirect_uri {RedirectUri} for client_id {ClientId}", redirectUri, clientId);
+            return Results.BadRequest("Invalid credentials");
+        }
 
         // Generate auth code
         var code = Utils.GenerateBase64EncodedRandomBytes(32);
@@ -198,22 +204,17 @@ public static class AuthService
         AuthStore.StorePkceCode(new PkceCode
         {
             Code = code,
-            ClientId = clientId,
+            ClientIdentifier = clientId,
             UserId = "",
             RedirectUri = redirectUri,
             CodeChallenge = codeChallenge,
             CodeChallengeMethod = codeChallengeMethod,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(2),
+            ExpiresAt = DateTime.UtcNow.AddSeconds(config.PkceCodeLifetime),
             IsUsed = false
         });
 
-        var result = new Dictionary<string, object>
-        {
-            ["code"] = code,
-            ["state"] = state
-        };
-
-        return ApiResult<Dictionary<string, object>>.Ok(result);
+        var redirectUrl = $"{redirectUri}?code={WebUtility.UrlEncode(code)}&state={WebUtility.UrlEncode(state)}";
+        return Results.Redirect(redirectUrl);
     }
 
     /// <summary>
@@ -270,11 +271,11 @@ public static class AuthService
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
-        if (!string.Equals(pkce.ClientId, clientId, StringComparison.Ordinal) ||
+        if (!string.Equals(pkce.ClientIdentifier, clientId, StringComparison.Ordinal) ||
             !string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
         {
             Log.Warning("PKCE exchange failed: client_id or redirect_uri mismatch. client_id={ClientId}, expected_client_id={Expected}, redirect_uri={RedirectUri}, expected_redirect_uri={ExpectedUri}",
-                clientId, pkce.ClientId, redirectUri, pkce.RedirectUri);
+                clientId, pkce.ClientIdentifier, redirectUri, pkce.RedirectUri);
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
@@ -299,10 +300,16 @@ public static class AuthService
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
+        // retrieve the user object for email claim
+        var user = UserStore.GetUserById(pkce.UserId);
+        if (user == null)
+            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+
         var claims = AuthStore.GetUserClaims(pkce.UserId);
         claims.Insert(0, new Claim(JwtRegisteredClaimNames.Sub, pkce.UserId));
-        claims.Add(new Claim("client_id", pkce.ClientId));
-
+        claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""));
+        claims.Add(new Claim("client_id", pkce.ClientIdentifier));
+        
         var scopeValues = claims
             .Where(c => c.Type == "scope")
             .Select(c => c.Value)
@@ -312,23 +319,23 @@ public static class AuthService
         if (scopeValues.Any())
             claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
-        var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientId);
+        var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientIdentifier);
 
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience);
 
-        UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientId);
+        UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientIdentifier);
 
         string? refreshToken = null;
         if (config.EnableTokenRefresh)
         {
             refreshToken = UserService.GenerateAndStoreRefreshToken(
-                config, pkce.UserId, tokenInfo.Jti, pkce.ClientId);
+                config, pkce.UserId, tokenInfo.Jti, pkce.ClientIdentifier);
         }
 
         // attach the JTI to the PKCE code for later reference
         AuthStore.AttachJtiToPkceCode(code, tokenInfo.Jti);
 
-        Log.Information("PKCE exchange successful. client_id={ClientId}, user_id={UserId}, jti={Jti}", clientId, pkce.UserId, tokenInfo.Jti);
+        Log.Debug("PKCE exchange successful. client_id={ClientId}, user_id={UserId}, jti={Jti}", clientId, pkce.UserId, tokenInfo.Jti);
 
         return ApiResult<TokenResponse>.Ok(new TokenResponse
         {
@@ -339,6 +346,64 @@ public static class AuthService
             RefreshToken = refreshToken,
             Audience = audience
         });
+    }
+
+    /// <summary>
+    /// Handles user login using a PKCE code and validates the provided credentials.
+    /// </summary>
+    /// <remarks>This method validates the provided PKCE code, ensuring it is not expired, used, or mismatched
+    /// with the redirect URI. It also verifies the user's credentials against the application's authentication
+    /// settings. If the login is successful, the user's ID is attached to the PKCE code record.</remarks>
+    /// <param name="username">The username of the user attempting to log in. Cannot be null, empty, or whitespace.</param>
+    /// <param name="password">The password associated with the username. Cannot be null, empty, or whitespace.</param>
+    /// <param name="code">The PKCE code used for authentication. Cannot be null, empty, or whitespace.</param>
+    /// <param name="redirectUri">The redirect URI associated with the PKCE code. Must match the URI stored with the code. Cannot be null, empty,
+    /// or whitespace.</param>
+    /// <param name="config">The application configuration containing authentication settings. Cannot be null.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> indicating the result of the login
+    /// attempt. Returns <see langword="true"/> in the response if the login is successful; otherwise, <see
+    /// langword="false"/>.</returns>
+    public static ApiResult<MessageResponse> HandleUserLoginWithCode(
+        string username,
+        string password,
+        string code,
+        string redirectUri,
+        AppConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(username) ||
+            string.IsNullOrWhiteSpace(password) ||
+            string.IsNullOrWhiteSpace(code) ||
+            string.IsNullOrWhiteSpace(redirectUri))
+        {
+            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+        }
+
+        var pkce = AuthStore.GetPkceCode(code);
+        if (pkce is null || pkce.IsUsed || pkce.ExpiresAt < DateTime.UtcNow)
+        {
+            Log.Warning("Rejected login: code missing/expired/used");
+            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+        }
+
+        if (!string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
+        {
+            Log.Warning("Rejected login: redirect_uri mismatch");
+            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+        }
+
+        var authResult = AuthenticateUser(username, password, config);
+        if (authResult is not { Success: true } r)
+        {
+            Log.Warning("Failed login attempt for {Username}", username);
+            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+        }
+
+        // Save user ID to pkce code record
+        AuthStore.AttachUserIdToPkceCode(code, r.UserId!);
+
+        Log.Debug("Login successful for user {UserId} via PKCE", r.UserId);
+
+        return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Login successful"));
     }
 
     /// <summary>
@@ -484,11 +549,11 @@ public static class AuthService
 
             // Assemble base claims
             var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, r.UserId!),
-            new(JwtRegisteredClaimNames.Email, r.Email ?? ""),
-            new("client_id", clientIdent)
-        };
+            {
+                new(JwtRegisteredClaimNames.Sub, r.UserId!),
+                new(JwtRegisteredClaimNames.Email, r.Email ?? ""),
+                new("client_id", clientIdent)
+            };
 
             // Extract role + scope claims from r.Claims
             var roleClaims = r.Claims.Where(c => c.Type == "role");
@@ -516,10 +581,11 @@ public static class AuthService
 
             Log.Debug("Issued token for user {UserId} under client {ClientIdent}", r.UserId, clientIdent);
 
-            Utils.Audit.Logg(
-                action: "token_issued",
-                target: clientIdent
-            );
+            // No need to audit log every token issuance, only for admin tokens or significant events
+            //Utils.Audit.Logg(
+            //    action: "token_issued",
+            //    target: clientIdent
+            //);
 
             return ApiResult<TokenResponse>.Ok(new TokenResponse
             {

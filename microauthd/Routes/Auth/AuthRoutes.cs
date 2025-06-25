@@ -113,13 +113,38 @@ public static class AuthRoutes
         // authorize for pkce endpoint**************************************************************
         if (config.EnablePkce)
         {
-            group.MapGet("/authorize", (HttpRequest request, HttpContext ctx) =>
+            group.MapGet("/authorize", (HttpRequest request, HttpContext ctx, AppConfig config) =>
             {
-                return AuthService.HandleAuthorizationRequest(request).ToHttpResult();
+                return AuthService.HandleAuthorizationRequest(request, config);
             })
             .WithName("Authorize")
             .WithTags("oidc")
             .Produces<Dictionary<string, object>>(StatusCodes.Status200OK);
+        }
+
+        // login for pkce endpoint******************************************************************
+        if (config.EnablePkce)
+        {
+            group.MapPost("/login", async (HttpContext ctx, AppConfig config) =>
+            {
+                if (!ctx.Request.HasFormContentType)
+                    return Results.BadRequest(new ErrorResponse(false, "Invalid content type"));
+
+                var form = await ctx.Request.ReadFormAsync();
+                var username = form["username"].ToString();
+                var password = form["password"].ToString();
+                var code = form["code"].ToString();
+                var redirectUri = form["redirect_uri"].ToString();
+
+                var result = AuthService.HandleUserLoginWithCode(username, password, code, redirectUri, config);
+                return result.ToHttpResult();
+            })
+            .AllowAnonymous()
+            .WithName("HandleUserLogin")
+            .Produces<MessageResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .WithTags("Auth")
+            .WithOpenApi();
         }
         // token request endpoint*******************************************************************
         group.MapPost("/token", async (AppConfig config, HttpContext ctx) =>

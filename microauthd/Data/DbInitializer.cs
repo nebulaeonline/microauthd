@@ -153,9 +153,9 @@ public static class DbInitializer
             jti TEXT PRIMARY KEY,
             expires_at TEXT NOT NULL
         );
-        CREATE TABLE pkce_codes (
+        CREATE TABLE IF NOT EXISTS pkce_codes (
             code TEXT PRIMARY KEY,
-            client_id TEXT NOT NULL,
+            client_identifier TEXT NOT NULL,
             user_id TEXT NOT NULL DEFAULT '',
             jti TEXT,
             redirect_uri TEXT NOT NULL,
@@ -164,7 +164,13 @@ public static class DbInitializer
             expires_at DATETIME NOT NULL,
             is_used INTEGER NOT NULL DEFAULT 0
         );
-
+        CREATE TABLE IF NOT EXISTS redirect_uris (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            uri TEXT NOT NULL,
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+            UNIQUE(client_id, uri)
+        );
         CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
         CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions (token);
@@ -201,9 +207,10 @@ public static class DbInitializer
         CREATE UNIQUE INDEX IF NOT EXISTS idx_client_scope_pair_active
           ON client_scopes(client_id, scope_id)
           WHERE is_active = 1;
-                CREATE UNIQUE INDEX idx_pkce_code ON pkce_codes(code);
-        CREATE INDEX idx_pkce_client_redirect ON pkce_codes(client_id, redirect_uri);
-        CREATE INDEX idx_pkce_expiry_used ON pkce_codes(expires_at, is_used);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_pkce_code ON pkce_codes(code);
+        CREATE INDEX IF NOT EXISTS idx_pkce_client_redirect ON pkce_codes(client_identifier, redirect_uri);
+        CREATE INDEX IF NOT EXISTS idx_pkce_expiry_used ON pkce_codes(expires_at, is_used);
+        CREATE INDEX IF NOT EXISTS idx_redirect_uris_client_id ON redirect_uris(client_id);
         CREATE TRIGGER IF NOT EXISTS trg_roles_modified
             AFTER UPDATE ON roles
             FOR EACH ROW

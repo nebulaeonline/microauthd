@@ -589,6 +589,34 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
+    public async Task<ClientRedirectUriObject?> AddRedirectUri(string clientGuid, string uri)
+    {
+        var payload = new { uri };
+        var content = JsonContent.Create(payload, MadJsonContext.Default.Object);
+
+        var res = await _http.PostAsync($"{BaseUrl}/clients/{clientGuid}/redirect-uris", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ClientRedirectUriObject);
+    }
+
+    public async Task<List<ClientRedirectUriObject>> ListRedirectUris(string clientGuid)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/clients/{clientGuid}/redirect-uris");
+        if (!res.IsSuccessStatusCode)
+            return new();
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListClientRedirectUriObject)
+               ?? new();
+    }
+
+    public async Task<bool> DeleteRedirectUri(string redirectUriId)
+    {
+        var res = await _http.DeleteAsync($"{BaseUrl}/clients/redirect-uris/{redirectUriId}");
+        return res.IsSuccessStatusCode;
+    }
+
     public void SetToken(string token)
     {
         Token = token;

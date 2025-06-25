@@ -7,7 +7,7 @@ namespace madTypes.Api.Common
         [JsonPropertyName("code")]
         public string Code { get; set; } = default!;
         [JsonPropertyName("client_id")]
-        public string ClientId { get; set; } = default!;
+        public string ClientIdentifier { get; set; } = default!;
         [JsonPropertyName("redirect_uri")]
         public string RedirectUri { get; set; } = default!;
         [JsonPropertyName("code_challenge")]

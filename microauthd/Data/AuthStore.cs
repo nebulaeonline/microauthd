@@ -1,6 +1,7 @@
 ﻿using madTypes.Api.Common;
 using microauthd.Config;
 using Serilog;
+using System.Globalization;
 using System.Security.Claims;
 
 namespace microauthd.Data
@@ -17,13 +18,13 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     INSERT INTO pkce_codes 
-                    (code, client_id, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti)
+                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti)
                     VALUES
-                    ($code, $client_id, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti);
+                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti);
                 """;
 
                 cmd.Parameters.AddWithValue("$code", pkce.Code);
-                cmd.Parameters.AddWithValue("$client_id", pkce.ClientId);
+                cmd.Parameters.AddWithValue("$client_identifier", pkce.ClientIdentifier);
                 cmd.Parameters.AddWithValue("$redirect_uri", pkce.RedirectUri);
                 cmd.Parameters.AddWithValue("$challenge", pkce.CodeChallenge);
                 cmd.Parameters.AddWithValue("$method", pkce.CodeChallengeMethod);
@@ -52,7 +53,7 @@ namespace microauthd.Data
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
-                    SELECT code, client_id, redirect_uri, code_challenge, code_challenge_method,
+                    SELECT code, client_identifier, redirect_uri, code_challenge, code_challenge_method,
                            expires_at, is_used, user_id, jti
                     FROM pkce_codes
                     WHERE code = $code
@@ -66,11 +67,15 @@ namespace microauthd.Data
                 return new PkceCode
                 {
                     Code = reader.GetString(0),
-                    ClientId = reader.GetString(1),
+                    ClientIdentifier = reader.GetString(1),
                     RedirectUri = reader.GetString(2),
                     CodeChallenge = reader.GetString(3),
                     CodeChallengeMethod = reader.GetString(4),
-                    ExpiresAt = DateTime.Parse(reader.GetString(5)), // ISO 8601
+                    ExpiresAt = DateTime.Parse(
+                        reader.GetString(5), 
+                        CultureInfo.InvariantCulture, 
+                        System.Globalization.DateTimeStyles.AssumeUniversal | 
+                            System.Globalization.DateTimeStyles.AdjustToUniversal), // ISO 8601
                     IsUsed = reader.GetBoolean(6),
                     UserId = reader.GetString(7),
                     Jti = reader.IsDBNull(8) ? null : reader.GetString(8)
@@ -85,7 +90,7 @@ namespace microauthd.Data
         /// code. The operation will only succeed if the code exists and has not already been used.</remarks>
         /// <param name="code">The PKCE code to be updated. This must correspond to an existing, unused code in the database.</param>
         /// <param name="userId">The unique identifier of the user to associate with the PKCE code.</param>
-        public static void AttachUserToPkceCode(string code, string userId)
+        public static void AttachUserIdToPkceCode(string code, string userId)
         {
             Db.WithConnection(conn =>
             {
@@ -143,6 +148,37 @@ namespace microauthd.Data
                 """;
                 cmd.Parameters.AddWithValue("$code", code);
                 cmd.ExecuteNonQuery();
+            });
+        }
+
+        /// <summary>
+        /// Validates whether the specified redirect URI is registered for the given client identifier.
+        /// </summary>
+        /// <remarks>This method checks the database to determine if the provided redirect URI is
+        /// associated with the client identified by <paramref name="clientIdentifier"/>. The validation ensures that
+        /// the redirect URI is authorized for the client before proceeding with operations such as authentication or
+        /// authorization.</remarks>
+        /// <param name="clientIdentifier">The unique identifier of the client application. Cannot be null or empty.</param>
+        /// <param name="redirectUri">The redirect URI to validate. Cannot be null or empty.</param>
+        /// <returns><see langword="true"/> if the redirect URI is registered for the specified client identifier; otherwise,
+        /// <see langword="false"/>.</returns>
+        public static bool IsRedirectUriValid(string clientIdentifier, string redirectUri)
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    SELECT 1 FROM redirect_uris
+                    WHERE uri = $uri AND client_id = (
+                        SELECT id FROM clients WHERE client_identifier = $clientId LIMIT 1
+                    )
+                    LIMIT 1;
+                """;
+                cmd.Parameters.AddWithValue("$uri", redirectUri);
+                cmd.Parameters.AddWithValue("$clientId", clientIdentifier);
+
+                using var reader = cmd.ExecuteReader();
+                return reader.Read(); // true if found
             });
         }
 

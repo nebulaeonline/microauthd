@@ -996,6 +996,39 @@ public static class AdminRoutes
         .WithTags("Clients")
         .WithOpenApi();
 
+        // add a redirect URI to a client endpoint**************************************************
+        group.MapPost("/clients/{clientId}/redirect-uris", (string clientId, [FromBody] string uri) =>
+        {
+            return ClientService.AddRedirectUri(clientId, uri).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("AddRedirectUri")
+        .Produces<ClientRedirectUriObject>(StatusCodes.Status201Created)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("clients");
+
+        // list all redirect URIs for a client endpoint*********************************************
+        group.MapGet("/clients/{clientId}/redirect-uris", (string clientId) =>
+        {
+            return ClientService.GetRedirectUrisForClient(clientId).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetRedirectUris")
+        .Produces<List<string>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .WithTags("clients");
+
+        // delete a redirect URI from a client endpoint*********************************************
+        group.MapDelete("/clients/redirect-uris", ([FromBody] string uri) =>
+        {
+            return ClientService.DeleteRedirectUri(uri).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("DeleteRedirectUri")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .WithTags("clients");
+
         // add scopes to client endpoint************************************************************
         group.MapPost("/clients/{clientId}/scopes", (
             string clientId,

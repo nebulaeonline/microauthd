@@ -544,4 +544,14 @@ internal static class Options
         {
             Arity = ArgumentArity.ExactlyOne
         };
+
+    /// <summary>
+    /// Represents an option to enable or disable serving public files for the authentication service.
+    /// </summary>
+    /// <remarks>This option defaults to <see langword="false"/> and can be overridden by setting the
+    /// environment variable  <c>MAD_SERVE_PUBLIC_AUTH_FILES</c> to <c>1</c>. Use this option to control whether public
+    /// authentication-related  files are served by the application.</remarks>
+    public static readonly Option<bool> ServePublicAuthFiles =
+        new Option<bool>("--serve-public-auth-files", () => false, "Serve public files for the authentication service (defaults to false) (env var MAD_SERVE_PUBLIC_AUTH_FILES = 1)");
+        
 }

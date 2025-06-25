@@ -172,6 +172,7 @@ public static class ConfigLoader
             TrustedProxies = GetStringList(Options.TrustedProxies),
             EnablePkce = GetBool(Options.EnablePkce),
             PkceCodeLifetime = GetInt(Options.PkceCodeLifetime),
+            ServePublicAuthFiles = GetBool(Options.ServePublicAuthFiles),
         };
     }
 

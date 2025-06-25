@@ -10,6 +10,12 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
+**2025-06-25**
+
+PKCE (Proof Key for Code Exchange) is now implemented. The example is served up from the public folder. Empty this folder out if you don't want files served from it; I will likely add an option to enable/disable the static file hosting, but it is not implemented yet.
+
+PKCE is a security measure that mitigates the risk of authorization code interception attacks. It is primarily used in OAuth 2.0 and OpenID Connect flows to enhance security, especially for public clients (like mobile or single-page applications) that cannot securely store client secrets. It is similar to a challenge-response system. In the PKCE flow, the client generates a code verifier and a code challenge. The code verifier is a random string, while the code challenge is derived from the code verifier using a transformation method (usually SHA-256). When the client requests an authorization code, it includes the code challenge. Later, when exchanging the authorization code for an access token, the client must provide the original code verifier. The server then verifies that the code verifier matches the code challenge and issues the access token if they match.
+
 **2025-06-24**
 
 Some people are confused about what exactly microauthd is. You would use this instead of the built-in ASP.NET Core Identity system when you need real authentication across multiple platforms — not just a website. microauthd is built for shared login across web, SPA, mobile, and desktop apps, with proper token issuance, refresh, revocation, and machine-to-machine support. It separates identity from UI, so your backend services, CI jobs, and clients all speak the same auth language — without tying your auth logic to Razor Pages or EF Core.

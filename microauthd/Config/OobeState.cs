@@ -69,6 +69,8 @@ internal class OobeState
     public bool EnablePkce = false;
     public int PkceCodeLifetime = 0;
 
+    public bool ServePublicAuthFiles = false;
+
     public OobeState(AppConfig config)
     {
         Config = config;

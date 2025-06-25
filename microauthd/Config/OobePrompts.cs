@@ -264,6 +264,11 @@ internal static class OobePrompts
             state.Argon2Time = PromptInt("PKCE Code Lifetime (in seconds)", state.Config.PkceCodeLifetime, 1, 600);        
     }
 
+    public static void PromptServePublicAuthFiles(OobeState state)
+    {
+        state.EnablePkce = PromptYesNo("Do you wish to serve public AUTH files from the /public root (will be accessible @ '/')?");        
+    }
+
     public static void WriteConfig(OobeState state)
     {
         var dbPassLine = string.IsNullOrEmpty(state.DbPass) ? "no-db-pass = true" : "no-db-pass = false";
@@ -332,17 +337,18 @@ internal static class OobePrompts
             "enable-auth-swagger = false",
             "enable-admin-swagger = false\n",
 
+            "# Pkce config",
+            $"enable-pkce = {state.EnablePkce.ToString().ToLower()}",
+            $"pkce-code-lifetime = {state.PkceCodeLifetime}\n",
+
             "# Miscellaneous config",
             $"enable-otp-auth = {state.EnableOtp.ToString().ToLower()}",
             $"max-login-failures = {state.MaxLoginFailures}",
             $"seconds-to-reset-login-failures = {state.SecondsToResetLoginFailures}",
             $"failed-password-lockout-duration = {state.FailedPasswordLockoutDuration}",
             $"enable-audit-logging = {state.AuditLoggingEnabled}",
-            $"audit-log-retention-days = {state.AuditLogRetentionDays}\n",
-
-            "# Pkce config",
-            $"enable-pkce = {state.EnablePkce.ToString().ToLower()}",
-            $"pkce-code-lifetime = {state.PkceCodeLifetime}\n"
+            $"audit-log-retention-days = {state.AuditLogRetentionDays}",
+            $"serve-public-auth-files = {state.ServePublicAuthFiles.ToString().ToLower()}\n",
         };
 
         if (state.TrustedProxies.Any())

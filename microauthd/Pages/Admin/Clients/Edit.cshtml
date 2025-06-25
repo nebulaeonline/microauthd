@@ -51,6 +51,10 @@
     </div>
 </form>
 <hr />
+<a asp-page="/Admin/Clients/RedirectUris" asp-route-id="@Model.ClientForm.Id" class="btn btn-outline-info ms-2">
+    Manage Redirect URIs
+</a>
+<hr />
 <form method="post" asp-page-handler="Delete" class="ms-2 d-inline">
     <input type="hidden" asp-for="ClientForm.Id" />
     <button type="submit" class="btn btn-danger"

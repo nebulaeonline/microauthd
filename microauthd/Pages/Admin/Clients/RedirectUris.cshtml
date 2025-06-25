@@ -1,0 +1,62 @@
+﻿@page "{id}"
+@model microauthd.Pages.Admin.Clients.RedirectUrisModel
+@{
+    ViewData["Title"] = "Manage Redirect URIs";
+    Layout = "_Layout";
+}
+
+<h2>Assign Redirect URIs</h2>
+<div class="mb-3">
+    <strong>Client:</strong> <span class="fs-5">@Model.ClientId</span><br />
+    <small class="text-muted">Internal ID: @Model.Id</small>
+</div>
+
+<form method="post">
+    <div class="input-group mb-3 w-75">
+        <input name="NewUri" class="form-control" placeholder="https://example.com/callback" />
+        <button class="btn btn-success" type="submit">Add URI</button>
+    </div>
+</form>
+
+@if (!string.IsNullOrWhiteSpace(Model.Error))
+{
+    <div class="alert alert-danger">@Model.Error</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.Success))
+{
+    <div class="alert alert-success">@Model.Success</div>
+}
+
+@if (Model.RedirectUris.Count == 0)
+{
+    <p class="text-muted">No URIs registered.</p>
+}
+else
+{
+    <table class="table table-bordered table-dark table-sm">
+        <thead>
+            <tr>
+                <th>Redirect URI</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var uri in Model.RedirectUris)
+            {
+                <tr>
+                    <td>@uri.RedirectUri</td>
+                    <td class="text-end">
+                        <form method="post" asp-page-handler="Delete" class="d-inline">
+                            <input type="hidden" name="UriId" value="@uri.Id" />
+                            <input type="hidden" name="id" value="@Model.ClientId" />
+                            <button class="btn btn-danger btn-sm" onclick="return confirm('Delete this URI?')">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<a asp-page="/Admin/Clients/Edit" asp-route-id="@Model.Id" class="btn btn-secondary mt-3">Back to Client</a>
+

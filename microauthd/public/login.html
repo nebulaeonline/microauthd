@@ -1,25 +1,84 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <title>microauthd Login</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            max-width: 600px;
-            margin: 4rem auto;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css" />
+    <script src="pkce.js"></script>
 </head>
 <body>
-    <h2>Login Not Available from Browser</h2>
-    <p>This server does not support direct username/password login from the browser.</p>
-    <p>microauthd enforces strict token security. To authenticate, you must use:</p>
-    <ul>
-        <li>A server-side login flow using <code>madAuthClient</code> (ASP.NET Core)</li>
-        <li>A custom SPA or mobile app that calls <code>/token</code> securely from your backend</li>
-        <li>Machine-to-machine authentication using the <code>client_credentials</code> grant</li>
-    </ul>
-    <p>Interactive browser-based flows (like PKCE) are not yet supported.</p>
-    <p>See the documentation or examples for implementation guidance.</p>
+    <h2>Login</h2>
+    <form id="loginForm">
+        <input type="text" id="username" placeholder="Username" required />
+        <input type="password" id="password" placeholder="Password" required />
+        <input type="text" id="client_id" placeholder="Client ID" value="demo" required />
+        <button type="submit">Log In</button>
+    </form>
+    <pre id="output"></pre>
+
+    <script>
+    const form = document.getElementById("loginForm");
+    const output = document.getElementById("output");
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+      const client_id = document.getElementById("client_id").value;
+      const code = new URLSearchParams(location.search).get("code");
+      const redirect_uri = "http://localhost:9040/login.html";
+      const code_verifier = sessionStorage.getItem("pkce_verifier");
+
+      if (!code || !code_verifier) {
+        output.textContent = "Missing code or code_verifier.";
+        return;
+      }
+
+      const formData = new URLSearchParams({
+        username,
+        password,
+        client_id,
+        code,
+        redirect_uri,
+        code_verifier
+      });
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Login failed");
+
+        const tokenRes = await fetch("/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "authorization_code",
+            client_id,
+            code,
+            redirect_uri,
+            code_verifier
+          })
+        });
+
+        const token = await tokenRes.json();
+        if (!token.access_token) throw new Error("Token exchange failed");
+
+        output.textContent = JSON.stringify(token, null, 2);
+
+        const me = await fetch("/me", {
+          headers: { Authorization: "Bearer " + token.access_token }
+        }).then(r => r.json());
+
+        output.textContent += "\n\n" + JSON.stringify(me, null, 2);
+      } catch (err) {
+        output.textContent = err.message;
+      }
+    };
+    </script>
 </body>
 </html>

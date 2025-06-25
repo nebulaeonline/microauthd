@@ -5,6 +5,7 @@ using microauthd.Config;
 using Microsoft.AspNetCore.DataProtection;
 using Serilog;
 using System.CommandLine.Parsing;
+using System.Globalization;
 using System.Reflection.PortableExecutable;
 using static microauthd.Tokens.TokenIssuer;
 
@@ -520,7 +521,10 @@ public static class UserStore
                 UserId = reader.GetString(1),
                 SessionId = reader.GetString(2),
                 Hash = reader.GetString(3),
-                ExpiresAt = DateTime.Parse(reader.GetString(4)),
+                ExpiresAt = DateTime.Parse(reader.GetString(4),
+                    CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal |
+                        System.Globalization.DateTimeStyles.AdjustToUniversal),
                 IsRevoked = reader.GetInt64(5) == 1,
                 ClientIdentifier = reader.GetString(6)
             };
@@ -658,8 +662,14 @@ public static class UserStore
                 {
                     Id = reader.GetString(0),
                     UserId = reader.GetString(1),
-                    IssuedAt = DateTime.Parse(reader.GetString(2)),
-                    ExpiresAt = DateTime.Parse(reader.GetString(3)),
+                    IssuedAt = DateTime.Parse(reader.GetString(2),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    ExpiresAt = DateTime.Parse(reader.GetString(3),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
                     IsRevoked = reader.GetInt64(4) == 1,
                     TokenUse = reader.GetString(5)
                 });
@@ -699,8 +709,14 @@ public static class UserStore
                 Id = reader.GetString(0),
                 UserId = reader.GetString(1),
                 ClientIdentifier = reader.GetString(2),
-                IssuedAt = DateTime.Parse(reader.GetString(3)),
-                ExpiresAt = DateTime.Parse(reader.GetString(4)),
+                IssuedAt = DateTime.Parse(reader.GetString(3),
+                    CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal |
+                        System.Globalization.DateTimeStyles.AdjustToUniversal),
+                ExpiresAt = DateTime.Parse(reader.GetString(4),
+                    CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal |
+                        System.Globalization.DateTimeStyles.AdjustToUniversal),
                 IsRevoked = reader.GetInt64(5) == 1,
                 TokenUse = reader.GetString(6)
             };
@@ -741,8 +757,14 @@ public static class UserStore
                 {
                     Id = reader.GetString(0),
                     UserId = reader.GetString(1),
-                    IssuedAt = DateTime.Parse(reader.GetString(2)),
-                    ExpiresAt = DateTime.Parse(reader.GetString(3)),
+                    IssuedAt = DateTime.Parse(reader.GetString(2),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    ExpiresAt = DateTime.Parse(reader.GetString(3),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
                     IsRevoked = reader.GetInt64(4) == 1,
                     TokenUse = reader.GetString(5)
                 });
@@ -788,8 +810,14 @@ public static class UserStore
                     Id = reader.GetString(0),
                     UserId = reader.GetString(1),
                     SessionId = reader.GetString(2),
-                    IssuedAt = DateTime.Parse(reader.GetString(3)),
-                    ExpiresAt = DateTime.Parse(reader.GetString(4)),
+                    IssuedAt = DateTime.Parse(reader.GetString(3),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    ExpiresAt = DateTime.Parse(reader.GetString(4),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
                     IsRevoked = reader.GetInt64(5) == 1
                 });
             }
@@ -1034,8 +1062,14 @@ public static class UserStore
                     Id = reader.GetString(0),
                     UserId = reader.GetString(1),
                     SessionId = reader.GetString(2),
-                    IssuedAt = DateTime.Parse(reader.GetString(3)),
-                    ExpiresAt = DateTime.Parse(reader.GetString(4)),
+                    IssuedAt = DateTime.Parse(reader.GetString(3),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    ExpiresAt = DateTime.Parse(reader.GetString(4),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
                     IsRevoked = reader.GetInt64(5) == 1
                 });
             }
@@ -1076,8 +1110,14 @@ public static class UserStore
                 Id = reader.GetString(0),
                 UserId = reader.GetString(1),
                 SessionId = reader.GetString(2),
-                IssuedAt = DateTime.Parse(reader.GetString(3)),
-                ExpiresAt = DateTime.Parse(reader.GetString(4)),
+                IssuedAt = DateTime.Parse(reader.GetString(3),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
+                ExpiresAt = DateTime.Parse(reader.GetString(4),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
                 IsRevoked = reader.GetInt64(5) == 1
             };
         });

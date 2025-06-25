@@ -36,11 +36,11 @@ namespace microauthd.Common
                 var t when t == typeof(List<ClientObject>) =>
                     MicroauthJsonContext.Default.ListClientObject,
 
-                var t when t == typeof(CreatedResponse) =>
-                    MicroauthJsonContext.Default.CreatedResponse,
+                var t when t == typeof(ClientRedirectUriObject) =>
+                    MicroauthJsonContext.Default.ClientRedirectUriObject,
 
-                var t when t == typeof(List<CreatedResponse>) =>
-                    MicroauthJsonContext.Default.ListCreatedResponse,
+                var t when t == typeof(List<ClientRedirectUriObject>) =>
+                    MicroauthJsonContext.Default.ListClientRedirectUriObject,
 
                 var t when t == typeof(Dictionary<string, object>) =>
                     MicroauthJsonContext.Default.DictionaryStringObject,

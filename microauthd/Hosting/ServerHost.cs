@@ -197,12 +197,24 @@ public static class ServerHost
 
                 app.MapAuthRoutes(config);
 
-                app.UseStaticFiles(new StaticFileOptions
+                // set up static file serving, if enabled
+                if (config.ServePublicAuthFiles)
                 {
-                    FileProvider = new PhysicalFileProvider(
-                        Path.Combine(Directory.GetCurrentDirectory(), "public")),
-                    RequestPath = ""
-                });
+                    var publicPath = Path.Combine(Directory.GetCurrentDirectory(), "public");
+                    var fileProvider = new PhysicalFileProvider(publicPath);
+
+                    app.UseDefaultFiles(new DefaultFilesOptions
+                    {
+                        FileProvider = fileProvider,
+                        RequestPath = ""
+                    });
+
+                    app.UseStaticFiles(new StaticFileOptions
+                    {
+                        FileProvider = fileProvider,
+                        RequestPath = ""
+                    });
+                }
             },
             config
         );

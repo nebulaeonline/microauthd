@@ -34,8 +34,6 @@ namespace mad.Common;
 [JsonSerializable(typeof(List<PermissionObject>))]
 [JsonSerializable(typeof(SessionResponse))]
 [JsonSerializable(typeof(List<SessionResponse>))]
-[JsonSerializable(typeof(CreatedResponse))]
-[JsonSerializable(typeof(List<CreatedResponse>))]
 [JsonSerializable(typeof(AuditLogResponse))]
 [JsonSerializable(typeof(List<AuditLogResponse>))]
 [JsonSerializable(typeof(PurgeAuditLogRequest))]
@@ -54,4 +52,6 @@ namespace mad.Common;
 [JsonSerializable(typeof(TotpQrRequest))]
 [JsonSerializable(typeof(TotpQrResponse))]
 [JsonSerializable(typeof(VerifyTotpRequest))]
+[JsonSerializable(typeof(ClientRedirectUriObject))]
+[JsonSerializable(typeof(List<ClientRedirectUriObject>))]
 public partial class MadJsonContext : JsonSerializerContext { }

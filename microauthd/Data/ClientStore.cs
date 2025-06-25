@@ -94,9 +94,9 @@ public static class ClientStore
     /// <remarks>This method queries the database for a client with the specified identifier. If no matching
     /// client is found, the method returns <see langword="null"/>. The returned <see cref="Client"/> object includes
     /// details such as the client's ID, display name, secret hash, and active status.</remarks>
-    /// <param name="clientId">The unique identifier of the client to retrieve. This value must not be null or empty.</param>
+    /// <param name="clientIdentifier">The unique identifier of the client to retrieve. This value must not be null or empty.</param>
     /// <returns>A <see cref="Client"/> object representing the client if found; otherwise, <see langword="null"/>.</returns>
-    public static Client? GetClientByClientId(string clientId)
+    public static Client? GetClientByClientIdentifier(string clientIdentifier)
     {
         return Db.WithConnection(conn =>
         {
@@ -104,10 +104,10 @@ public static class ClientStore
             cmd.CommandText = """
                 SELECT id, client_identifier, display_name, audience, client_secret_hash, is_active
                 FROM clients
-                WHERE client_identifier = $id
+                WHERE client_identifier = $cid
                 LIMIT 1;
             """;
-            cmd.Parameters.AddWithValue("$id", clientId);
+            cmd.Parameters.AddWithValue("$cid", clientIdentifier);
 
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
@@ -566,6 +566,112 @@ public static class ClientStore
             cmd.CommandText = "DELETE FROM clients WHERE client_identifier = $cid;";
             cmd.Parameters.AddWithValue("$cid", clientId);
             return cmd.ExecuteNonQuery() > 0;
+        });
+    }
+
+    /// <summary>
+    /// Inserts a new redirect URI for the specified client into the database.
+    /// </summary>
+    /// <remarks>This method generates a new unique identifier for the redirect URI and attempts to insert  it
+    /// into the database. If the operation is successful, a <see cref="ClientRedirectUriObject"/>  containing the
+    /// details of the inserted redirect URI is returned. If an error occurs during  the database operation, the method
+    /// logs the error and returns <see langword="null"/>.</remarks>
+    /// <param name="clientId">The unique identifier of the client for which the redirect URI is being added. Must not be null, empty, or
+    /// consist solely of whitespace.</param>
+    /// <param name="uri">The redirect URI to associate with the client.  Must not be null, empty, or consist solely of whitespace.</param>
+    /// <returns>A <see cref="ClientRedirectUriObject"/> representing the newly inserted redirect URI,  or <see langword="null"/>
+    /// if the operation fails or if either <paramref name="clientId"/>  or <paramref name="uri"/> is invalid.</returns>
+    public static ClientRedirectUriObject? InsertRedirectUri(string clientId, string uri)
+    {
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(uri))
+            return null;
+
+        var id = Guid.NewGuid().ToString();
+
+        try
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    INSERT INTO redirect_uris (id, client_id, uri)
+                    VALUES ($id, $client_id, $uri);
+                """;
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.Parameters.AddWithValue("$client_id", clientId);
+                cmd.Parameters.AddWithValue("$uri", uri);
+                cmd.ExecuteNonQuery();
+            });
+
+            return new ClientRedirectUriObject
+            {
+                Id = id,
+                ClientId = clientId,
+                RedirectUri = uri
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to insert redirect URI for client {ClientId}", clientId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Retrieves a list of redirect URIs associated with the specified client ID.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve redirect URIs for the given client ID. The
+    /// results are ordered by the URI value.</remarks>
+    /// <param name="clientId">The unique identifier of the client for which redirect URIs are to be retrieved. Must not be <see
+    /// langword="null"/> or empty.</param>
+    /// <returns>A list of <see cref="ClientRedirectUriObject"/> instances representing the redirect URIs associated with the
+    /// specified client ID. Returns an empty list if no redirect URIs are found.</returns>
+    public static List<ClientRedirectUriObject> GetRedirectUrisByClientId(string clientId)
+    {
+        var list = new List<ClientRedirectUriObject>();
+
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            SELECT id, client_id, uri
+            FROM redirect_uris
+            WHERE client_id = $cid
+            ORDER BY uri;
+        """;
+            cmd.Parameters.AddWithValue("$cid", clientId);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                list.Add(new ClientRedirectUriObject
+                {
+                    Id = reader.GetString(0),
+                    ClientId = reader.GetString(1),
+                    RedirectUri = reader.GetString(2)
+                });
+            }
+        });
+
+        return list;
+    }
+
+    /// <summary>
+    /// Deletes a redirect URI from the database based on its unique identifier.
+    /// </summary>
+    /// <remarks>This method executes a database operation to remove the specified redirect URI.  Ensure that
+    /// the provided <paramref name="id"/> corresponds to an existing record.</remarks>
+    /// <param name="id">The unique identifier of the redirect URI to delete. This value cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the redirect URI was successfully deleted; otherwise, <see langword="false"/>.</returns>
+    public static bool DeleteRedirectUriById(string id)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM redirect_uris WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", id);
+            var rowsAffected = cmd.ExecuteNonQuery();
+            return rowsAffected > 0;
         });
     }
 
