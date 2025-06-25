@@ -16,7 +16,7 @@ Some people are confused about what exactly microauthd is. You would use this in
 
 It is important to note that although microauthd is written in C#, it is not tied to ASP.NET Core, or .NET Core at all except needing the .NET 8 runtime to run. It is designed to be used with any platform that can support Json Web Tokens (JWT) and can be used from any language that allows you to issue HTTP POST commands against a web endpoint (basically all of them). Don't be afriad of microauthd if you're not a .NET Core person or your platform is not running on .NET Core. This is quite common as systems like KeyCloak are written in Java and Authentik is written in Python.
 
-I am going to begin working on the machinery needed to be reliably hosted behind a reverse proxy. This will include the forwarded headers along with support for trusted proxies. I hope to have this in an working by tomorrow.
+~~I am going to begin working on the machinery needed to be reliably hosted behind a reverse proxy. This will include the forwarded headers along with support for trusted proxies. I hope to have this in an working by tomorrow.~~ (Done)
 
 **2025-06-23**
 
