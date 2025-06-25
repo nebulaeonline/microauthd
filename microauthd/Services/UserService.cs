@@ -1291,6 +1291,47 @@ public static class UserService
     }
 
     /// <summary>
+    /// Sets or clears the lockout period for a specified user.
+    /// </summary>
+    /// <remarks>This method logs the action for auditing purposes and handles any exceptions that occur
+    /// during the operation. If an error occurs, the method returns a failure result with an appropriate error message
+    /// and HTTP status code.</remarks>
+    /// <param name="userId">The unique identifier of the user for whom the lockout period is being set or cleared.</param>
+    /// <param name="until">The date and time until which the user is locked out.  Specify <see langword="null"/> to clear the lockout
+    /// period.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates whether the operation
+    /// was successful. If successful, the response includes a message describing the action performed.</returns>
+    public static ApiResult<MessageResponse> SetLockout(string userId, DateTime? until)
+    {
+        try
+        {
+            UserStore.SetUserLockoutUntil(userId, until);
+
+            Utils.Audit.Logg(
+                action: until == null ? "admin.lockout.clear" : "admin.lockout.set",
+                target: userId,
+                secondary: until?.ToString("o") ?? "(cleared)"
+            );
+
+            // If lockout is set, revoke all sessions and refresh tokens for the user
+            if (until is not null)
+            {
+                UserStore.RevokeUserSessions(userId);
+                UserStore.RevokeUserRefreshTokens(userId);
+            }
+
+            return ApiResult<MessageResponse>.Ok(
+                new MessageResponse(true, $"User lockout {(until == null ? "cleared" : "set to " + until.Value.ToString("u"))}")
+            );
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to set lockout for user {UserId}", userId);
+            return ApiResult<MessageResponse>.Fail("Internal server error", 500);
+        }
+    }
+
+    /// <summary>
     /// Retrieves the total number of users currently stored in the system.
     /// </summary>
     /// <returns>The total count of users as an integer. Returns 0 if no users are stored.</returns>

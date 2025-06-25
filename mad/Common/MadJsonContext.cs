@@ -54,4 +54,5 @@ namespace mad.Common;
 [JsonSerializable(typeof(VerifyTotpRequest))]
 [JsonSerializable(typeof(ClientRedirectUriObject))]
 [JsonSerializable(typeof(List<ClientRedirectUriObject>))]
+[JsonSerializable(typeof(SetUserLockoutRequest))]
 public partial class MadJsonContext : JsonSerializerContext { }

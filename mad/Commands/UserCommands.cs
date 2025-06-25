@@ -3,6 +3,7 @@ using mad.Http;
 using madTypes.Api.Requests;
 using madTypes.Api.Responses;
 using System.CommandLine;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -20,10 +21,14 @@ internal static class UserCommands
         cmd.AddCommand(UpdateUserCommand());
         cmd.AddCommand(ListUsersCommand());
         cmd.AddCommand(GetUserByIdCommand());
+
         cmd.AddCommand(DeactivateUserCommand());
         cmd.AddCommand(ActivateUserCommand());
         cmd.AddCommand(DeleteUserCommand());
-        
+
+        cmd.AddCommand(SetUserLockoutCommand());
+        cmd.AddCommand(ClearUserLockoutCommand());
+
         return cmd;
     }
 
@@ -721,4 +726,108 @@ internal static class UserCommands
 
         return cmd;
     }
+
+    private static Command SetUserLockoutCommand()
+    {
+        var cmd = new Command("set-lockout", "Manually set a user lockout timestamp");
+
+        var id = new Option<string>("--id") { IsRequired = true };
+        var until = new Option<string>("--until", "ISO-8601 or 'permanent'") { IsRequired = true };
+
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(id);
+        cmd.AddOption(until);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string id, string until, string url, string? token, bool json) =>
+        {
+            try
+            {
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or `mad session login`.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                DateTime lockoutTime;
+                if (until.Trim().ToLowerInvariant() == "permanent")
+                {
+                    lockoutTime = DateTime.MaxValue;
+                }
+                else if (!DateTime.TryParse(until, null, DateTimeStyles.AdjustToUniversal, out lockoutTime))
+                {
+                    var err = new ErrorResponse(false, $"Invalid time format for --until: '{until}'");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var result = await client.SetUserLockout(id, lockoutTime);
+
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.MessageResponse));
+                else
+                    Console.WriteLine(result.Message);
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, $"Unexpected error: {ex.Message}");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, id, until, adminUrl, adminToken, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command ClearUserLockoutCommand()
+    {
+        var cmd = new Command("clear-lockout", "Remove any lockout restrictions from a user");
+
+        var id = new Option<string>("--id") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(id);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string id, string url, string? token, bool json) =>
+        {
+            try
+            {
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or `mad session login`.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var result = await client.ClearUserLockout(id);
+
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.MessageResponse));
+                else
+                    Console.WriteLine(result.Message);
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, $"Unexpected error: {ex.Message}");
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, id, adminUrl, adminToken, jsonOut);
+
+        return cmd;
+    }
+
 }

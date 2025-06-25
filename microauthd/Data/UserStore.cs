@@ -217,12 +217,14 @@ public static class UserStore
                 SET username = $u,
                     email = $e,
                     is_active = $a,
+                    lockout_until = $l,
                     modified_at = datetime('now')
                 WHERE id = $id;
             """;
             cmd.Parameters.AddWithValue("$u", updated.Username);
             cmd.Parameters.AddWithValue("$e", updated.Email);
             cmd.Parameters.AddWithValue("$a", updated.IsActive ? 1 : 0);
+            cmd.Parameters.AddWithValue("$l", updated.LockoutUntil.HasValue ? updated.LockoutUntil.Value.ToString("o") : DBNull.Value);
             cmd.Parameters.AddWithValue("$id", updated.Id);
             return cmd.ExecuteNonQuery() == 1;
         });
@@ -241,7 +243,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active
+                SELECT id, username, email, created_at, is_active, lockout_until
                 FROM users
                 WHERE id = $id;
             """;
@@ -256,7 +258,8 @@ public static class UserStore
                 Username = reader.GetString(1),
                 Email = reader.GetString(2),
                 CreatedAt = reader.GetDateTime(3),
-                IsActive = reader.GetBoolean(4)
+                IsActive = reader.GetBoolean(4),
+                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5)
             };
         });
     }
@@ -317,7 +320,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active
+                SELECT id, username, email, created_at, is_active, lockout_until
                 FROM users
                 WHERE username = $username;
             """;
@@ -332,7 +335,8 @@ public static class UserStore
                 Username = reader.GetString(1),
                 Email = reader.GetString(2),
                 CreatedAt = reader.GetDateTime(3),
-                IsActive = reader.GetBoolean(4)
+                IsActive = reader.GetBoolean(4),
+                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5)
             };
         });
     }
@@ -350,7 +354,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, username, email, is_active, created_at
+                SELECT id, username, email, is_active, created_at, lockout_until
                 FROM users
                 WHERE is_active = 1
                 ORDER BY username
@@ -369,7 +373,8 @@ public static class UserStore
                     Username = reader.GetString(1),
                     Email = reader.GetString(2),
                     IsActive = reader.GetBoolean(3),
-                    CreatedAt = reader.GetDateTime(4)
+                    CreatedAt = reader.GetDateTime(4),
+                    LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5)
                 });
             }
 
@@ -1292,6 +1297,30 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$id", userId);
             using var reader = cmd.ExecuteReader();
             return reader.Read() && reader.GetBoolean(0);
+        });
+    }
+
+    /// <summary>
+    /// Sets the lockout expiration date for a user, preventing them from accessing the system until the specified time.
+    /// </summary>
+    /// <remarks>This method updates the lockout expiration date in the database for the specified user. If
+    /// <paramref name="until"/> is <see langword="null"/>, the lockout is cleared.</remarks>
+    /// <param name="userId">The unique identifier of the user whose lockout status is being updated. Cannot be null or empty.</param>
+    /// <param name="until">The date and time until which the user is locked out, in UTC.  Specify <see langword="null"/> to remove the
+    /// lockout and allow immediate access.</param>
+    public static void SetUserLockoutUntil(string userId, DateTime? until)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            UPDATE users
+            SET lockout_until = $until
+            WHERE id = $id;
+        """;
+            cmd.Parameters.AddWithValue("$id", userId);
+            cmd.Parameters.AddWithValue("$until", until.HasValue ? until.Value.ToString("o") : DBNull.Value);
+            cmd.ExecuteNonQuery();
         });
     }
 

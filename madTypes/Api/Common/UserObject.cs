@@ -11,6 +11,8 @@ public class UserObject
     public required string Email { get; set; }
     [JsonPropertyName("created_at")]
     public required DateTime CreatedAt { get; set; }
+    [JsonPropertyName("lockout_until")]
+    public DateTime? LockoutUntil { get; set; } = null;
     [JsonPropertyName("is_active")]
     public bool IsActive { get; set; }
 }

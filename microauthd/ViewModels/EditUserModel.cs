@@ -19,6 +19,11 @@ public class EditUserModel
 
     public bool IsActive { get; set; } = true;
 
+    public DateTime? LockoutUntil { get; set; }
+
+    [Display(Name = "Permanent Lockout")]
+    public bool PermanentLockout { get; set; }
+
     public UserObject ToUserObject()
     {
         return new UserObject
@@ -27,7 +32,8 @@ public class EditUserModel
             Username = Username,
             Email = Email,
             CreatedAt = CreatedAt,
-            IsActive = IsActive
+            IsActive = IsActive,
+            LockoutUntil = PermanentLockout ? DateTime.MaxValue : LockoutUntil
         };
     }
 
@@ -39,7 +45,9 @@ public class EditUserModel
             Username = user.Username,
             Email = user.Email,
             CreatedAt = user.CreatedAt,
-            IsActive = user.IsActive
+            IsActive = user.IsActive,
+            LockoutUntil = user.LockoutUntil == DateTime.MaxValue ? null : user.LockoutUntil,
+            PermanentLockout = user.LockoutUntil == DateTime.MaxValue
         };
     }
 }

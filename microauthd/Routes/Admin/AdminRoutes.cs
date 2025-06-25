@@ -194,6 +194,19 @@ public static class AdminRoutes
         .WithTags("Users")
         .WithOpenApi();
 
+        // set user lockout endpoint****************************************************************
+        group.MapPost("/users/{id}/set-lockout", (string id, SetUserLockoutRequest req) =>
+        {
+            var result = UserService.SetLockout(id, req.LockoutUntil);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("SetUserLockout")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Users")
+        .WithOpenApi();
+
         // token request endpoint*******************************************************************
         group.MapPost("/token", async (AppConfig config, HttpContext ctx) =>
         {

@@ -169,6 +169,38 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
+    public async Task<MessageResponse?> SetUserLockout(string userId, DateTime until)
+    {
+        var payload = new SetUserLockoutRequest
+        {
+            LockoutUntil = until
+        };
+
+        var content = JsonContent.Create(payload, MadJsonContext.Default.SetUserLockoutRequest);
+        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/set-lockout", content);
+
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse);
+    }
+
+    public async Task<MessageResponse?> ClearUserLockout(string userId)
+    {
+        var payload = new SetUserLockoutRequest
+        {
+            LockoutUntil = default // This will be serialized as null
+        };
+
+        var content = JsonContent.Create(payload, MadJsonContext.Default.SetUserLockoutRequest);
+        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/set-lockout", content);
+
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse);
+    }
+
     public async Task<bool> ActivateUser(string userId)
     {
         var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/activate", content: null);

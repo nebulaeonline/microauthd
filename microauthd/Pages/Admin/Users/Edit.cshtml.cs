@@ -14,7 +14,10 @@ public class EditModel : BasePageModel
 {
     [BindProperty]
     public EditUserModel? UserForm { get; set; } = null;
+    public DateTime? LockoutUntil { get; set; }
 
+    [Display(Name = "Permanent Lockout")]
+    public bool PermanentLockout { get; set; }
     public IActionResult OnGet(string? id)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -34,15 +37,27 @@ public class EditModel : BasePageModel
         if (!ModelState.IsValid)
             return Page();
 
-        var UserToUpdate = UserForm!.ToUserObject();
+        // Translate Razor input to full UserObject
+        var userToUpdate = UserForm!.ToUserObject();
 
-        var result = UserService.UpdateUser(UserToUpdate.Id, UserToUpdate, Config);
+        // Handle permanent lockout logic
+        if (UserForm.PermanentLockout)
+            userToUpdate.LockoutUntil = DateTime.MaxValue;
+
+        if (userToUpdate.LockoutUntil.HasValue && userToUpdate.LockoutUntil.Value < DateTime.UtcNow)
+        {
+            ModelState.AddModelError(nameof(UserForm.LockoutUntil), "Lockout time must be in the future.");
+            return Page();
+        }
+
+        var result = UserService.UpdateUser(userToUpdate.Id, userToUpdate, Config);
         if (!result.Success)
         {
             ModelState.AddModelError(string.Empty, result.Error ?? "Update failed.");
             return Page();
         }
 
+        TempData["Success"] = "User updated successfully.";
         return RedirectToPage("/Admin/Users/Index");
     }
 
