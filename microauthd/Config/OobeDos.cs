@@ -32,6 +32,7 @@ namespace microauthd.Config
                 OobePrompts.PromptTrustedProxies(state);
                 OobePrompts.PromptServePublicAuthFiles(state);
                 OobePrompts.PromptPkceConfig(state);
+                OobePrompts.PromptPassCacheConfig(state);
                 OobePrompts.WriteConfig(state);
             }
 

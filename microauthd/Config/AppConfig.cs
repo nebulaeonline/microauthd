@@ -72,4 +72,7 @@ public class AppConfig
     public int PkceCodeLifetime { get; set; } = 0;
 
     public bool ServePublicAuthFiles { get; set; } = false;
+
+    public bool EnablePassCache { get; set; } = false;
+    public int PassCacheDuration { get; set; } = 0;
 }

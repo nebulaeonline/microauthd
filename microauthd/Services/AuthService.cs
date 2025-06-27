@@ -7,10 +7,12 @@ using microauthd.Config;
 using microauthd.Data;
 using microauthd.Tokens;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using OtpNet;
 using Serilog;
+using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
@@ -22,6 +24,61 @@ namespace microauthd.Services;
 
 public static class AuthService
 {
+    /// <summary>
+    /// A cryptographic random byte array used as a pepper for password caching operations.
+    /// </summary>
+    /// <remarks>This static field contains a 32-byte cryptographic random value generated using  <see
+    /// cref="System.Security.Cryptography.RandomNumberGenerator"/>. It is intended to  add an additional layer of
+    /// security to password caching mechanisms by introducing  unpredictability.</remarks>
+    private static byte[] _passCachePepper = RandomNumberGenerator.GetBytes(32);
+
+    /// <summary>
+    /// Tracks the elapsed time since the last login operation.
+    /// </summary>
+    /// <remarks>This stopwatch is initialized and started immediately upon application startup. It can be
+    /// used to measure the time elapsed since the last login-related activity.</remarks>
+    private static readonly Stopwatch _lastLogin = Stopwatch.StartNew();
+
+    /// <summary>
+    /// Regenerates the cryptographic pepper used for password caching.
+    /// </summary>
+    /// <remarks>This method generates a new random 32-byte pepper and clears the password cache to ensure
+    /// that previously cached passwords are invalidated. It is typically used to enhance security by periodically
+    /// refreshing the pepper.</remarks>
+    public static void RegeneratePepperAndClearCache()
+    {
+        _passCachePepper = RandomNumberGenerator.GetBytes(32);
+        _passwordCache.Clear();
+        Log.Information("Password cache pepper regenerated.");
+    }
+
+    /// <summary>
+    /// A static memory cache used to store password-related data with a size limit of 500 entries.
+    /// </summary>
+    /// <remarks>This cache is configured with a size limit of 500 entries to manage memory usage effectively.
+    /// It is intended for internal use and should not be accessed directly outside of the class.</remarks>
+    private static readonly MemoryCache _passwordCache = new (new MemoryCacheOptions
+    {
+        SizeLimit = 500
+    });
+
+    /// <summary>
+    /// Generates a cache key based on the provided user ID and password.
+    /// </summary>
+    /// <remarks>The cache key is derived by hashing the combination of the user ID, password, and an internal
+    /// pepper value. This ensures that the resulting key is unique and secure.</remarks>
+    /// <param name="userId">The unique identifier of the user. Cannot be null or empty.</param>
+    /// <param name="password">The user's password. Cannot be null or empty.</param>
+    /// <returns>A base64-encoded string representing the computed cache key.</returns>
+    private static string GetPassCacheKey(string userId, string password)
+    {
+        using var sha = SHA256.Create();
+        var input = Encoding.UTF8.GetBytes($"{userId}:{password}");
+        var combined = input.Concat(_passCachePepper).ToArray();
+        var hash = sha.ComputeHash(combined);
+        return Convert.ToBase64String(hash);
+    }
+
     /// <summary>
     /// A static memory cache used to store client secrets with a size limit of 100 entries.
     /// </summary>
@@ -135,6 +192,24 @@ public static class AuthService
             return null;
         }
 
+        // Reset the last login stopwatch or check key cache if not timed out
+        string key = string.Empty;
+        if (config.EnablePassCache)
+        {
+            if (_lastLogin.Elapsed > TimeSpan.FromSeconds(config.PassCacheDuration))
+                RegeneratePepperAndClearCache();
+            else
+            {
+                key = GetPassCacheKey(user.Id, password);
+                _passwordCache.TryGetValue(key, out bool isValid);
+
+                if (isValid)
+                    return (true, user.Id, user.Email, AuthStore.GetUserClaims(user.Id));
+            }
+
+            _lastLogin.Restart();
+        }
+
         // Verify the password using Argon2id
         var userHash = UserStore.GetUserPasswordHash(user.Id);
         var passwordBytes = Encoding.UTF8.GetBytes(password);
@@ -142,6 +217,18 @@ public static class AuthService
         {
             RecordFailedLogin(user.Id, config);
             return null;
+        }
+        else
+        {
+            if (config.EnablePassCache)
+            {
+                key = GetPassCacheKey(user.Id, password);
+                _passwordCache.Set(key, true, new MemoryCacheEntryOptions
+                {
+                    Size = 1,
+                    SlidingExpiration = TimeSpan.FromSeconds(config.PassCacheDuration)
+                });
+            }
         }
 
         // Get user claims (roles & scopes)

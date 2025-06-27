@@ -173,6 +173,8 @@ public static class ConfigLoader
             EnablePkce = GetBool(Options.EnablePkce),
             PkceCodeLifetime = GetInt(Options.PkceCodeLifetime),
             ServePublicAuthFiles = GetBool(Options.ServePublicAuthFiles),
+            EnablePassCache = GetBool(Options.EnablePassCache),
+            PassCacheDuration = GetInt(Options.PassCacheDuration),
         };
     }
 

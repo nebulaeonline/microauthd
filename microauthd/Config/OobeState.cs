@@ -71,6 +71,9 @@ internal class OobeState
 
     public bool ServePublicAuthFiles = false;
 
+    public bool EnablePassCache = false;
+    public int PassCacheDuration = 0;
+
     public OobeState(AppConfig config)
     {
         Config = config;

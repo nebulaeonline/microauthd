@@ -553,5 +553,24 @@ internal static class Options
     /// authentication-related  files are served by the application.</remarks>
     public static readonly Option<bool> ServePublicAuthFiles =
         new Option<bool>("--serve-public-auth-files", () => false, "Serve public files for the authentication service (defaults to false) (env var MAD_SERVE_PUBLIC_AUTH_FILES = 1)");
+
+    /// <summary>
+    /// Represents an option to enable or disable password caching.
+    /// </summary>
+    /// <remarks>The default value for this option is <see langword="true"/>.  Password caching can be
+    /// controlled via the environment variable <c>MAD_ENABLE_PASS_CACHE</c>,  which should be set to <c>1</c> to enable
+    /// caching.</remarks>
+    public static readonly Option<bool> EnablePassCache =
+        new Option<bool>("--enable-pass-cache", () => true, "Enable password caching (defaults to true) (env var MAD_ENABLE_PASS_CACHE = 1)");
         
+    /// <summary>
+    /// Represents the duration, in seconds, for which passwords are cached.
+    /// </summary>
+    /// <remarks>The default value is 300 seconds. This option can be configured using the environment
+    /// variable  <c>MAD_PASS_CACHE_DURATION</c>.</remarks>
+    public static readonly Option<int> PassCacheDuration =
+        new Option<int>("--pass-cache-duration", () => 300, "Duration in seconds for which passwords are cached (defaults to 300) (env var MAD_PASS_CACHE_DURATION)")
+        {
+            Arity = ArgumentArity.ExactlyOne
+        };
 }
