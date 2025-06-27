@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-      <Version>0.8.3.0</Version>
+      <Version>0.8.4.0</Version>
       <UseIIS>false</UseIIS>
       <InvariantGlobalization>true</InvariantGlobalization>
       <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
