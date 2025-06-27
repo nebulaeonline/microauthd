@@ -170,10 +170,12 @@ public static class AuthService
             return null;
 
         // Check cache
-        if (_clientSecretCache.TryGetValue(clientId, out var cachedSecret) &&
-            cachedSecret is string cached && clientSecret == cached)
+        if (_clientSecretCache.TryGetValue(clientId, out var cachedSecret))
         {
-            return client;
+            if (cachedSecret is not null && (string)cachedSecret == clientSecret)
+                return client;
+            else
+                return null;
         }
 
         // Fall back to full Argon2id verification
@@ -761,17 +763,41 @@ public static class AuthService
     {
         try
         {
-            // Get the secret hash and verify it against the provided client secret
-            var clientSecretHash = ClientStore.GetClientSecretHashByIdentifier(clientId);
+            // Normalize input
+            var normalizedId = clientId.Trim();
+            var normalizedSecret = clientSecret.Trim();
 
+            // Check the cache first
+            if (_clientSecretCache.TryGetValue(clientId, out var cachedSecret))
+            {
+                if (cachedSecret is not null && (string)cachedSecret == clientSecret)
+                    return true;
+                else
+                    return false;
+            }
+
+            // Lookup hash from DB
+            var clientSecretHash = ClientStore.GetClientSecretHashByIdentifier(normalizedId);
             if (string.IsNullOrEmpty(clientSecretHash))
                 return false;
 
-            return VerifyEncoded(
+            // Fallback to Argon2 verification
+            var verified = VerifyEncoded(
                 Argon2Algorithm.Argon2id,
                 clientSecretHash,
-                Encoding.UTF8.GetBytes(clientSecret)
+                Encoding.UTF8.GetBytes(normalizedSecret)
             );
+
+            if (verified)
+            {
+                _clientSecretCache.Set(clientId, clientSecret, new MemoryCacheEntryOptions
+                {
+                    Size = 1,
+                    SlidingExpiration = TimeSpan.FromMinutes(15)
+                });
+            }
+
+            return verified;
         }
         catch (Exception ex)
         {
