@@ -16,7 +16,7 @@ microauthd is not a Certified OpenID Connect Provider, nor is it Fully OIDC Comp
 
 ## microauthd Status Updates
 
-Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
+Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth), my follow up [Auth Rolled Part Deux](https://purplekungfu.com/Post/10/auth-rolled-part-deux) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
 **2025-06-27**
 
