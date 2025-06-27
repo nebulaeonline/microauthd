@@ -60,7 +60,8 @@ public static class ClientService
             if (clientObj is null)
                 return ApiResult<ClientObject>.Fail("Client creation failed (duplicate client_id?)");
 
-            Utils.Audit.Logg("create_client", req.ClientId);
+            if (config.EnableAuditLogging)
+                    Utils.Audit.Logg("create_client", req.ClientId);
 
             return ApiResult<ClientObject>.Ok(clientObj);
         }
@@ -248,7 +249,8 @@ public static class ClientService
             if (!deleted)
                 return ApiResult<MessageResponse>.Fail("Failed to delete client");
 
-            Utils.Audit.Logg("delete_client", clientId);
+            if (config.EnableAuditLogging) 
+                Utils.Audit.Logg("delete_client", clientId);
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientId}' deleted"));
         }
@@ -293,10 +295,11 @@ public static class ClientService
         AuthService.InvalidateClientCache(clientId);
         Log.Debug("Client cache invalidated for client ID {ClientId}", clientId);
 
-        Utils.Audit.Logg(
-            action: "client.secret.regenerated",
-            target: $"clientId"
-        );
+        if (config.EnableAuditLogging)
+            Utils.Audit.Logg(
+                action: "client.secret.regenerated",
+                target: $"clientId"
+            );
 
         // IMPORTANT: Return the plain secret only once
         return ApiResult<MessageResponse>.Ok(

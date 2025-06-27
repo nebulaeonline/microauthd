@@ -77,11 +77,12 @@ public static class UserService
                 passwordHash: passwordHash
             );
 
-            Utils.Audit.Logg(
-                action: "user_created",
-                target: username,
-                secondary: userId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_created",
+                    target: username,
+                    secondary: userId
+                );
 
             if (user is null)
             {
@@ -146,11 +147,12 @@ public static class UserService
             if (user is null)
                 return ApiResult<UserObject>.Fail("User creation failed (likely duplicate)");
 
-            Utils.Audit.Logg(
-                action: "user_created",
-                target: userId,
-                secondary: request.Username
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_created",
+                    target: userId,
+                    secondary: request.Username
+                );
 
             return ApiResult<UserObject>.Ok(user);
         }
@@ -288,7 +290,8 @@ public static class UserService
             // Revoke refresh tokens
             UserStore.RevokeUserRefreshTokens(idToDelete);
 
-            Utils.Audit.Logg("delete_user", idToDelete);
+            if (config.EnableAuditLogging) 
+                Utils.Audit.Logg("delete_user", idToDelete);
 
             return deleted
                 ? ApiResult<MessageResponse>.Ok(new(true, $"Deleted user {idToDelete}"))
@@ -327,10 +330,11 @@ public static class UserService
         {
             var users = UserStore.ListUsers();
 
-            Utils.Audit.Logg(
-                action: "user_list",
-                null
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_list",
+                    null
+                );
 
             return ApiResult<List<UserObject>>.Ok(users);
         }
@@ -402,10 +406,11 @@ public static class UserService
             if (user is null)
                 return ApiResult<UserObject>.NotFound("User not found");
 
-            Utils.Audit.Logg(
-                action: "user_read",
-                target: targetUserId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_read",
+                    target: targetUserId
+                );
 
             return ApiResult<UserObject>.Ok(user);
         }
@@ -457,10 +462,11 @@ public static class UserService
             // Revoke refresh tokens
             UserStore.RevokeUserRefreshTokens(userId);
 
-            Utils.Audit.Logg(
-                action: "user_deactivated",
-                target: userId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_deactivated",
+                    target: userId
+                );
 
             return ApiResult<MessageResponse>.Ok(
                 new MessageResponse(true, $"User '{userId}' deactivated."));
@@ -513,10 +519,11 @@ public static class UserService
             // Revoke refresh tokens
             UserStore.RevokeUserRefreshTokens(targetUserId);
 
-            Utils.Audit.Logg(
-                action: "user_deactivated",
-                target: targetUserId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_deactivated",
+                    target: targetUserId
+                );
 
             return ApiResult<MessageResponse>.Ok(new(true, $"User '{targetUserId}' deactivated."));
         }
@@ -553,10 +560,11 @@ public static class UserService
             if (reactivated)
                 return ApiResult<MessageResponse>.Fail("User not found or already active", 400);
 
-            Utils.Audit.Logg(
-                action: "user_reactivated",
-                target: userId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_reactivated",
+                    target: userId
+                );
 
             return ApiResult<MessageResponse>.Ok(
                 new MessageResponse(true, $"User '{userId}' reactivated."));
@@ -604,10 +612,11 @@ public static class UserService
             if (reset)
                 return ApiResult<MessageResponse>.Fail("User not found or inactive", 400);
 
-            Utils.Audit.Logg(
-                action: "user_password_reset",
-                target: userId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_password_reset",
+                    target: userId
+                );
 
             return ApiResult<MessageResponse>.Ok(
                 new MessageResponse(true, $"Password for user '{userId}' has been reset")
@@ -663,10 +672,11 @@ public static class UserService
             if (reset)
                 return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
 
-            Utils.Audit.Logg(
-                action: "user_password_reset",
-                target: targetUserId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "user_password_reset",
+                    target: targetUserId
+                );
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Password for user '{targetUserId}' has been reset."));
         }
@@ -844,11 +854,12 @@ public static class UserService
         {
             (bool revoked, string message, string userId) = UserStore.RevokeSessionById(jti);
 
-            Utils.Audit.Logg(
-                action: "session_revoked",
-                target: jti,
-                secondary: userId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "session_revoked",
+                    target: jti,
+                    secondary: userId
+                );
 
             if (!revoked)
             {
@@ -906,10 +917,11 @@ public static class UserService
                 purgeRevoked: purgeRevoked
             );
 
-            Utils.Audit.Logg(
-                action: "sessions_purged",
-                target: $"purged={purged};expired={purgeExpired};revoked={purgeRevoked}"
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "sessions_purged",
+                    target: $"purged={purged};expired={purgeExpired};revoked={purgeRevoked}"
+                );
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} session(s)."));
         }
@@ -1070,10 +1082,11 @@ public static class UserService
                 purgeRevoked: req.PurgeRevoked
             );
 
-            Utils.Audit.Logg(
-                action: "refresh_tokens_purged",
-                target: $"purged={purged};expired={req.PurgeExpired};revoked={req.PurgeRevoked}"
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "refresh_tokens_purged",
+                    target: $"purged={purged};expired={req.PurgeExpired};revoked={req.PurgeRevoked}"
+                );
 
             return ApiResult<MessageResponse>.Ok(new(true, $"Purged {purged} refresh token(s)."));
         }
@@ -1218,7 +1231,9 @@ public static class UserService
             if (affected == 0)
                 return ApiResult<MessageResponse>.Fail("User not found or already inactive", 404);
 
-            Utils.Audit.Logg("disable_totp", userId);
+            if (config.EnableAuditLogging) 
+                Utils.Audit.Logg("disable_totp", userId);
+
             return ApiResult<MessageResponse>.Ok(new(true, "TOTP disabled for user"));
         }
         catch (Exception ex)
@@ -1289,17 +1304,18 @@ public static class UserService
     /// period.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates whether the operation
     /// was successful. If successful, the response includes a message describing the action performed.</returns>
-    public static ApiResult<MessageResponse> SetLockout(string userId, DateTime? until)
+    public static ApiResult<MessageResponse> SetLockout(string userId, DateTime? until, AppConfig config)
     {
         try
         {
             UserStore.SetUserLockoutUntil(userId, until);
 
-            Utils.Audit.Logg(
-                action: until == null ? "admin.lockout.clear" : "admin.lockout.set",
-                target: userId,
-                secondary: until?.ToString("o") ?? "(cleared)"
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: until == null ? "admin.lockout.clear" : "admin.lockout.set",
+                    target: userId,
+                    secondary: until?.ToString("o") ?? "(cleared)"
+                );
 
             // If lockout is set, revoke all sessions and refresh tokens for the user
             if (until is not null)

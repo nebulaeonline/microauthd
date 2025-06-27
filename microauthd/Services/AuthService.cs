@@ -590,10 +590,11 @@ public static class AuthService
 
         Log.Information("Admin Token issued for user {UserId}", r.UserId);
 
-        Utils.Audit.Logg(
-            action: "admin_token_issued",
-            target: req.ClientIdentifier ?? "(no client id)"
-        );
+        if (config.EnableAuditLogging)
+            Utils.Audit.Logg(
+                action: "admin_token_issued",
+                target: req.ClientIdentifier ?? "(no client id)"
+            );
 
         return ApiResult<TokenResponse>.Ok(new TokenResponse
         {
@@ -807,10 +808,11 @@ public static class AuthService
                 tokenRow.ClientIdentifier
             );
 
-            Utils.Audit.Logg(
-                action: "refresh_token_used",
-                target: tokenRow.ClientIdentifier
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "refresh_token_used",
+                    target: tokenRow.ClientIdentifier
+                );
 
             return ApiResult<TokenResponse>.Ok(new TokenResponse
             {
@@ -944,10 +946,11 @@ public static class AuthService
         {
             AuthStore.LogoutUser(userId, clientIdentifier);
 
-            Utils.Audit.Logg(
-                action: "logout",
-                target: clientIdentifier
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "logout",
+                    target: clientIdentifier
+                );
 
             return ApiResult<MessageResponse>.Ok(
                 new MessageResponse(true, $"User '{userId}' logged out of client '{clientIdentifier}'")
@@ -974,10 +977,11 @@ public static class AuthService
         {
             AuthStore.LogoutUserAllClients(userId);
 
-            Utils.Audit.Logg(
-                action: "logout_all",
-                null
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "logout_all",
+                    null
+                );
 
             return ApiResult<MessageResponse>.Ok(
                 new MessageResponse(true, $"All sessions and refresh tokens revoked for user '{userId}'")
@@ -1143,10 +1147,11 @@ public static class AuthService
                 Audience = audience
             };
 
-            Utils.Audit.Logg(
-                action: "oidc_token_issued",
-                target: clientId
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "oidc_token_issued",
+                    target: clientId
+                );
 
             return ApiResult<TokenResponse>.Ok(response);
         }
@@ -1220,10 +1225,12 @@ public static class AuthService
             else
             {
                 Log.Debug("Introspection for non-auth token (use = {Use})", tokenUse);
-                Utils.Audit.Logg(
-                    action: "token.introspect.non_auth",
-                    target: $"client={clientId} token_use={tokenUse}"
-                );
+
+                if (config.EnableAuditLogging)
+                    Utils.Audit.Logg(
+                        action: "token.introspect.non_auth",
+                        target: $"client={clientId} token_use={tokenUse}"
+                    );
             }
 
             var dict = new Dictionary<string, object>
@@ -1242,10 +1249,11 @@ public static class AuthService
                 ["token_use"] = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "auth"
             };
 
-            Utils.Audit.Logg(
-                action: "token.introspect.success",
-                target: $"client={clientId}"
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "token.introspect.success",
+                    target: $"client={clientId}"
+                );
 
             return ApiResult<Dictionary<string, object>>.Ok(dict);
         }
@@ -1299,10 +1307,12 @@ public static class AuthService
 
         if (kid == adminKid)
         {
-            Utils.Audit.Logg(
-                action: "admin.admin.token.introspect",
-                target: "attempted introspection of admin token"
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "admin.admin.token.introspect",
+                    target: "attempted introspection of admin token"
+                );
+
             return ApiResult<Dictionary<string, object>>.Fail("Admin token introspection is not allowed", 403);
         }
 
@@ -1330,10 +1340,11 @@ public static class AuthService
             claims["nbf"] = new DateTimeOffset(jwt.ValidFrom).ToUnixTimeSeconds();
             claims["exp"] = new DateTimeOffset(jwt.ValidTo).ToUnixTimeSeconds();
 
-            Utils.Audit.Logg(
-                action: "admin.auth.token.introspect",
-                target: jwt.Subject
-            );
+            if (config.EnableAuditLogging)
+                Utils.Audit.Logg(
+                    action: "admin.auth.token.introspect",
+                    target: jwt.Subject
+                );
 
             return ApiResult<Dictionary<string, object>>.Ok(claims);
         }

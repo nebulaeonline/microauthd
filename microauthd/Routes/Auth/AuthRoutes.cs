@@ -391,10 +391,11 @@ public static class AuthRoutes
 
             if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             {
-                Utils.Audit.Logg(
-                    action: "token.introspect.failure",
-                    target: $"client={clientId} reason=missing_fields"
-                );
+                if (config.EnableAuditLogging)
+                    Utils.Audit.Logg(
+                        action: "token.introspect.failure",
+                        target: $"client={clientId} reason=missing_fields"
+                    );
 
                 return ApiResult<Dictionary<string, object>>
                     .Fail("Authorization Failed", 403)
@@ -404,10 +405,11 @@ public static class AuthRoutes
             var client = AuthService.AuthenticateClient(clientId, clientSecret, config);
             if (client is null)
             {
-                Utils.Audit.Logg(
-                    action: "token.introspect.failure",
-                    target: $"client={clientId} reason=invalid_client_credentials"
-                );
+                if (config.EnableAuditLogging)
+                    Utils.Audit.Logg(
+                        action: "token.introspect.failure",
+                        target: $"client={clientId} reason=invalid_client_credentials"
+                    );
 
                 return ApiResult<Dictionary<string, object>>
                     .Fail("Authorization Failed", 403)

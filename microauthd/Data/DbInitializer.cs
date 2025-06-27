@@ -5,12 +5,6 @@ namespace microauthd.Data;
 
 public static class DbInitializer
 {
-    public static void Init(AppConfig config)
-    {
-        Db.Configure(config);
-        Console.WriteLine("Database Initialized.");
-    }
-    
     public static void CreateDbTables(AppConfig config)
     {
         Db.Configure(config);

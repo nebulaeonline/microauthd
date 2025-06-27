@@ -44,7 +44,8 @@ namespace microauthd.Services
                 if (permissionObj is null)
                     return ApiResult<PermissionObject>.Fail("Permission creation failed (maybe duplicate?)");
 
-                Utils.Audit.Logg("create_permission", name);
+                if (config.EnableAuditLogging) 
+                    Utils.Audit.Logg("create_permission", name);
 
                 return ApiResult<PermissionObject>.Ok(permissionObj);
             }
@@ -212,7 +213,9 @@ namespace microauthd.Services
                 if (!deleted)
                     return ApiResult<MessageResponse>.Fail("Failed to delete permission");
 
-                Utils.Audit.Logg("delete_permission", permissionId);
+                if (config.EnableAuditLogging) 
+                    Utils.Audit.Logg("delete_permission", permissionId);
+
                 return ApiResult<MessageResponse>.Ok(new(true, $"Permission '{permissionId}' deleted"));
             }
             catch (Exception ex)
@@ -255,7 +258,9 @@ namespace microauthd.Services
                 if (!assigned)
                     return ApiResult<MessageResponse>.Fail("Failed to assign permission to role or permission already exists");
 
-                Utils.Audit.Logg("assigned_permission", permissionId, roleId);
+                if (config.EnableAuditLogging) 
+                    Utils.Audit.Logg("assigned_permission", permissionId, roleId);
+
                 return ApiResult<MessageResponse>.Ok(new(true, $"Permission assigned to role {roleId}"));
             }
             catch (Exception ex)
@@ -299,11 +304,12 @@ namespace microauthd.Services
                 if (!removed)
                     return ApiResult<MessageResponse>.Fail("Failed to remove permission from role or permission does not exist");
 
-                Utils.Audit.Logg(
-                    action: "permission_unassigned",
-                    target: roleId,
-                    secondary: permissionId
-                );
+                if (config.EnableAuditLogging)
+                    Utils.Audit.Logg(
+                        action: "permission_unassigned",
+                        target: roleId,
+                        secondary: permissionId
+                    );
 
                 return ApiResult<MessageResponse>.Ok(
                     new(true, $"Permission '{permissionId}' removed from role '{roleId}'"));

@@ -130,10 +130,11 @@ public static class ServerHost
                                     {
                                         Log.Warning("Replay detected: revoked token jti={Jti} user={UserId}", jti, userId);
 
-                                        Utils.Audit.Logg(
-                                            action: "auth.token.replay_detected",
-                                            target: $"jti={jti}"
-                                        );
+                                        if (config.EnableAuditLogging)
+                                            Utils.Audit.Logg(
+                                                action: "auth.token.replay_detected",
+                                                target: $"jti={jti}"
+                                            );
 
                                         context.Fail("Invalid token");
                                         return Task.CompletedTask;
@@ -288,10 +289,11 @@ public static class ServerHost
                                     {
                                         Log.Warning("Replay detected: revoked token jti={Jti} user={UserId}", jti, userId);
 
-                                        Utils.Audit.Logg(
-                                            action: "admin.token.replay_detected",
-                                            target: $"jti={jti}"
-                                        );
+                                        if (config.EnableAuditLogging)
+                                            Utils.Audit.Logg(
+                                                action: "admin.token.replay_detected",
+                                                target: $"jti={jti}"
+                                            );
 
                                         context.Fail("Invalid token");
                                         return Task.CompletedTask;

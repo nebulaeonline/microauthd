@@ -26,9 +26,9 @@ public static class TestHelpers
             AdminSSLCertPass = "",
             AdminDomainNoSSL = true,
 
-            DbFile = ":memory:",
-            DbPass = "",
-            NoDbPass = true,
+            DbFile = "test.db3",
+            DbPass = "1234",
+            NoDbPass = false,
 
             Argon2Time = 2,
             Argon2Memory = 32768,
@@ -63,7 +63,9 @@ public static class TestHelpers
             TrustedProxies = new List<string>(),
             EnablePkce = true,
             PkceCodeLifetime = 300,
-            ServePublicAuthFiles = true
+            ServePublicAuthFiles = true,
+            EnablePassCache = true,
+            PassCacheDuration = 300,
         };
 
         overrides?.Invoke(config);

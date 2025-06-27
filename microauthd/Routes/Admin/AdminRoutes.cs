@@ -195,9 +195,9 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // set user lockout endpoint****************************************************************
-        group.MapPost("/users/{id}/set-lockout", (string id, SetUserLockoutRequest req) =>
+        group.MapPost("/users/{id}/set-lockout", (string id, SetUserLockoutRequest req, AppConfig config) =>
         {
-            var result = UserService.SetLockout(id, req.LockoutUntil);
+            var result = UserService.SetLockout(id, req.LockoutUntil, config);
             return result.ToHttpResult();
         })
         .RequireAuthorization()
