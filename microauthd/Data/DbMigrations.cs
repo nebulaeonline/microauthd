@@ -1,0 +1,127 @@
+﻿using Serilog;
+using System;
+using System.Data;
+
+namespace microauthd.Data;
+
+public static class DbMigrations
+{
+    // Schema versioning
+    private const int CurrentSchemaVersion = 2;
+
+    /// <summary>
+    /// Applies all necessary database schema migrations to bring the database up to the current schema version.
+    /// </summary>
+    /// <remarks>This method checks the current schema version of the database and applies incremental
+    /// migrations until the database matches the expected schema version defined by the application. If the database
+    /// schema version is newer than the version supported by the application, an exception is thrown.</remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the database schema version is newer than the version supported by the application.</exception>
+    public static void ApplyMigrations()
+    {
+        // Get the current schema version for the database
+        int dbVersion = GetSchemaVersion();
+
+        // If db is too new, don't run any migrations
+        if (dbVersion > CurrentSchemaVersion)
+            throw new InvalidOperationException($"Database schema version ({dbVersion}) is newer than this binary supports ({CurrentSchemaVersion}).");
+
+        // Apply migrations until we reach the current schema version
+        while (dbVersion < CurrentSchemaVersion)
+        {
+            int nextVersion = dbVersion + 1;
+            Log.Information("Migrating schema: v{From} to v{To}", dbVersion, nextVersion);
+            ApplyMigrationStep(dbVersion, nextVersion);
+            SetSchemaVersion(nextVersion);
+            dbVersion = nextVersion;
+        }
+
+        Log.Information("Database schema is up to date (v{Version})", dbVersion);
+    }
+
+    /// <summary>
+    /// Retrieves the current schema version from the database.
+    /// </summary>
+    /// <remarks>This method queries the `schema_version` table in the database to obtain the schema version. 
+    /// If the table does not exist, it is created with an initial version of 1, and the method returns 1.</remarks>
+    /// <returns>The current schema version as an integer. Returns 1 if the `schema_version` table is missing and is created.</returns>
+    private static int GetSchemaVersion()
+    {
+        try
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var checkCmd = conn.CreateCommand();
+                checkCmd.CommandText = "SELECT version FROM schema_version WHERE id = 1;";
+                return Convert.ToInt32(checkCmd.ExecuteScalar());
+            });
+        }
+        catch
+        {
+            // schema_version table missing; create it and assume version 1
+            Db.WithConnection(conn =>
+            {
+                using var create = conn.CreateCommand();
+                create.CommandText = """
+                    CREATE TABLE IF NOT EXISTS schema_version (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        version INTEGER NOT NULL
+                    );
+                    INSERT OR IGNORE INTO schema_version (id, version) VALUES (1, 1);
+                """;
+                create.ExecuteNonQuery();
+            });
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Updates the schema version in the database to the specified value.
+    /// </summary>
+    /// <remarks>This method updates the schema version in the database by executing an SQL command. Ensure
+    /// that the database connection is properly configured before calling this method.</remarks>
+    /// <param name="version">The new schema version to set. Must be a positive integer.</param>
+    private static void SetSchemaVersion(int version)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE schema_version SET version = $v WHERE id = 1;";
+            cmd.Parameters.AddWithValue("$v", version);
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// Applies a migration step to transition the system from one version to another.
+    /// </summary>
+    /// <remarks>This method performs the necessary operations to migrate the system state from the specified 
+    /// <paramref name="fromVersion"/> to <paramref name="toVersion"/>. If no migration is defined for  the specified
+    /// version pair, an exception is thrown.</remarks>
+    /// <param name="fromVersion">The current version of the system. Must be a valid version number.</param>
+    /// <param name="toVersion">The target version to migrate to. Must be a valid version number.</param>
+    /// <exception cref="InvalidOperationException">Thrown if no migration is defined for the specified <paramref name="fromVersion"/> and <paramref
+    /// name="toVersion"/>.</exception>
+    private static void ApplyMigrationStep(int fromVersion, int toVersion)
+    {
+        switch ((fromVersion, toVersion))
+        {
+            case (1, 2):
+                Migrate_1_to_2();
+                break;
+            default:
+                throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
+        }
+    }
+
+    // Migration: v1 to v2
+    // Add `nonce` column to `pkce_codes` table
+    private static void Migrate_1_to_2()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE pkce_codes ADD COLUMN nonce TEXT DEFAULT '';";
+            cmd.ExecuteNonQuery();
+        });
+    }
+}

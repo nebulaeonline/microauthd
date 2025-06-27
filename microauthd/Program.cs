@@ -51,7 +51,8 @@ public class Program
                 var postConfig = OobeDos.LaunchOobe(config);
                 config = ConfigLoader.Load(parseResult); // Reload config after OOBE
                 DbInitializer.CreateDbTables(config);
-                
+                DbMigrations.ApplyMigrations();
+
                 // Perform post-OOBE actions
 
                 // Set up the admin user
@@ -66,6 +67,7 @@ public class Program
             {
                 // Initialize the database
                 DbInitializer.CreateDbTables(config);
+                DbMigrations.ApplyMigrations();
                 Db.FlushWal();
             }               
 
