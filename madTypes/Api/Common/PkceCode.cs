@@ -22,5 +22,7 @@ namespace madTypes.Api.Common
         public string UserId { get; set; } = default!;
         [JsonPropertyName("jti")]
         public string? Jti { get; set; }
+        [JsonPropertyName("nonce")]
+        public string? Nonce { get; set; }
     }
 }

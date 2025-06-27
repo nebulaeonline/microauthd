@@ -16,4 +16,7 @@ public sealed class TokenResponse
     public string? RefreshToken { get; init; }
     [JsonPropertyName("aud")]
     public string? Audience { get; init; } = "microauthd";
+    [JsonPropertyName("id_token")]
+    public string? IdToken { get; init; }
+
 }

@@ -112,10 +112,25 @@ public static class ServerHost
 
                                 var claims = context.Principal?.Claims?.ToList() ?? new List<Claim>();
                                 var rawUserId = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
-                                var tokenUse = claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "auth";
+                                var tokenUse = claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "";
                                 Guid parsed;
                                 var userId = tokenUse == "auth" && Guid.TryParse(rawUserId, out parsed) ? rawUserId : null;
                                 var jti = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+
+                                // Heuristic to reject ID tokens used as access tokens
+                                if (claims.Any(c => c.Type == "nonce"))
+                                {
+                                    Log.Warning("Rejected token with 'nonce' claim — likely an ID token misused as an access token.");
+                                    context.Fail("Invalid token");
+                                    return Task.CompletedTask;
+                                }
+
+                                if (tokenUse == "id")
+                                {
+                                    Log.Warning("Rejected microauthd ID token used for API access.");
+                                    context.Fail("Invalid token");
+                                    return Task.CompletedTask;
+                                }
 
                                 // Check session revocation if enabled
                                 if (config.EnableTokenRevocation && tokenUse == "auth")

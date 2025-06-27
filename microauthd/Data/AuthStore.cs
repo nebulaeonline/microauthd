@@ -18,9 +18,9 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     INSERT INTO pkce_codes 
-                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti)
+                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti, nonce)
                     VALUES
-                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti);
+                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti, $nonce);
                 """;
 
                 cmd.Parameters.AddWithValue("$code", pkce.Code);
@@ -32,6 +32,7 @@ namespace microauthd.Data
                 cmd.Parameters.AddWithValue("$used", pkce.IsUsed ? 1 : 0);
                 cmd.Parameters.AddWithValue("$user_id", pkce.UserId);
                 cmd.Parameters.AddWithValue("$jti", (object?)pkce.Jti ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$nonce", (object?)pkce.Nonce ?? DBNull.Value);
 
                 cmd.ExecuteNonQuery();
             });
@@ -54,7 +55,7 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     SELECT code, client_identifier, redirect_uri, code_challenge, code_challenge_method,
-                           expires_at, is_used, user_id, jti
+                           expires_at, is_used, user_id, jti, nonce
                     FROM pkce_codes
                     WHERE code = $code
                     LIMIT 1;
@@ -78,7 +79,8 @@ namespace microauthd.Data
                             System.Globalization.DateTimeStyles.AdjustToUniversal), // ISO 8601
                     IsUsed = reader.GetBoolean(6),
                     UserId = reader.GetString(7),
-                    Jti = reader.IsDBNull(8) ? null : reader.GetString(8)
+                    Jti = reader.IsDBNull(8) ? null : reader.GetString(8),
+                    Nonce = reader.IsDBNull(9) ? null : reader.GetString(9)
                 };
             });
         }

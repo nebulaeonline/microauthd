@@ -309,6 +309,7 @@ public static class AuthService
         var state = query["state"].ToString();
         var codeChallenge = query["code_challenge"].ToString();
         var codeChallengeMethod = query["code_challenge_method"].ToString();
+        var nonce = query["nonce"].ToString();
 
         if (string.IsNullOrWhiteSpace(responseType) || responseType != "code")
             return Results.BadRequest("Invalid credentials");
@@ -328,10 +329,18 @@ public static class AuthService
             return Results.BadRequest("Invalid credentials");
         }
 
-        // Generate auth code
+        // If scope includes 'openid', and nonce is missing — reject the request
+        if (scope.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("openid") &&
+            string.IsNullOrWhiteSpace(nonce))
+        {
+            Log.Warning("Authorization request rejected: openid scope requires nonce");
+            return Results.BadRequest("Invalid credentials");
+        }
+
+        // Generate and store auth code
         var code = Utils.GenerateBase64EncodedRandomBytes(32);
 
-        AuthStore.StorePkceCode(new PkceCode
+        var pkceCode = new PkceCode
         {
             Code = code,
             ClientIdentifier = clientId,
@@ -340,12 +349,16 @@ public static class AuthService
             CodeChallenge = codeChallenge,
             CodeChallengeMethod = codeChallengeMethod,
             ExpiresAt = DateTime.UtcNow.AddSeconds(config.PkceCodeLifetime),
-            IsUsed = false
-        });
+            IsUsed = false,
+            Nonce = nonce
+        };
+
+        AuthStore.StorePkceCode(pkceCode);
 
         var redirectUrl = $"{redirectUri}?code={WebUtility.UrlEncode(code)}&state={WebUtility.UrlEncode(state)}";
         return Results.Redirect(redirectUrl);
     }
+
 
     /// <summary>
     /// Exchanges a PKCE authorization code for a token response.
@@ -462,6 +475,12 @@ public static class AuthService
                 config, pkce.UserId, tokenInfo.Jti, pkce.ClientIdentifier);
         }
 
+        string? idToken = null;
+        if (scopeValues.Contains("openid"))
+        {
+            idToken = TokenIssuer.IssueIdToken(config, claims, pkce.ClientIdentifier, pkce.Nonce);
+        }
+
         // attach the JTI to the PKCE code for later reference
         AuthStore.AttachJtiToPkceCode(code, tokenInfo.Jti);
 
@@ -474,7 +493,8 @@ public static class AuthService
             ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
             Jti = tokenInfo.Jti,
             RefreshToken = refreshToken,
-            Audience = audience
+            Audience = audience,
+            IdToken = idToken
         });
     }
 
@@ -618,10 +638,10 @@ public static class AuthService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> if the request is successful. Returns a
     /// forbidden result if the credentials or client information are invalid.</returns>
     public static ApiResult<TokenResponse> IssueUserToken(
-    IFormCollection form,
-    AppConfig config,
-    string ip,
-    string userAgent)
+        IFormCollection form,
+        AppConfig config,
+        string ip,
+        string userAgent)
     {
         var username = form["username"].ToString().Trim();
         var password = form["password"].ToString().Trim();
@@ -717,6 +737,13 @@ public static class AuthService
                     config, tokenInfo.UserId, tokenInfo.Jti, clientIdent);
             }
 
+            // Optionally generate id token
+            string? idToken = null;
+            if (scopeValues.Contains("openid"))
+            {
+                idToken = TokenIssuer.IssueIdToken(config, claims, clientIdent);
+            }
+
             Log.Debug("Issued token for user {UserId} under client {ClientIdent}", r.UserId, clientIdent);
 
             // No need to audit log every token issuance, only for admin tokens or significant events
@@ -732,7 +759,8 @@ public static class AuthService
                 ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
                 Jti = tokenInfo.Jti,
                 RefreshToken = refreshToken,
-                Audience = audience
+                Audience = audience,
+                IdToken = idToken
             });
         }
         catch (Exception ex)
@@ -828,6 +856,13 @@ public static class AuthService
                     target: tokenRow.ClientIdentifier
                 );
 
+            // Generate a new id token
+            string? idToken = null;
+            if (scopeClaims.Contains("openid"))
+            {
+                idToken = TokenIssuer.IssueIdToken(config, claims, tokenRow.ClientIdentifier);
+            }            
+
             return ApiResult<TokenResponse>.Ok(new TokenResponse
             {
                 AccessToken = tokenInfo.Token,
@@ -835,7 +870,8 @@ public static class AuthService
                 ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
                 Jti = tokenInfo.Jti,
                 RefreshToken = newRefreshToken,
-                Audience = audience
+                Audience = audience,
+                IdToken = idToken
             });
         }
         catch (Exception ex)

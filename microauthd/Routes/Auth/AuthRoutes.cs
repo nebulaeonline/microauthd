@@ -67,7 +67,7 @@ public static class AuthRoutes
             if (!string.IsNullOrWhiteSpace(name))
                 claims["name"] = name;
 
-            // Optional extras
+            // Email verified claim
             var emailVerified = user.FindFirst("email_verified")?.Value;
             if (emailVerified != null)
                 claims["email_verified"] = bool.TryParse(emailVerified, out var v) && v;

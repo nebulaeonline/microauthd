@@ -154,6 +154,7 @@ public static class DbInitializer
             redirect_uri TEXT NOT NULL,
             code_challenge TEXT NOT NULL,
             code_challenge_method TEXT NOT NULL,
+            nonce TEXT,
             expires_at DATETIME NOT NULL,
             is_used INTEGER NOT NULL DEFAULT 0
         );

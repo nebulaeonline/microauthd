@@ -49,7 +49,7 @@ public static class TokenIssuer
         var expires = now.AddSeconds(isAdmin ? config.AdminTokenExpiration : config.TokenExpiration);
         var jti = Guid.NewGuid().ToString("N");
         var tokenUse = isAdmin ? "admin" : "auth";
-        var aud = audience ?? "microauthd";
+        var aud = audience;
 
         // Base claims (ignore Aud as claim — it’s redundant)
         var claims = new List<Claim>
@@ -80,4 +80,67 @@ public static class TokenIssuer
 
         return new TokenInfo(token, jti, now, expires, userId, tokenUse);
     }
+
+    /// <summary>
+    /// Issues an OpenID Connect (OIDC) ID token for the specified user and client.
+    /// </summary>
+    /// <remarks>The issued ID token is signed using the application's private key and includes standard OIDC
+    /// claims such as <see cref="JwtRegisteredClaimNames.Sub"/>, <see cref="JwtRegisteredClaimNames.Iss"/>, <see
+    /// cref="JwtRegisteredClaimNames.Aud"/>, <see cref="JwtRegisteredClaimNames.Iat"/>, and <see
+    /// cref="JwtRegisteredClaimNames.Exp"/>. The token is valid for 10 minutes, as recommended by OIDC for short-lived
+    /// ID tokens. Additional claims such as <see cref="JwtRegisteredClaimNames.Email"/> and "email_verified" are
+    /// included if present in <paramref name="userClaims"/>.</remarks>
+    /// <param name="config">The application configuration containing OIDC issuer information.</param>
+    /// <param name="userClaims">A collection of claims associated with the user. Must include a claim with the type <see
+    /// cref="JwtRegisteredClaimNames.Sub"/> to identify the subject.</param>
+    /// <param name="clientId">The client identifier for which the token is issued. This is used as the audience of the token.</param>
+    /// <returns>A string representation of the issued ID token in JWT format.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the application's private key is of an unsupported type.</exception>
+    public static string IssueIdToken(AppConfig config, IEnumerable<Claim> userClaims, string clientId, string? nonce = null)
+    {
+        var key = TokenKeyCache.GetPrivateKey(isAdmin: false);
+        var signingCredentials = key switch
+        {
+            RSA rsa => new SigningCredentials(new RsaSecurityKey(rsa), SecurityAlgorithms.RsaSha256),
+            ECDsa ec => new SigningCredentials(new ECDsaSecurityKey(ec), SecurityAlgorithms.EcdsaSha256),
+            _ => throw new InvalidOperationException("Unsupported key type")
+        };
+
+        var now = DateTime.UtcNow;
+        var expires = now.AddMinutes(10); // OIDC recommends short-lived ID tokens
+        var sub = userClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value ?? "unknown";
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, sub),
+            new(JwtRegisteredClaimNames.Iss, config.OidcIssuer),
+            new(JwtRegisteredClaimNames.Aud, clientId),
+            new(JwtRegisteredClaimNames.Iat, ((DateTimeOffset)now).ToUnixTimeSeconds().ToString()),
+            new(JwtRegisteredClaimNames.Exp, ((DateTimeOffset)expires).ToUnixTimeSeconds().ToString()),
+            new("token_use", "id")
+        };
+
+        // email + email_verified if present
+        foreach (var c in userClaims)
+        {
+            if (c.Type is JwtRegisteredClaimNames.Email or "email_verified")
+                claims.Add(c);
+        }
+
+        // add nonce if present
+        if (!string.IsNullOrEmpty(nonce))
+            claims.Add(new Claim("nonce", nonce));
+
+        var jwt = new JwtSecurityToken(
+            issuer: config.OidcIssuer,
+            audience: clientId,
+            claims: claims,
+            notBefore: now,
+            expires: expires,
+            signingCredentials: signingCredentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(jwt);
+    }
+
 }
