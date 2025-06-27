@@ -8,6 +8,7 @@ using microauthd.Data;
 using Microsoft.Data.Sqlite;
 using nebulae.dotArgon2;
 using Serilog;
+using System.Security.Cryptography;
 using System.Text;
 using static nebulae.dotArgon2.Argon2;
 
@@ -278,7 +279,7 @@ public static class ClientService
         if (string.IsNullOrWhiteSpace(clientId))
             return ApiResult<MessageResponse>.Fail("Client ID is required.", 400);
 
-        var newSecret = AuthService.GeneratePassword(32);
+        var newSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
         var hash = AuthService.HashPassword(newSecret, config);
 
         var success = ClientStore.UpdateClientSecret(clientId, hash);

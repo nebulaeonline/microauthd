@@ -68,14 +68,18 @@ public class EditModel : BasePageModel
             return Page();
         }
 
-        GeneratedSecret = result.Value?.Message ?? "";
-        TempData["Success"] = "Client secret regenerated. Copy it now — it will not be shown again.";
+        // Clear stale form state
+        ModelState.Clear();
 
+        // Re-fetch updated client into the model
         var client = ClientStore.GetClientById(ClientForm.Id);
         if (client != null)
             ClientForm = EditClientModel.FromClient(client);
 
-        ModelState.Clear();
+        // Set new secret
+        GeneratedSecret = result.Value?.Message ?? "";
+
+        // Return cleanly to the same page
         return Page();
     }
 

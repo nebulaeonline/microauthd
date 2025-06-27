@@ -7,16 +7,6 @@
 
 <h2 class="mb-4">Edit Client</h2>
 
-@if (!string.IsNullOrWhiteSpace(Model.GeneratedSecret))
-{
-    <div class="alert alert-warning">
-        <strong>New Client Secret:</strong>
-        <code>@Model.GeneratedSecret</code>
-        <br />
-        Please copy it now — it will not be shown again.
-    </div>
-}
-
 @if (!string.IsNullOrWhiteSpace(Model.ClientForm.Id))
 {
     <div class="mb-3 text-muted">
@@ -70,7 +60,44 @@
         Regenerate Secret
     </button>
 </form>
+@if (!string.IsNullOrWhiteSpace(Model.GeneratedSecret))
+{
+    <div class="modal fade show" id="secretModal" tabindex="-1" style="display:block;" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-warning">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">New Client Secret</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">Copy this secret now — it will not be shown again:</p>
+                    <div class="input-group">
+                        <input type="text" class="form-control" value="@Model.GeneratedSecret" id="clientSecretInput" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyClientSecret()">Copy</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="@Url.Page("/Admin/Clients/Edit", new { id = Model.ClientForm.Id })" class="btn btn-secondary">Close</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function copyClientSecret() {
+            const input = document.getElementById("clientSecretInput");
+            input.select();
+            input.setSelectionRange(0, 99999); // for mobile
+            navigator.clipboard.writeText(input.value).then(() => {
+                alert("Secret copied to clipboard.");
+            }).catch(() => {
+                alert("Failed to copy.");
+            });
+        }
+    </script>
 }
 
