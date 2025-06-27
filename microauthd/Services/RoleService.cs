@@ -30,10 +30,7 @@ public static class RoleService
     public static ApiResult<RoleObject> CreateRole(
         string name,
         string? description,
-        AppConfig config,
-        string? userId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(name))
             return ApiResult<RoleObject>.Fail("Role name is required");
@@ -215,10 +212,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> AddRoleToUser(
         string userId,
         string roleId,
-        AppConfig config,
-        string? actorId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(roleId))
             return ApiResult<MessageResponse>.Fail("User Id and Role Id are required");
@@ -288,10 +282,7 @@ public static class RoleService
     /// constraint violation occurred.</returns>
     public static ApiResult<MessageResponse> DeleteRole(
     string roleId,
-    AppConfig config,
-    string? userId = null,
-    string? ip = null,
-    string? ua = null)
+    AppConfig config)
     {
         try
         {
@@ -330,10 +321,7 @@ public static class RoleService
     public static ApiResult<MessageResponse> RemoveRoleFromUser(
         string userId,
         string roleId,
-        AppConfig config,
-        string? actorId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(roleId))
             return ApiResult<MessageResponse>.Fail("User Id and Role Id are required");
@@ -379,10 +367,7 @@ public static class RoleService
     /// of the operation. If successful, the response contains a message confirming that the roles were updated.</returns>
     public static ApiResult<MessageResponse> ReplaceUserRoles(
         RoleAssignmentDto dto,
-        AppConfig config,
-        string actorUserId,
-        string? ip,
-        string? ua)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(dto.UserId))
             return ApiResult<MessageResponse>.Fail("Missing userId", 400);
@@ -402,10 +387,10 @@ public static class RoleService
         // AddRoleToUser and RemoveRoleFromUser are both audit logged internally,
         // so we don't need to log here again as it's redundant.
         foreach (var roleId in toAdd)
-            AddRoleToUser(dto.UserId, roleId, config, actorUserId, ip, ua);
+            AddRoleToUser(dto.UserId, roleId, config);
 
         foreach (var roleId in toRemove)
-            RemoveRoleFromUser(dto.UserId, roleId, config, actorUserId, ip, ua);
+            RemoveRoleFromUser(dto.UserId, roleId, config);
 
         return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Roles updated."));
     }

@@ -53,9 +53,7 @@ public static class UserService
         string username,
         string email,
         string password,
-        AppConfig config,
-        string? ip = null,
-        string? ua = null
+        AppConfig config
 )
     {
         if (string.IsNullOrWhiteSpace(username) ||
@@ -274,10 +272,7 @@ public static class UserService
     /// result is <see cref="ApiResult{T}.NotFound"/> with an error message.</returns>
     public static ApiResult<MessageResponse> DeleteUser(
         string idToDelete,
-        AppConfig config,
-        string? userId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         try
         {
@@ -438,7 +433,7 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
     /// operation. Returns a success response if the user was successfully deactivated, or a failure response if the
     /// user was not found, already inactive, or if an error occurred.</returns>
-    public static ApiResult<MessageResponse> DeactivateUser(string userId, AppConfig config, string? ip = null, string? ua = null)
+    public static ApiResult<MessageResponse> DeactivateUser(string userId, AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<MessageResponse>.Fail("User ID is required", 400);
@@ -545,9 +540,7 @@ public static class UserService
     /// matching soft-deleted user was found.</returns>
     public static ApiResult<MessageResponse> ReactivateSoftDeletedUser(
         string userId,
-        AppConfig config,
-        string? ip = null,
-        string? ua = null
+        AppConfig config
     )
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -592,9 +585,7 @@ public static class UserService
     public static ApiResult<MessageResponse> ResetUserPassword(
         string userId,
         string newPassword,
-        AppConfig config,
-        string? ip = null,
-        string? ua = null
+        AppConfig config
 )
     {
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(newPassword))
@@ -845,7 +836,7 @@ public static class UserService
     /// <param name="ua">The user agent string of the client initiating the revocation. This parameter is optional and can be null.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="RevokeResponse"/> object that describes the result of the
     /// revocation. The response includes the JTI, the revocation status, and a message providing additional details.</returns>
-    public static ApiResult<RevokeResponse> RevokeSessionById(string jti, AppConfig config, string? ip = null, string? ua = null)
+    public static ApiResult<RevokeResponse> RevokeSessionById(string jti, AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(jti))
             return ApiResult<RevokeResponse>.Fail("Missing JTI", 400);
@@ -904,10 +895,7 @@ public static class UserService
     DateTime cutoffUtc,
     bool purgeExpired,
     bool purgeRevoked,
-    AppConfig config,
-    string? userId = null,
-    string? ip = null,
-    string? ua = null)
+    AppConfig config)
     {
         try
         {
@@ -1066,10 +1054,7 @@ public static class UserService
     /// criteria were met.</returns>
     public static ApiResult<MessageResponse> PurgeRefreshTokens(
         PurgeTokensRequest req,
-        AppConfig config,
-        string? userId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         try
         {

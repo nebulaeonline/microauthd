@@ -29,10 +29,7 @@ public static class ScopeService
     /// result indicates failure and includes an error message.</returns>
     public static ApiResult<ScopeObject> CreateScope(
         ScopeObject req,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (!Utils.IsValidTokenName(req.Name))
             return ApiResult<ScopeObject>.Fail("Invalid scope name: must be non-empty, and cannot contain whitespace.");
@@ -199,10 +196,7 @@ public static class ScopeService
     /// with an error message.</returns>
     public static ApiResult<MessageResponse> DeleteScope(
         string scopeId,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         try
         {
@@ -241,10 +235,7 @@ public static class ScopeService
     public static ApiResult<MessageResponse> AddScopesToClient(
         string clientId,
         AssignScopesRequest req,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(clientId))
             return ApiResult<MessageResponse>.Fail("Client ID is required");
@@ -313,10 +304,7 @@ public static class ScopeService
     public static ApiResult<MessageResponse> RemoveScopeFromClient(
         string clientId,
         string scopeId,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(scopeId))
             return ApiResult<MessageResponse>.Fail("Client ID and Scope ID are required");
@@ -383,10 +371,7 @@ public static class ScopeService
     public static ApiResult<MessageResponse> AddScopesToUser(
         string userId,
         AssignScopesRequest req,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<MessageResponse>.Fail("User ID is required");
@@ -430,10 +415,7 @@ public static class ScopeService
     public static ApiResult<MessageResponse> RemoveScopeFromUser(
         string userId,
         string scopeId,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(scopeId))
             return ApiResult<MessageResponse>.Fail("User ID and Scope ID are required");

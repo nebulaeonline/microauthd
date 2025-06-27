@@ -32,10 +32,7 @@ public static class ClientService
     /// result is a failure with an appropriate error message.</returns>
     public static ApiResult<ClientObject> CreateClient(
         CreateClientRequest req,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         if (!Utils.IsValidTokenName(req.ClientId))
             return ApiResult<ClientObject>.Fail("Invalid client_id");
@@ -227,10 +224,7 @@ public static class ClientService
     /// with an error message.</returns>
     public static ApiResult<MessageResponse> DeleteClient(
         string clientId,
-        AppConfig config,
-        string? actorUserId = null,
-        string? ip = null,
-        string? ua = null)
+        AppConfig config)
     {
         try
         {

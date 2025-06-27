@@ -27,10 +27,7 @@ namespace microauthd.Services
         /// to a duplicate name), the result is a failure with an appropriate error message.</returns>
         public static ApiResult<PermissionObject> CreatePermission(
             string name,
-            AppConfig config,
-            string? userId,
-            string? ip = null,
-            string? ua = null)
+            AppConfig config)
         {
             if (string.IsNullOrWhiteSpace(name))
                 return ApiResult<PermissionObject>.Fail("Permission name is required");
@@ -243,10 +240,7 @@ namespace microauthd.Services
         public static ApiResult<MessageResponse> AssignPermissionsToRole(
             string roleId,
             string permissionId,
-            AppConfig config,
-            string? actorUserId = null,
-            string? ip = null,
-            string? ua = null)
+            AppConfig config)
         {
             if (string.IsNullOrWhiteSpace(roleId) || permissionId == null)
                 return ApiResult<MessageResponse>.Fail("Role Id and at least one Permission Id are required");
@@ -289,10 +283,7 @@ namespace microauthd.Services
         public static ApiResult<MessageResponse> RemovePermissionFromRole(
             string roleId,
             string permissionId,
-            AppConfig config,
-            string? actorUserId = null,
-            string? ip = null,
-            string? ua = null)
+            AppConfig config)
         {
             if (string.IsNullOrWhiteSpace(roleId) || string.IsNullOrWhiteSpace(permissionId))
                 return ApiResult<MessageResponse>.Fail("Role Id and Permission Id are required");
