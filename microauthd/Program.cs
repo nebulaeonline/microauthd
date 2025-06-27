@@ -66,6 +66,7 @@ public class Program
             {
                 // Initialize the database
                 DbInitializer.CreateDbTables(config);
+                Db.FlushWal();
             }               
 
             // Get our token signing keys in order; that includes

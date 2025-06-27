@@ -1089,30 +1089,27 @@ public static class UserStore
     {
         var conditions = new List<string>();
 
-        const string cutoffExpr = "strftime('%s', $cutoff)";
-        const string expiresExpr = "strftime('%s', datetime(substr(expires_at, 1, 19)))";
-
         if (purgeExpired)
-            conditions.Add($"(is_revoked = 0 AND {expiresExpr} < {cutoffExpr})");
-
+            conditions.Add("strftime('%s', expires_at) < strftime('%s', $cutoff)");
         if (purgeRevoked)
-            conditions.Add($"(is_revoked = 1 AND {expiresExpr} < {cutoffExpr})");
+            conditions.Add("(is_revoked = 1 AND strftime('%s', expires_at) < strftime('%s', $cutoff))");
 
         if (conditions.Count == 0)
-            return (true, 0);
+            return (true, 0); // nothing to do
 
         var whereClause = string.Join(" OR ", conditions);
 
         var purged = Db.WithConnection(conn =>
         {
+            using var txn = conn.BeginTransaction();
+
             using var cmd = conn.CreateCommand();
+            cmd.Transaction = txn;
             cmd.CommandText = $"DELETE FROM sessions WHERE {whereClause};";
-
-            // 👇 Assume input is already UTC — do NOT call ToUniversalTime()
-            var cutoffStr = olderThanUtc.ToString("yyyy-MM-dd HH:mm:ss");
-            cmd.Parameters.AddWithValue("$cutoff", cutoffStr);
-
-            return cmd.ExecuteNonQuery();
+            cmd.Parameters.AddWithValue("$cutoff", olderThanUtc);
+            var result = cmd.ExecuteNonQuery();
+            txn.Commit();
+            return result;
         });
 
         return (true, purged);
@@ -1262,29 +1259,34 @@ public static class UserStore
     /// <description><see langword="purged"/>: An <see cref="int"/> representing the number of tokens that were
     /// deleted.</description> </item> </list></returns>
     public static (bool success, int purged) PurgeRefreshTokens(DateTime olderThanUtc, bool purgeExpired, bool purgeRevoked)
+{
+    var conditions = new List<string>();
+
+    if (purgeExpired)
+        conditions.Add("strftime('%s', expires_at) < strftime('%s', $cutoff)");
+    if (purgeRevoked)
+        conditions.Add("(is_revoked = 1 AND strftime('%s', expires_at) < strftime('%s', $cutoff))");
+
+    if (conditions.Count == 0)
+        return (true, 0); // nothing to do
+
+    var whereClause = string.Join(" OR ", conditions);
+
+    var purged = Db.WithConnection(conn =>
     {
-        var conditions = new List<string>();
+        using var txn = conn.BeginTransaction();
 
-        if (purgeExpired)
-            conditions.Add("strftime('%s', expires_at) < strftime('%s', $cutoff)");
-        if (purgeRevoked)
-            conditions.Add("(is_revoked = 1 AND strftime('%s', expires_at) < strftime('%s', $cutoff))");
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = txn;
+        cmd.CommandText = $"DELETE FROM refresh_tokens WHERE {whereClause};";
+        cmd.Parameters.AddWithValue("$cutoff", olderThanUtc);
+        var result = cmd.ExecuteNonQuery();
+        txn.Commit();
+        return result;
+    });
 
-        if (conditions.Count == 0)
-            return (true, 0); // nothing to do
-
-        var whereClause = string.Join(" OR ", conditions);
-
-        var purged = Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"DELETE FROM refresh_tokens WHERE {whereClause};";
-            cmd.Parameters.AddWithValue("$cutoff", olderThanUtc);
-            return cmd.ExecuteNonQuery();
-        });
-
-        return (true, purged);
-    }
+    return (true, purged);
+}
 
     /// <summary>
     /// Retrieves the username of an active user based on their unique identifier.

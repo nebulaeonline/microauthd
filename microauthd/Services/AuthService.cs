@@ -492,10 +492,10 @@ public static class AuthService
     string ip,
     string userAgent)
     {
-        var username = form["username"].ToString();
-        var password = form["password"].ToString();
-        var clientIdent = form["client_id"].ToString();
-        var clientSecret = form["client_secret"].ToString();
+        var username = form["username"].ToString().Trim();
+        var password = form["password"].ToString().Trim();
+        var clientIdent = form["client_id"].ToString().Trim();
+        var clientSecret = form["client_secret"].ToString().Trim();
 
         if (string.IsNullOrWhiteSpace(username) ||
             string.IsNullOrWhiteSpace(password) ||

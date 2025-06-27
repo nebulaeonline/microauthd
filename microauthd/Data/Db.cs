@@ -41,6 +41,17 @@ public static class Db
 
         VerifySqlCipherIfNeeded(_sharedConn);
 
+        using (var cmd = _sharedConn.CreateCommand())
+        {
+            cmd.CommandText = """
+                PRAGMA journal_mode = WAL;
+                PRAGMA synchronous = NORMAL;
+                PRAGMA temp_store = MEMORY;
+                PRAGMA foreign_keys = ON;
+            """;
+            cmd.ExecuteNonQuery();
+        }
+
         _isConfigured = true;
     }
 
@@ -74,6 +85,30 @@ public static class Db
                 throw;
             }
         }
+    }
+
+    public static void Vacuum()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                PRAGMA jounral_mode = DELETE;
+                VACUUM;
+                PRRAGMA journal_mode = WAL;            
+            """;            
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    public static void FlushWal()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            cmd.ExecuteNonQuery();
+        });
     }
 
     private static void VerifySqlCipherIfNeeded(SqliteConnection conn)

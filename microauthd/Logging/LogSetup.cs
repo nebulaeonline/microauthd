@@ -24,7 +24,7 @@ public static class LogSetup
             logPath = config.LogFile.Trim();
 
         Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
+            .MinimumLevel.Information()
             .WriteTo.Console()
             .WriteTo.File(
                 logPath,

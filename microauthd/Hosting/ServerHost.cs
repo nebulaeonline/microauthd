@@ -187,7 +187,7 @@ public static class ServerHost
                 }
 
                 // Use rate limiting middleware for auth routes
-                app.UseMiddleware<RateLimitMiddleware>("auth");
+                //app.UseMiddleware<RateLimitMiddleware>("auth");
 
                 app.UseAuthentication();
                 app.UseAuthorization();
@@ -367,7 +367,7 @@ public static class ServerHost
                 }
 
                 // Use rate limiting middleware for admin routes too
-                app.UseMiddleware<RateLimitMiddleware>("admin");
+                //app.UseMiddleware<RateLimitMiddleware>("admin");
 
                 // Standard middleware setup
                 app.UseStaticFiles();   // wwwroot files
