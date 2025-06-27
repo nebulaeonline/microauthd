@@ -104,7 +104,6 @@ public static class DbInitializer
             user_id TEXT NOT NULL,
             session_id TEXT NOT NULL,
             client_identifier TEXT,
-            refresh_token_hash TEXT NOT NULL UNIQUE,
             refresh_token_sha256 TEXT NOT NULL UNIQUE,
             issued_at TEXT NOT NULL,
             expires_at TEXT NOT NULL,

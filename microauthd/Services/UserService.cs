@@ -941,20 +941,6 @@ public static class UserService
         var raw = Utils.GenerateBase64EncodedRandomBytes(32);
         var expires = DateTime.UtcNow.AddSeconds(config.RefreshTokenExpiration);
 
-        byte[] salt = new byte[config.Argon2SaltLength];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(salt);
-
-        var hash = Argon2HashEncodedToString(
-            Argon2Algorithm.Argon2id,
-            (uint)config.Argon2Time,
-            (uint)config.Argon2Memory,
-            (uint)config.Argon2Parallelism,
-            Encoding.UTF8.GetBytes(raw),
-            salt,
-            config.Argon2HashLength
-        );
-
         var id = Guid.NewGuid().ToString();
 
         var sha256 = Utils.Sha256Base64(raw);
@@ -965,7 +951,6 @@ public static class UserService
             userId: userId,
             sessionId: sessionId,
             clientIdent: clientIdent,
-            hash: hash,
             sha256Hash: sha256,
             expires: expires
         );

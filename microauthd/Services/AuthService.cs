@@ -684,13 +684,6 @@ public static class AuthService
             if (tokenRow is null || tokenRow.IsRevoked || tokenRow.ExpiresAt < DateTime.UtcNow)
                 return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
 
-            // Verify the refresh token using Argon2id
-            if (!VerifyEncoded(
-                    Argon2Algorithm.Argon2id,
-                    tokenRow.Hash,
-                    Encoding.UTF8.GetBytes(raw)))
-                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
-
             // Revoke the token to prevent reuse
             UserStore.RevokeRefreshToken(tokenRow.Id);
 

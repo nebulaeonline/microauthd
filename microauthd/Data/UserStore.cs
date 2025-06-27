@@ -16,7 +16,6 @@ public class RefreshToken
     public string Id { get; init; } = string.Empty;
     public string UserId { get; init; } = string.Empty;
     public string SessionId { get; init; } = string.Empty;
-    public string Hash { get; init; } = string.Empty;
     public DateTime ExpiresAt { get; init; }
     public bool IsRevoked { get; init; }
     public string ClientIdentifier { get; init; } = string.Empty;
@@ -513,7 +512,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, session_id, refresh_token_hash, expires_at, is_revoked, client_identifier
+                SELECT id, user_id, session_id, expires_at, is_revoked, client_identifier
                 FROM refresh_tokens
                 WHERE refresh_token_sha256 = $sha256;
             """;
@@ -527,13 +526,12 @@ public static class UserStore
                 Id = reader.GetString(0),
                 UserId = reader.GetString(1),
                 SessionId = reader.GetString(2),
-                Hash = reader.GetString(3),
-                ExpiresAt = DateTime.Parse(reader.GetString(4),
+                ExpiresAt = DateTime.Parse(reader.GetString(3),
                     CultureInfo.InvariantCulture,
                     System.Globalization.DateTimeStyles.AssumeUniversal |
                         System.Globalization.DateTimeStyles.AdjustToUniversal),
-                IsRevoked = reader.GetInt64(5) == 1,
-                ClientIdentifier = reader.GetString(6)
+                IsRevoked = reader.GetInt64(4) == 1,
+                ClientIdentifier = reader.GetString(5)
             };
         });
 
@@ -1128,23 +1126,22 @@ public static class UserStore
     /// <param name="hash">The hashed value of the refresh token for secure storage.</param>
     /// <param name="sha256Hash">The SHA-256 hash of the refresh token for additional security.</param>
     /// <param name="expires">The expiration date and time of the refresh token in UTC.</param>
-    public static void StoreRefreshToken(string id, string userId, string sessionId, string clientIdent, string hash, string sha256Hash, DateTime expires)
+    public static void StoreRefreshToken(string id, string userId, string sessionId, string clientIdent, string sha256Hash, DateTime expires)
     {
         Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
                     INSERT INTO refresh_tokens (
-                        id, user_id, session_id, client_identifier, refresh_token_hash,
+                        id, user_id, session_id, client_identifier,
                         refresh_token_sha256, issued_at, expires_at, is_revoked
                     )
-                    VALUES ($id, $userId, $sessionId, $cid, $hash, $sha256, $issuedAt, $expiresAt, 0);
+                    VALUES ($id, $userId, $sessionId, $cid, $sha256, $issuedAt, $expiresAt, 0);
                 """;
             cmd.Parameters.AddWithValue("$id", id);
             cmd.Parameters.AddWithValue("$userId", userId);
             cmd.Parameters.AddWithValue("$sessionId", sessionId);
             cmd.Parameters.AddWithValue("$cid", clientIdent);
-            cmd.Parameters.AddWithValue("$hash", hash);
             cmd.Parameters.AddWithValue("$sha256", sha256Hash);
             cmd.Parameters.AddWithValue("$issuedAt", DateTime.UtcNow.ToString("o"));
             cmd.Parameters.AddWithValue("$expiresAt", expires.ToString("o"));

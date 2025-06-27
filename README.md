@@ -10,6 +10,10 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
+**2025-06-27**
+
+Changing the hashing strategy for refresh tokens to use SHA-256 only instead of Argon2id and SHA-256 brought another 50% speedup, bringing us to around 60rps with bursts to 1500 rps.
+
 **2025-06-26**
 
 So why is microauthd slow? Well, it is secure. The truth is that microauthd is cpu limited- it does a lot of argon2id hashing (and verifying) in the name of security; so depending upon your settings, you *will* notice it. Token issuance profiling shows 30%+ of microauthd's time is spent verifying the username & password, 30%+ of time is spent verifying the client id & client secret, and 30%+ of the time is spent generating the refresh token. What does this mean? Argon2id is deliberately expense, and it means we're cpu bound, something async'ing all the things will not fix. It means that in the name of security, we are always going to be cpu bound. There's a few tracks we can take- we can verify the client secret by a different hash, we can cache the client secrets, and we can tone down the argon2id parameters (we run at 2 time cost / 2 parallelism / and 32MB memory). That would probably altogether result in a 40% speedup (not insignificant). But microauthd values security above all other things. So where is it falling now? ~20rps bursting to 1100rps. Not super fast. But is it suitable for 90% of the sites out there? Yes. So just keep that in mind when evaluating microauthd. I was getting < 1 rps on KeyCloak and Authentik, so we're at least in the ballpark. These benchmarks were run with 5,000 requests and 50 concurrent requests.
