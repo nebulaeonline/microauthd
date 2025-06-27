@@ -4,6 +4,14 @@ microauthd is a self-hosted, embedded-friendly identity provider designed for in
 
 microauthd uses a dual-port architecture with separate admin and auth endpoints, including separate signing keys for admin and auth tokens and completely separate API surfaces.
 
+**A Note on Standards**
+
+microauthd is a lightweight, security-first OAuth 2.0 authorization server with OpenID Connect support. It supports standard flows such as password, client_credentials, refresh_token, and PKCE, and includes ID token issuance and discovery endpoints for OIDC compatibility.
+
+microauthd is suitable for integrating with OIDC clients, SDKs, and libraries that conform to the OpenID Connect specification.
+
+microauthd is not a Certified OpenID Connect Provider, nor is it Fully OIDC Compliant as it has not been validated against the OIDC conformance suite.
+
 ---
 
 ## microauthd Status Updates
