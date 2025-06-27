@@ -45,6 +45,40 @@ public static class AuthRoutes
         .WithTags("Info")
         .WithOpenApi();
 
+        // user info endpoint***********************************************************************
+        group.MapGet("/userinfo", (ClaimsPrincipal user) =>
+        {
+            var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                   ?? user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+            var email = user.FindFirst(ClaimTypes.Email)?.Value;
+            var name = user.FindFirst("name")?.Value
+                     ?? user.FindFirst("preferred_username")?.Value
+                     ?? user.FindFirst(ClaimTypes.Name)?.Value;
+
+            var claims = new Dictionary<string, object>
+            {
+                ["sub"] = sub ?? "unknown"
+            };
+
+            if (!string.IsNullOrWhiteSpace(email))
+                claims["email"] = email;
+
+            if (!string.IsNullOrWhiteSpace(name))
+                claims["name"] = name;
+
+            // Optional extras
+            var emailVerified = user.FindFirst("email_verified")?.Value;
+            if (emailVerified != null)
+                claims["email_verified"] = bool.TryParse(emailVerified, out var v) && v;
+
+            return Results.Json(claims);
+        })
+        .RequireAuthorization()
+        .WithName("UserInfo")
+        .WithTags("OIDC")
+        .WithOpenApi();
+
         // me endpoint******************************************************************************
         group.MapGet("/me", (ClaimsPrincipal user) =>
         {

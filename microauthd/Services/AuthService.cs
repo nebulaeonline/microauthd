@@ -695,6 +695,13 @@ public static class AuthService
 
             claims.AddRange(roleClaims);
 
+            // Add email_verified if present
+            var emailVerifiedClaim = r.Claims.FirstOrDefault(c => c.Type == "email_verified");
+            if (emailVerifiedClaim != null)
+            {
+                claims.Add(emailVerifiedClaim);
+            }
+
             if (scopeValues.Any())
                 claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
@@ -788,6 +795,13 @@ public static class AuthService
             var scopeClaims = userClaims.Where(c => c.Type == "scope").Select(c => c.Value).Distinct();
 
             claims.AddRange(roleClaims);
+
+            // Add email_verified if present
+            var emailVerifiedClaim = userClaims.FirstOrDefault(c => c.Type == "email_verified");
+            if (emailVerifiedClaim != null)
+            {
+                claims.Add(emailVerifiedClaim);
+            }
 
             // Add single OAuth2-style space-delimited scope claim
             if (scopeClaims.Any())
@@ -1018,7 +1032,8 @@ public static class AuthService
             SubjectTypesSupported = new[] { "public" },
             IdTokenSigningAlgValuesSupported = new[] { "RS256", "ES256" },
             ScopesSupported = new[] { "openid", "email", "profile" },
-            ClaimsSupported = new[] { "sub", "email", "jti", "iat", "exp", "aud", "iss", "token_use" }
+            ClaimsSupported = new[] { "sub", "email", "jti", "iat", "exp", "aud", "iss", "token_use" },
+            UserInfoEndpoint = $"{baseUrl}/userinfo",
         };
 
         return ApiResult<OidcDiscoveryResponse>.Ok(discovery);

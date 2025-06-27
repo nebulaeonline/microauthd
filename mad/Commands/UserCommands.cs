@@ -19,6 +19,7 @@ internal static class UserCommands
         cmd.AddCommand(TotpVerifyCommand());
         cmd.AddCommand(DisableTotpCommand());
         cmd.AddCommand(UpdateUserCommand());
+        cmd.AddCommand(MarkEmailVerifiedCommand());
         cmd.AddCommand(ListUsersCommand());
         cmd.AddCommand(GetUserByIdCommand());
 
@@ -416,6 +417,51 @@ internal static class UserCommands
                 Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
             }
         }, adminUrl, adminToken, id, username, email, active, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command MarkEmailVerifiedCommand()
+    {
+        var cmd = new Command("verify-email", "Mark a user's email as verified");
+
+        var id = new Option<string>("--id") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(id);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string url, string? token, string id, bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.WriteLine(JsonSerializer.Serialize(
+                    new ErrorResponse(false, "No token. Use --admin-token or `mad session login`."),
+                    MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var response = await client.MarkEmailVerified(id);
+
+            if (response is null)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(
+                    new ErrorResponse(false, "Failed to mark email as verified."),
+                    MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            if (json)
+                Console.WriteLine(JsonSerializer.Serialize(response, MadJsonContext.Default.MessageResponse));
+            else
+                Console.WriteLine("Email marked as verified.");
+        }, adminUrl, adminToken, id, jsonOut);
 
         return cmd;
     }

@@ -213,6 +213,29 @@ public static class UserService
     }
 
     /// <summary>
+    /// Marks the email address of a user as verified.
+    /// </summary>
+    /// <param name="id">The unique identifier of the user whose email address is to be marked as verified. Cannot be null or empty.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns a success result if the email
+    /// verification status was updated successfully;  otherwise, returns a failure result with an appropriate error
+    /// message.</returns>
+    public static ApiResult<MessageResponse> MarkEmailVerified(string id)
+    {
+        var updated = UserStore.GetUserById(id);
+        
+        if (updated is null)
+            return ApiResult<MessageResponse>.Fail("User not found.", 404);
+
+        updated.EmailVerified = true;
+
+        var ok = UserStore.UpdateUser(updated);
+
+        return ok
+            ? ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Email marked as verified.")) 
+            : ApiResult<MessageResponse>.Fail("Could not update user's email verification status.");
+    }
+
+    /// <summary>
     /// Retrieves all user objects from the database, ordered by username in ascending order.
     /// </summary>
     /// <remarks>The method queries the database to fetch all user records and maps them to <see

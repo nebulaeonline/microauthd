@@ -41,6 +41,10 @@
         <input asp-for="UserForm.PermanentLockout" class="form-check-input" />
         <label asp-for="UserForm.PermanentLockout" class="form-check-label"></label>
     </div>
+    <div class="mb-3 form-check">
+        <input asp-for="UserForm.EmailVerified" class="form-check-input" />
+        <label asp-for="UserForm.EmailVerified" class="form-check-label">Email Verified</label>
+    </div>
     <button type="submit" class="btn btn-primary">Save Changes</button>
     <a asp-page="/Admin/Users/Index" class="btn btn-secondary ms-2">Cancel</a>
 </form>

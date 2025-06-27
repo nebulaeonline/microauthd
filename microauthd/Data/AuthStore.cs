@@ -201,6 +201,10 @@ namespace microauthd.Data
             foreach (var scope in ScopeStore.GetUserScopes(userId))
                 claims.Add(new Claim("scope", scope));
 
+            var emailVerified = UserStore.GetUserEmailVerified(userId);
+            claims.Add(new Claim("email_verified", emailVerified ? "true" : "false"));
+
+
             return claims;
         }
 

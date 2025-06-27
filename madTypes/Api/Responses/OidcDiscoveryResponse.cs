@@ -20,4 +20,6 @@ public sealed class OidcDiscoveryResponse
     public required string[] ScopesSupported { get; init; }
     [JsonPropertyName("claims_supported")]
     public required string[] ClaimsSupported { get; init; }
+    [JsonPropertyName("userinfo_endpoint")]
+    public required string UserInfoEndpoint { get; init; }
 }

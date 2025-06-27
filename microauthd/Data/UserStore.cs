@@ -217,7 +217,8 @@ public static class UserStore
                     email = $e,
                     is_active = $a,
                     lockout_until = $l,
-                    modified_at = datetime('now')
+                    modified_at = datetime('now'),
+                    email_verified = $ev
                 WHERE id = $id;
             """;
             cmd.Parameters.AddWithValue("$u", updated.Username);
@@ -225,6 +226,7 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$a", updated.IsActive ? 1 : 0);
             cmd.Parameters.AddWithValue("$l", updated.LockoutUntil.HasValue ? updated.LockoutUntil.Value.ToString("o") : DBNull.Value);
             cmd.Parameters.AddWithValue("$id", updated.Id);
+            cmd.Parameters.AddWithValue("$ev", updated.EmailVerified ? 1 : 0);
             return cmd.ExecuteNonQuery() == 1;
         });
     }
@@ -242,7 +244,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, username, email, created_at, is_active, lockout_until
+                SELECT id, username, email, created_at, is_active, lockout_until, email_verified
                 FROM users
                 WHERE id = $id;
             """;
@@ -258,8 +260,27 @@ public static class UserStore
                 Email = reader.GetString(2),
                 CreatedAt = reader.GetDateTime(3),
                 IsActive = reader.GetBoolean(4),
-                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5)
+                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5),
+                EmailVerified = reader.GetBoolean(6)
             };
+        });
+    }
+
+    /// <summary>
+    /// Determines whether the email address associated with the specified user ID has been verified.
+    /// </summary>
+    /// <remarks>This method queries the database to retrieve the email verification status for the specified
+    /// user. Ensure that the provided <paramref name="userId"/> corresponds to a valid user in the database.</remarks>
+    /// <param name="userId">The unique identifier of the user whose email verification status is being checked. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the user's email address has been verified; otherwise, <see langword="false"/>.</returns>
+    public static bool GetUserEmailVerified(string userId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT email_verified FROM users WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", userId);
+            return Convert.ToInt64(cmd.ExecuteScalar()) == 1;
         });
     }
 

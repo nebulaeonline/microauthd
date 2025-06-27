@@ -15,4 +15,6 @@ public class UserObject
     public DateTime? LockoutUntil { get; set; } = null;
     [JsonPropertyName("is_active")]
     public bool IsActive { get; set; }
+    [JsonPropertyName("email_verified")]
+    public bool EmailVerified { get; set; }
 }

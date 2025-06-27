@@ -136,6 +136,14 @@ internal class MadApiClient
         return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.UserObject);
     }
 
+    public async Task<MessageResponse?> MarkEmailVerified(string userId)
+    {
+        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/verify-email", null);
+        return res.IsSuccessStatusCode
+            ? await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse)
+            : null;
+    }
+
     public async Task<List<UserObject>?> ListUsers()
     {
         var res = await _http.GetAsync($"{BaseUrl}/users");

@@ -127,6 +127,14 @@ public static class AdminRoutes
         .WithTags("Users")
         .WithOpenApi();
 
+        // mark user's email as verified endpoint***************************************************
+        group.MapPost("/users/{id}/verify-email", (string id) =>
+            UserService.MarkEmailVerified(id).ToHttpResult()
+        )
+        .RequireAuthorization()
+        .WithName("VerifyEmail")
+        .WithTags("Users");
+
         // soft-delete user endpoint****************************************************************
         group.MapPost("/users/deactivate/{id}", (string id, AppConfig config) =>
         {
