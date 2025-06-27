@@ -92,6 +92,32 @@ public static class DbMigrations
     }
 
     /// <summary>
+    /// Determines whether a specified column exists in a given table within the database.
+    /// </summary>
+    /// <remarks>This method queries the database schema to determine the existence of the column. It uses the
+    /// SQLite PRAGMA table_info command to retrieve metadata about the specified table.</remarks>
+    /// <param name="tableName">The name of the table to check. Cannot be null or empty.</param>
+    /// <param name="columnName">The name of the column to check for existence. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if the specified column exists in the table; otherwise, <see langword="false"/>.</returns>
+    private static bool ColumnExists(string tableName, string columnName)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"PRAGMA table_info({tableName});";
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                if (reader["name"]?.ToString() == columnName)
+                    return true;
+            }
+
+            return false;
+        });
+    }
+
+    /// <summary>
     /// Applies a migration step to transition the system from one version to another.
     /// </summary>
     /// <remarks>This method performs the necessary operations to migrate the system state from the specified 
@@ -117,11 +143,14 @@ public static class DbMigrations
     // Add `nonce` column to `pkce_codes` table
     private static void Migrate_1_to_2()
     {
-        Db.WithConnection(conn =>
+        if (!ColumnExists("pkce_codes", "nonce"))
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "ALTER TABLE pkce_codes ADD COLUMN nonce TEXT DEFAULT '';";
-            cmd.ExecuteNonQuery();
-        });
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE pkce_codes ADD COLUMN nonce TEXT DEFAULT '';";
+                cmd.ExecuteNonQuery();
+            });
+        }
     }
 }

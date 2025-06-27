@@ -142,3 +142,5 @@ Swagger is set up for API discovery on both endpoints, but is disabled by defaul
 | failed-password-lockout-duration| Lockout duration (in seconds)            | 300     |
 | serve-public-auth-files         | Serve files located in /public via AUTH  | false   |
 | trusted-proxies                 | Comma separated list of trusted proxies; when set, microauthd will look for X-Forwarded-For and X-Forwarded-Proto               | blank   |
+| enable-pass-cache               | Whether to enable password caching       | true    |
+| pass-cache-duration             | How long to cache passwords (in seconds) | 300     |

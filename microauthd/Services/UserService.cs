@@ -648,7 +648,7 @@ public static class UserService
     /// </summary>
     /// <remarks>This method updates the password hash for the specified user in the database and logs the
     /// operation for auditing purposes. The target user must be active for the operation to succeed.</remarks>
-    /// <param name="actingUser">The user performing the operation. Must have the <see cref="Constants.Scoope_ResetPasswords"/> scope.</param>
+    /// <param name="actingUser">The user performing the operation. Must have the <see cref="Constants.Scope_ResetPasswords"/> scope.</param>
     /// <param name="targetUserId">The unique identifier of the user whose password is being reset.</param>
     /// <param name="newPassword">The new password to set for the target user. Cannot be null, empty, or whitespace.</param>
     /// <param name="config">The application configuration used for password hashing and other settings.</param>
@@ -668,7 +668,7 @@ public static class UserService
         string? ipAddress,
         string? userAgent)
     {
-        if (!actingUser.HasScope(Constants.Scoope_ResetPasswords))
+        if (!actingUser.HasScope(Constants.Scope_ResetPasswords))
             return ApiResult<MessageResponse>.Forbidden("Permission Denied");
 
         if (string.IsNullOrWhiteSpace(newPassword))
