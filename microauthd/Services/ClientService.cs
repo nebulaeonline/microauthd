@@ -109,6 +109,13 @@ public static class ClientService
             if (!success)
                 return ApiResult<ClientObject>.Fail("Client update failed or client not found.");
 
+            // Invalidate cache for the client ID if it was updated
+            if (!string.IsNullOrEmpty(updated.ClientId))
+            {
+                AuthService.InvalidateClientCache(updated.ClientId);
+                Log.Debug("Client cache invalidated for client ID {ClientId}", updated.ClientId);
+            }
+
             // Reload full object to return
             var client = ClientStore.GetClientObjById(id);
 
@@ -281,6 +288,10 @@ public static class ClientService
         var success = ClientStore.UpdateClientSecret(clientId, hash);
         if (!success)
             return ApiResult<MessageResponse>.Fail("Failed to update client secret.", 500);
+
+        // Invalidate cache for the client ID
+        AuthService.InvalidateClientCache(clientId);
+        Log.Debug("Client cache invalidated for client ID {ClientId}", clientId);
 
         Utils.Audit.Logg(
             action: "client.secret.regenerated",

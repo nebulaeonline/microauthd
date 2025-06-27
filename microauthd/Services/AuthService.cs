@@ -1,26 +1,49 @@
-﻿using madTypes.Api.Requests;
+﻿using madTypes.Api.Common;
+using madTypes.Api.Requests;
 using madTypes.Api.Responses;
-using madTypes.Api.Common;
 using madTypes.Common;
+using microauthd.Common;
 using microauthd.Config;
-using microauthd.Tokens;
 using microauthd.Data;
+using microauthd.Tokens;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
+using OtpNet;
 using Serilog;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Net;
-using OtpNet;
 using static nebulae.dotArgon2.Argon2;
-using microauthd.Common;
-using Microsoft.AspNetCore.Http;
 
 namespace microauthd.Services;
 
 public static class AuthService
 {
+    /// <summary>
+    /// A static memory cache used to store client secrets with a size limit of 100 entries.
+    /// </summary>
+    /// <remarks>This cache is intended for temporary storage of client secrets to improve performance by
+    /// reducing repeated retrievals. The size limit ensures that the cache does not grow indefinitely.</remarks>
+    private static readonly MemoryCache _clientSecretCache = new(new MemoryCacheOptions
+    {
+        SizeLimit = 100
+    });
+
+    /// <summary>
+    /// Removes the cached client secret associated with the specified client ID.
+    /// </summary>
+    /// <remarks>This method invalidates the cached client secret for the given client ID, ensuring that
+    /// subsequent operations requiring the client secret will not use outdated or stale data.</remarks>
+    /// <param name="clientId">The unique identifier of the client whose cached secret should be invalidated. Must not be <see
+    /// langword="null"/> or empty.</param>
+    public static void InvalidateClientCache(string clientId)
+    {
+        _clientSecretCache.Remove(clientId);
+    }
+
     /// <summary>
     /// Generates a random password of the specified length using a mix of alphanumeric characters and symbols.
     /// </summary>
@@ -128,15 +151,17 @@ public static class AuthService
     }
 
     /// <summary>
-    /// Authenticates a client using the provided client ID and client secret.
+    /// Authenticates a client using its identifier and secret.
     /// </summary>
-    /// <remarks>This method verifies the provided client secret against the stored hash using the Argon2id
-    /// algorithm.  The client must be active for authentication to succeed.</remarks>
+    /// <remarks>This method performs client authentication by verifying the provided client identifier and
+    /// secret. It first checks if the client exists and is active, then attempts to authenticate using a cached secret.
+    /// If the cached secret is unavailable or does not match, the method falls back to Argon2id hash verification.  The
+    /// client secret is cached for subsequent authentication attempts, with a sliding expiration of 15
+    /// minutes.</remarks>
     /// <param name="clientId">The unique identifier of the client to authenticate. Cannot be null or empty.</param>
     /// <param name="clientSecret">The secret associated with the client. Cannot be null or empty.</param>
-    /// <param name="config">The application configuration used for authentication. Cannot be null.</param>
-    /// <returns>The authenticated <see cref="Client"/> object if the client ID and client secret are valid and the client is
-    /// active;  otherwise, <see langword="null"/>.</returns>
+    /// <param name="config">The application configuration used for authentication settings. Cannot be null.</param>
+    /// <returns>The authenticated <see cref="Client"/> instance if authentication succeeds; otherwise, <see langword="null"/>.</returns>
     public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
     {
         // Look up client in database
@@ -144,10 +169,26 @@ public static class AuthService
         if (client is null || !client.IsActive)
             return null;
 
-        // Verify Argon2 hash
-        return VerifyEncoded(Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret))
-            ? client
-            : null;
+        // Check cache
+        if (_clientSecretCache.TryGetValue(clientId, out var cachedSecret) &&
+            cachedSecret is string cached && clientSecret == cached)
+        {
+            return client;
+        }
+
+        // Fall back to full Argon2id verification
+        if (VerifyEncoded(Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret)))
+        {
+            _clientSecretCache.Set(clientId, clientSecret, new MemoryCacheEntryOptions
+            {
+                Size = 1,
+                SlidingExpiration = TimeSpan.FromMinutes(15)
+            });
+
+            return client;
+        }
+
+        return null;
     }
 
     /// <summary>
