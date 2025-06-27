@@ -16,6 +16,8 @@ So why is microauthd slow? Well, it is secure. The truth is that microauthd is c
 
 microauthd isn't built to be the fastest — it’s built to be **secure**, **transparent**, and **manageable**. If you're running an API with tens of millions of users, you may outgrow it. But for 99% of modern apps, it’s more than fast enough. So when you evaluate microauthd, keep this in mind: Security-first means CPU-first, and we wouldn’t have it any other way.
 
+Adding client secret caching brought about a 50% speedup in token issuance, and now microauthd is hovering around 30rps with bursts to 1200rps. This is a significant improvement.
+
 **2025-06-25**
 
 PKCE (Proof Key for Code Exchange) is now implemented. The example is served up from the public folder. ~~Empty this folder out if you don't want files served from it; I will likely add an option to enable/disable the static file hosting, but it is not implemented yet.~~ Fixed. Now, setting --serve-public-auth-files (or config file or env vars) enables the local webserver to serve static files from the /public subfolder of the microauthd working directory (defaults to false). Files will be served up as the root of the webserver (there will be no /public in the url). This is useful for serving up a simple login page or other static files that you want to be accessible from the auth server. The example login page can be removed to store your own files & assets.
