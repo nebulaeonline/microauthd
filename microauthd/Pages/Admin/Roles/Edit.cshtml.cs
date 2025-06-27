@@ -57,7 +57,7 @@ public class EditModel : BasePageModel
         if (string.IsNullOrWhiteSpace(RoleForm?.Id))
             return RedirectToPage("/Admin/Roles/Index");
 
-        var result = RoleService.DeleteRole(RoleForm.Id, Config, UserId, IpAddress, UserAgent);
+        var result = RoleService.DeleteRole(RoleForm.Id, Config);
 
         if (!result.Success)
         {

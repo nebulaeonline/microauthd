@@ -1270,10 +1270,10 @@ public static class UserService
         // so we don't need to log here again as it's redundant.
         AssignScopesRequest req = new();
         req.ScopeIds.AddRange(toAdd);
-        ScopeService.AddScopesToUser(dto.TargetId, req, config, actorUserId, ip, ua);
+        ScopeService.AddScopesToUser(dto.TargetId, req, config);
 
         foreach (var scopeId in toRemove)
-            ScopeService.RemoveScopeFromUser(dto.TargetId, scopeId, config, actorUserId, ip, ua);
+            ScopeService.RemoveScopeFromUser(dto.TargetId, scopeId, config);
 
         return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Scopes updated."));
     }

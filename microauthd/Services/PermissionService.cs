@@ -468,10 +468,10 @@ namespace microauthd.Services
             // AddPermissionToRole and RemovePermissionFromRole are both audit logged internally,
             // so we don't need to log here again as it's redundant.
             foreach (var permId in toAdd)
-                AssignPermissionsToRole(dto.RoleId, permId, config, actorUserId, ip, ua);
+                AssignPermissionsToRole(dto.RoleId, permId, config);
 
             foreach (var permId in toRemove)
-                RemovePermissionFromRole(dto.RoleId, permId, config, actorUserId, ip, ua);
+                RemovePermissionFromRole(dto.RoleId, permId, config);
 
             return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Permissions updated."));
         }

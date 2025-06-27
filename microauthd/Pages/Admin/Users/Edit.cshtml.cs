@@ -66,7 +66,7 @@ public class EditModel : BasePageModel
         if (string.IsNullOrWhiteSpace(UserForm?.Id))
             return RedirectToPage("/Admin/Users/Index");
 
-        var result = UserService.DeleteUser(UserForm.Id, Config, UserId, IpAddress, UserAgent);
+        var result = UserService.DeleteUser(UserForm.Id, Config);
 
         if (!result.Success)
         {

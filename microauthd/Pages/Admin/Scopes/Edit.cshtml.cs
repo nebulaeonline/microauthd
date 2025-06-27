@@ -58,7 +58,7 @@ public class EditModel : BasePageModel
         if (string.IsNullOrWhiteSpace(ScopeForm?.Id))
             return RedirectToPage("/Admin/Scopes/Index");
 
-        var result = ScopeService.DeleteScope(ScopeForm.Id, Config, UserId, IpAddress, UserAgent);
+        var result = ScopeService.DeleteScope(ScopeForm.Id, Config);
 
         if (!result.Success)
         {

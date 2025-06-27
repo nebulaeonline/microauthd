@@ -342,10 +342,10 @@ public static class ClientService
         // so we don't need to log here again as it's redundant.
         AssignScopesRequest req = new();
         req.ScopeIds.AddRange(toAdd);
-        ScopeService.AddScopesToClient(dto.TargetId, req, config, actorUserId, ip, ua);
+        ScopeService.AddScopesToClient(dto.TargetId, req, config);
 
         foreach (var scopeId in toRemove)
-            ScopeService.RemoveScopeFromClient(dto.TargetId, scopeId, config, actorUserId, ip, ua);
+            ScopeService.RemoveScopeFromClient(dto.TargetId, scopeId, config);
 
         return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Scopes updated."));
     }

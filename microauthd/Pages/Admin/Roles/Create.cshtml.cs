@@ -21,7 +21,7 @@ public class CreateModel : BasePageModel
             return Page();
 
         var role = RoleForm.ToRoleObject();
-        var result = RoleService.CreateRole(role.Name, role.Description, Config, UserId, IpAddress, UserAgent);
+        var result = RoleService.CreateRole(role.Name, role.Description, Config);
 
         if (!result.Success)
         {

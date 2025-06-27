@@ -22,7 +22,7 @@ public class CreateModel : BasePageModel
         if (!ModelState.IsValid)
             return Page();
 
-        var result = ScopeService.CreateScope(ScopeForm.ToScopeObject(), Config, UserId, IpAddress, UserAgent);
+        var result = ScopeService.CreateScope(ScopeForm.ToScopeObject(), Config);
 
         if (!result.Success)
         {

@@ -63,10 +63,7 @@ public class AssignRolesModel : BasePageModel
 
         var result = RoleService.ReplaceUserRoles(
             new RoleAssignmentDto { UserId = targetUserId, Roles = roleDtos },
-            Config,
-            actorUserId: this.targetUserId,
-            IpAddress,
-            UserAgent
+            Config
         );
 
         if (!result.Success)

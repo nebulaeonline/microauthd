@@ -25,10 +25,7 @@ public class CreateModel : BasePageModel
 
         var result = PermissionService.CreatePermission(
             PermissionForm.Name,
-            Config,
-            UserId,
-            IpAddress,
-            UserAgent
+            Config
         );
 
         if (!result.Success)

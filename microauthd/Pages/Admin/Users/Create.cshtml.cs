@@ -29,7 +29,7 @@ public class CreateModel : BasePageModel
         if (!ModelState.IsValid)
             return Page();
 
-        var result = UserService.CreateUser(Username, Email, Password, Config, IpAddress, UserAgent);
+        var result = UserService.CreateUser(Username, Email, Password, Config);
 
         if (!result.Success)
         {

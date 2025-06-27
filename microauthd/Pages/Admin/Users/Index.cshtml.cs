@@ -40,7 +40,7 @@ public class IndexModel : BasePageModel
         if (string.IsNullOrWhiteSpace(id))
             return RedirectToPage();
 
-        UserService.ReactivateSoftDeletedUser(id, Config, IpAddress, UserAgent);
+        UserService.ReactivateSoftDeletedUser(id, Config);
 
         return RedirectToPage(new { pg = CurrentPage, inactive = true });
     }
@@ -50,7 +50,7 @@ public class IndexModel : BasePageModel
         if (string.IsNullOrWhiteSpace(id))
             return RedirectToPage();
 
-        UserService.DeactivateUser(id, Config, IpAddress, UserAgent);
+        UserService.DeactivateUser(id, Config);
         return RedirectToPage(new { pg = CurrentPage, inactive = true });
     }
 }

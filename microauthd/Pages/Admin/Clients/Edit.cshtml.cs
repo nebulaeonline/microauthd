@@ -84,7 +84,7 @@ public class EditModel : BasePageModel
         if (string.IsNullOrWhiteSpace(ClientForm?.Id))
             return RedirectToPage("/Admin/Clients/Index");
 
-        var result = ClientService.DeleteClient(ClientForm.Id, Config, UserId, IpAddress, UserAgent);
+        var result = ClientService.DeleteClient(ClientForm.Id, Config);
 
         if (!result.Success)
         {
