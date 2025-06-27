@@ -20,6 +20,8 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 **2025-06-27**
 
+Today we introced Id Token issuance in compliance with OpenID Connect. This allows microauthd to issue ID tokens alongside access tokens, providing a standardized way to convey user identity and authentication information. The ID token is a JWT that contains claims about the authenticated user, such as their unique identifier, email, and other profile information.
+
 Changing the hashing strategy for refresh tokens to use SHA-256 only instead of Argon2id and SHA-256 brought another 50% speedup, bringing us to around 60rps with bursts to 1500 rps.
 
 We now cache password hashes (if enabled); the feature and duration are configurable via --enable-pass-cache and --pass-cache-duration (default is 5 minutes). We are now seeing throughput of over 600 rps, with burst at 3,000 rps. This means microauthd is now performing on par or better than its peers.
