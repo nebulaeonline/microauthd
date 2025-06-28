@@ -1,4 +1,5 @@
-﻿using System;
+﻿using mad.Common;
+using System;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.Linq;
@@ -9,9 +10,15 @@ namespace mad.Commands;
 
 internal static class SharedOptions
 {
-    public static Option<string> AdminUrl =>
-        new("--admin-url", "Base URL of the microauthd admin API (e.g. https://localhost:5001)")
-        { IsRequired = true };
+    public static Option<string> AdminUrl
+    {
+        get
+        {
+            var opt = new Option<string>("--admin-url", "Base URL of the admin server");
+            opt.SetDefaultValueFactory(() => AuthUtils.TryLoadAdminUrl() ?? "http://localhost:9041"); // fallback
+            return opt;
+        }
+    }
 
     public static readonly Option<string> AdminToken =
         new("--admin-token", "Admin bearer token (optional, falls back to ~/.mad_token)");

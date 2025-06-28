@@ -325,6 +325,34 @@ public static class ClientStore
     }
 
     /// <summary>
+    /// Updates the client secret hash for an active client identified by the specified client ID.
+    /// </summary>
+    /// <remarks>This method updates the client secret hash and the modification timestamp for the specified
+    /// client. The operation will only succeed if the client is active.</remarks>
+    /// <param name="clientId">The unique identifier of the client whose secret hash is to be updated.  Must correspond to an active client in
+    /// the database.</param>
+    /// <param name="newHash">The new hashed value of the client secret to be stored in the database.</param>
+    /// <returns><see langword="true"/> if the client secret was successfully updated; otherwise, <see langword="false"/>.</returns>
+    public static bool UpdateClientSecret(string clientId, string newHash)
+    {
+        const string sql = """
+            UPDATE clients
+            SET client_secret_hash = $hash,
+                modified_at = datetime('now')
+            WHERE id = $id AND is_active = 1;
+        """;
+
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$hash", newHash);
+            cmd.Parameters.AddWithValue("$id", clientId);
+            return cmd.ExecuteNonQuery() == 1;
+        });
+    }
+
+    /// <summary>
     /// Retrieves a list of active scopes associated with the specified client identifier.
     /// </summary>
     /// <remarks>This method queries the database to retrieve scopes that are active and associated with the
@@ -436,33 +464,6 @@ public static class ClientStore
                 });
             }
             return results;
-        });
-    }
-
-    /// <summary>
-    /// Updates the client secret hash for the specified client.
-    /// </summary>
-    /// <remarks>This method updates the client secret hash in the database for the client identified by
-    /// <paramref name="clientId"/>. Ensure that the provided <paramref name="clientId"/> corresponds to an existing
-    /// client record.</remarks>
-    /// <param name="clientId">The unique identifier of the client whose secret hash is being updated. Must not be <see langword="null"/> or
-    /// empty.</param>
-    /// <param name="hash">The new hash value for the client secret. Must not be <see langword="null"/> or empty.</param>
-    /// <returns><see langword="true"/> if the update was successful and exactly one record was modified;  otherwise, <see
-    /// langword="false"/>.</returns>
-    public static bool UpdateClientSecret(string clientId, string hash)
-    {
-        return Db.WithConnection(conn =>
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                UPDATE clients SET client_secret_hash = $hash WHERE id = $cid
-            """;
-
-            cmd.Parameters.AddWithValue("$hash", hash);
-            cmd.Parameters.AddWithValue("$cid", clientId);
-
-            return cmd.ExecuteNonQuery() == 1;
         });
     }
 

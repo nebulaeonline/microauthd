@@ -97,4 +97,38 @@ public static class AuthUtils
             return true; // Treat any parsing failure as expired/invalid
         }
     }
+
+    public static string? TryLoadAdminUrl()
+    {
+        try
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".mad_url"
+            );
+
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static bool SaveAdminUrl(string url)
+    {
+        try
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".mad_url"
+            );
+            File.WriteAllText(path, url.Trim());
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

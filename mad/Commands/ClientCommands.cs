@@ -16,6 +16,7 @@ internal static class ClientCommands
 
         cmd.AddCommand(CreateClientCommand());
         cmd.AddCommand(UpdateClientCommand());
+        cmd.AddCommand(ChangeClientSecretCommand());
         cmd.AddCommand(ListClientsCommand());
         cmd.AddCommand(GetClientByIdCommand());
         cmd.AddCommand(DeleteClientCommand());
@@ -347,6 +348,67 @@ internal static class ClientCommands
                 Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
             }
         }, adminUrl, adminToken, id, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command ChangeClientSecretCommand()
+    {
+        var cmd = new Command("change-secret", "Regenerate or set a new client secret");
+
+        var clientId = new Option<string>("--id") { IsRequired = true };
+        var newSecret = new Option<string?>("--secret", "Optional custom secret");
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientId);
+        cmd.AddOption(newSecret);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (
+            string id,
+            string? secret,
+            string url,
+            string? token,
+            bool json) =>
+        {
+            token ??= AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                var err = new ErrorResponse(false, "No token. Use --admin-token or `mad session login`.");
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                else
+                    Console.Error.WriteLine(err.Message);
+                return;
+            }
+
+            var client = new MadApiClient(url, token);
+            var response = await client.ChangeClientSecret(new ChangeClientSecretRequest(id, secret));
+
+            if (response is null)
+            {
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "Secret change failed"), MadJsonContext.Default.ErrorResponse));
+                else
+                    Console.Error.WriteLine("Failed to change client secret.");
+                return;
+            }
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(response, MadJsonContext.Default.MessageResponse));
+            }
+            else
+            {
+                Console.WriteLine("Client secret changed successfully.");
+                Console.WriteLine("Secret (please store it now):");
+                Console.WriteLine($"\n  {response.Message}\n");
+            }
+        }, clientId, newSecret, adminUrl, adminToken, jsonOut);
 
         return cmd;
     }

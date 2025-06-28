@@ -303,6 +303,37 @@ public static class ClientService
     }
 
     /// <summary>
+    /// Updates the secret for a specified client and returns the result of the operation.
+    /// </summary>
+    /// <remarks>This method retrieves the client by its ID and verifies that it is active. If the client is
+    /// not found or inactive, the operation fails with a 404 error. If <paramref name="req.NewSecret"/> is null or
+    /// whitespace, a new secret is generated using the application's authentication service. The secret is hashed
+    /// before being updated in the client store.</remarks>
+    /// <param name="req">The request containing the client ID and the new secret. If <paramref name="req.NewSecret"/> is null or
+    /// whitespace, a new secret will be generated automatically.</param>
+    /// <param name="config">The application configuration used for hashing the secret.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>. If the operation succeeds, the
+    /// response includes the new secret. If the client is not found or inactive, or if the update fails, the response
+    /// contains an error message.</returns>
+    public static ApiResult<MessageResponse> ChangeClientSecret(ChangeClientSecretRequest req, AppConfig config)
+    {
+        var client = ClientStore.GetClientById(req.ClientId);
+        if (client == null || !client.IsActive)
+            return ApiResult<MessageResponse>.Fail("Client not found", 404);
+
+        var newSecret = string.IsNullOrWhiteSpace(req.NewSecret)
+            ? AuthService.GeneratePassword(32)
+            : req.NewSecret.Trim();
+
+        var hash = AuthService.HashPassword(newSecret, config);
+
+        if (!ClientStore.UpdateClientSecret(client.Id, hash))
+            return ApiResult<MessageResponse>.Fail("Failed to update client secret");
+
+        return ApiResult<MessageResponse>.Ok(new MessageResponse(true, newSecret));
+    }
+
+    /// <summary>
     /// Replaces the scopes assigned to a client with the specified set of scopes.
     /// </summary>
     /// <remarks>This method updates the scopes assigned to a client by comparing the current scopes with the

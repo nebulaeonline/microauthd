@@ -55,6 +55,7 @@ internal static class SessionCommands
                 }
 
                 AuthUtils.SaveToken(client.Token);
+                AuthUtils.SaveAdminUrl(url);
 
                 var handler = new JwtSecurityTokenHandler();
                 var jwt = handler.ReadJwtToken(client.Token);

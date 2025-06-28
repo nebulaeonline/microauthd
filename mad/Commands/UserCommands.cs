@@ -20,6 +20,7 @@ internal static class UserCommands
         cmd.AddCommand(DisableTotpCommand());
         cmd.AddCommand(UpdateUserCommand());
         cmd.AddCommand(MarkEmailVerifiedCommand());
+        cmd.AddCommand(ResetPasswordCommand());
         cmd.AddCommand(ListUsersCommand());
         cmd.AddCommand(GetUserByIdCommand());
 
@@ -462,6 +463,80 @@ internal static class UserCommands
             else
                 Console.WriteLine("Email marked as verified.");
         }, adminUrl, adminToken, id, jsonOut);
+
+        return cmd;
+    }
+
+    /// <summary>
+    /// Creates a command for resetting a user's password.
+    /// </summary>
+    /// <remarks>The command requires the user ID and the new password to be specified as options. Additional
+    /// options include the admin URL, admin token, and a flag to output the result in JSON format. This command
+    /// interacts with the API to reset the password and provides feedback on the operation's success or
+    /// failure.</remarks>
+    /// <returns>A <see cref="Command"/> instance configured to reset a user's password.</returns>
+    private static Command ResetPasswordCommand()
+    {
+        var cmd = new Command("reset-password", "Reset a user's password");
+
+        var id = new Option<string>("--id", "User ID") { IsRequired = true };
+        var newPass = new Option<string>("--new-password", "New password") { IsRequired = true };
+        var adminUrl = SharedOptions.AdminUrl;
+        var adminToken = SharedOptions.AdminToken;
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(id);
+        cmd.AddOption(newPass);
+        cmd.AddOption(adminUrl);
+        cmd.AddOption(adminToken);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string id, string newPass, string url, string? token, bool json) =>
+        {
+            try
+            {
+                token ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
+                    return;
+                }
+
+                var client = new MadApiClient(url, token);
+                var result = await client.ResetUserPassword(id, newPass);
+
+                if (result is null)
+                {
+                    var err = new ErrorResponse(false, "Password reset failed.");
+                    if (json)
+                        Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    else
+                        Console.Error.WriteLine(err.Message);
+                    return;
+                }
+
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.MessageResponse));
+                else
+                    Console.WriteLine("Password was reset successfully.");
+
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, $"Exception during password reset: {ex.Message}");
+                if (json)
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                else
+                {
+                    Console.Error.WriteLine("Error resetting password.");
+                    Console.Error.WriteLine(ex.Message);
+                }
+            }
+        }, id, newPass, adminUrl, adminToken, jsonOut);
 
         return cmd;
     }

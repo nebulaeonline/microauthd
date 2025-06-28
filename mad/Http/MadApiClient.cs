@@ -144,6 +144,22 @@ internal class MadApiClient
             : null;
     }
 
+    public async Task<MessageResponse?> ResetUserPassword(string userId, string newPassword)
+    {
+        var req = new ResetPasswordRequest
+        {
+            NewPassword = newPassword
+        };
+
+        var content = JsonContent.Create(req, MadJsonContext.Default.ResetPasswordRequest);
+
+        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/reset", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse);
+    }
+
     public async Task<List<UserObject>?> ListUsers()
     {
         var res = await _http.GetAsync($"{BaseUrl}/users");
@@ -621,6 +637,17 @@ internal class MadApiClient
             return null;
 
         return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ClientObject);
+    }
+
+    public async Task<MessageResponse?> ChangeClientSecret(ChangeClientSecretRequest req)
+    {
+        var content = JsonContent.Create(req, MadJsonContext.Default.ChangeClientSecretRequest);
+
+        var res = await _http.PostAsync($"{BaseUrl}/clients/secret", content);
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse);
     }
 
     public async Task<bool> DeleteClient(string clientId)

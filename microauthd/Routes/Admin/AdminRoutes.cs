@@ -923,6 +923,22 @@ public static class AdminRoutes
         .WithTags("Clients")
         .WithOpenApi();
 
+        // update client secret endpoint************************************************************
+        group.MapPost("/clients/secret", async (
+            ChangeClientSecretRequest req,
+            AppConfig config
+        ) =>
+        {
+            var result = ClientService.ChangeClientSecret(req, config);
+            return result.ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("UpdateClientSecret")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithTags("Clients")
+        .WithOpenApi();
+
         // delete client endpoint*******************************************************************
         group.MapDelete("/clients/{id}", (
             string id,
