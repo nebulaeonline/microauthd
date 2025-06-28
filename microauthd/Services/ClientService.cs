@@ -1,16 +1,15 @@
-﻿using madTypes.Api.Common;
+﻿using System.Security.Cryptography;
+using Serilog;
+using static nebulae.dotArgon2.Argon2;
+
+using madTypes.Api.Common;
 using madTypes.Api.Requests;
 using madTypes.Api.Responses;
 using madTypes.Common;
+
 using microauthd.Common;
 using microauthd.Config;
 using microauthd.Data;
-using Microsoft.Data.Sqlite;
-using nebulae.dotArgon2;
-using Serilog;
-using System.Security.Cryptography;
-using System.Text;
-using static nebulae.dotArgon2.Argon2;
 
 namespace microauthd.Services;
 

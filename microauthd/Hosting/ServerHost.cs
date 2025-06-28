@@ -203,7 +203,7 @@ public static class ServerHost
                 }
 
                 // Use rate limiting middleware for auth routes
-                //app.UseMiddleware<RateLimitMiddleware>("auth");
+                app.UseMiddleware<RateLimitMiddleware>("auth");
 
                 app.UseAuthentication();
                 app.UseAuthorization();
@@ -345,10 +345,6 @@ public static class ServerHost
                 // Register razor pages for admin UI
                 builder.Services.AddAntiforgery(o => o.SuppressXFrameOptionsHeader = true);
                 builder.Services.AddRazorPages();
-                //builder.Services.AddRazorPages().AddRazorPagesOptions(options =>
-                //{
-                //    options.Conventions.AddPageRoute("/Admin/Users/Index", "/users-ui");
-                //});
 
                 // Register http context accessor
                 builder.Services.AddHttpContextAccessor();
@@ -384,7 +380,7 @@ public static class ServerHost
                 }
 
                 // Use rate limiting middleware for admin routes too
-                //app.UseMiddleware<RateLimitMiddleware>("admin");
+                app.UseMiddleware<RateLimitMiddleware>("admin");
 
                 // Standard middleware setup
                 app.UseStaticFiles();   // wwwroot files
