@@ -46,7 +46,7 @@ public static class AuthRoutes
         .WithOpenApi();
 
         // user info endpoint***********************************************************************
-        group.MapGet("/userinfo", (ClaimsPrincipal user) =>
+        group.MapGet("/userinfo", (ClaimsPrincipal user, AppConfig config) =>
         {
             var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
                    ?? user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
@@ -58,8 +58,13 @@ public static class AuthRoutes
 
             var claims = new Dictionary<string, object>
             {
-                ["sub"] = sub ?? "unknown"
+                ["sub"] = sub ?? "unknown",
+                ["iss"] = config.OidcIssuer
             };
+
+            var aud = user.FindFirst(JwtRegisteredClaimNames.Aud)?.Value;
+            if (!string.IsNullOrWhiteSpace(aud))
+                claims["aud"] = aud;
 
             if (!string.IsNullOrWhiteSpace(email))
                 claims["email"] = email;
@@ -67,7 +72,6 @@ public static class AuthRoutes
             if (!string.IsNullOrWhiteSpace(name))
                 claims["name"] = name;
 
-            // Email verified claim
             var emailVerified = user.FindFirst("email_verified")?.Value;
             if (emailVerified != null)
                 claims["email_verified"] = bool.TryParse(emailVerified, out var v) && v;

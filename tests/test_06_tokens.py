@@ -147,6 +147,25 @@ def test_token_refresh_and_blacklist_flow():
     if not auth_introspect.get("active", False):
         fail_with_data("AUTH introspection should return active", auth_introspect)
 
+    # Step 5b: Call /userinfo with the same token
+    userinfo_res = subprocess.run([
+        "curl", "-s", "-X", "GET", f"{AUTH_URL}/userinfo",
+        "-H", f"Authorization: Bearer {oidc_access_token}"
+    ], capture_output=True, text=True)
+
+    try:
+        userinfo = json.loads(userinfo_res.stdout)
+    except json.JSONDecodeError:
+        print("Failed to parse /userinfo response:")
+        print("STDOUT:", userinfo_res.stdout)
+        print("STDERR:", userinfo_res.stderr)
+        raise
+
+    if "sub" not in userinfo:
+        fail_with_data("Missing 'sub' in /userinfo response", userinfo)
+
+    print("/userinfo response:", userinfo)
+
     # Step 6: Revoke token
     revoke_response = curl_post_basic_auth(
       {"token": oidc_access_token},
