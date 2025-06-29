@@ -18,6 +18,10 @@ microauthd is not a Certified OpenID Connect Provider, nor is it Fully OIDC Comp
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth), my follow up [Auth Rolled: Part Deux](https://purplekungfu.com/Post/10/auth-rolled-part-deux) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
+**2025-06-28**
+
+On the usability front, I just wanted to say I'm happy about finally versioning our database schema for migrations, and now no longer requiring `mad` users to enter --admin-url on the CLI. We are slowly getting to a usability point that I think can drive adoption of microauthd. Additionally, if you are experimenting with the package, we would like to hear from you. Pain points, missing features, whatever. As we seek to move to a true v1.0 release, it will be important to get feedback so we can get things in order. Don't be shy. Thanks!
+
 **2025-06-27**
 
 Today we introduced Id Token issuance in compliance with OpenID Connect. This allows microauthd to issue ID tokens alongside access tokens, providing a standardized way to convey user identity and authentication information. The ID token is a JWT that contains claims about the authenticated user, such as their unique identifier, email, and other profile information.
