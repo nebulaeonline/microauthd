@@ -442,10 +442,7 @@ namespace microauthd.Services
         /// response indicates failure with a 400 status code.</returns>
         public static ApiResult<MessageResponse> ReplaceRolePermissions(
             PermissionAssignmentDto dto,
-            AppConfig config,
-            string actorUserId,
-            string? ip,
-            string? ua)
+            AppConfig config)
         {
             if (string.IsNullOrWhiteSpace(dto.RoleId))
                 return ApiResult<MessageResponse>.Fail("Missing userId", 400);

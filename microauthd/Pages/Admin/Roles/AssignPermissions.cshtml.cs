@@ -54,10 +54,7 @@ public class AssignPermissionsModel : BasePageModel
 
         var result = PermissionService.ReplaceRolePermissions(
             new PermissionAssignmentDto { RoleId = targetRoleId, Permissions = permissionDtos },
-            Config,
-            actorUserId: UserId,
-            IpAddress,
-            UserAgent
+            Config
         );
 
         if (!result.Success)
