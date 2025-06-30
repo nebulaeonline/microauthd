@@ -241,7 +241,7 @@ namespace microauthd.Data
 
                     failedLogins = reader.GetInt32(0);
                     if (!reader.IsDBNull(1))
-                        lastFailed = reader.GetDateTime(1); ;
+                        lastFailed = reader.GetDateTime(1).ToUniversalTime();
                 }
 
                 var now = DateTime.UtcNow;
@@ -274,6 +274,34 @@ namespace microauthd.Data
                 updateCmd.Parameters.AddWithValue("$lock", (object?)lockoutUntil?.ToString("o") ?? DBNull.Value);
                 updateCmd.Parameters.AddWithValue("$id", userId);
                 updateCmd.ExecuteNonQuery();
+            });
+        }
+
+        /// <summary>
+        /// Retrieves the number of failed login attempts for the specified user.
+        /// </summary>
+        /// <remarks>This method queries the database to retrieve the failed login count for the user.
+        /// Ensure that the user ID provided corresponds to an active user in the system.</remarks>
+        /// <param name="userId">The unique identifier of the user whose failed login attempts are to be retrieved. Must not be <see
+        /// langword="null"/> or empty.</param>
+        /// <returns>The number of failed login attempts for the user. Returns 0 if the user does not exist or is inactive.</returns>
+        public static int GetFailedLoginAttempts(string userId)
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    SELECT failed_logins
+                    FROM users
+                    WHERE id = $id AND is_active = 1;
+                """;
+                cmd.Parameters.AddWithValue("$id", userId);
+                using var reader = cmd.ExecuteReader();
+
+                if (!reader.Read())
+                    return 0; // User not found or inactive
+
+                return reader.GetInt32(0);
             });
         }
 

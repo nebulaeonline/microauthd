@@ -981,6 +981,27 @@ public static class AuthService
     }
 
     /// <summary>
+    /// Retrieves the number of failed login attempts for the specified user.
+    /// </summary>
+    /// <remarks>This method logs any errors encountered during the retrieval process and returns 0 to ensure
+    /// the application flow is not disrupted.</remarks>
+    /// <param name="userId">The unique identifier of the user whose failed login attempts are to be retrieved. Cannot be null or empty.</param>
+    /// <returns>The number of failed login attempts for the specified user.  Returns 0 if an error occurs during the retrieval
+    /// process.</returns>
+    public static int GetFailedLoginAttempts(string userId)
+    {
+        try
+        {
+            return AuthStore.GetFailedLoginAttempts(userId);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to get failed login attempts for user {UserId}", userId);
+            return 0; // Return 0 if there's an error to avoid breaking the flow
+        }
+    }
+
+    /// <summary>
     /// Logs out a user by revoking their active session and associated refresh tokens for a specific client.
     /// </summary>
     /// <remarks>This method revokes the user's session and refresh tokens for the specified client in the

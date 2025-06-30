@@ -149,5 +149,88 @@ namespace madTests.Services
 
             TestDb.CleanupDb(config);
         }
+
+        [Fact]
+        public void ValidateOidcClient_ShouldReturn_True_ForValidClient()
+        {
+            var config = TestHelpers.GetTestConfig();
+            TestDb.SetupDb(config);
+
+            ClientService.CreateClient(new madTypes.Api.Requests.CreateClientRequest
+            {
+                ClientId = "validclient",
+                ClientSecret = "validsecret",
+                DisplayName = "Valid Client",
+                Audience = "validaud"
+            }, config);
+
+            var isValid = AuthService.ValidateOidcClient("validclient", "validsecret", config);
+            isValid.Should().BeTrue("Validation should succeed for valid client credentials.");
+            
+            TestDb.CleanupDb(config);
+        }
+
+        [Fact]
+        public void ValidateOidcClient_ShouldReturn_False_ForInvalidClient()
+        {
+            var config = TestHelpers.GetTestConfig();
+            TestDb.SetupDb(config);
+
+            ClientService.CreateClient(new madTypes.Api.Requests.CreateClientRequest
+            {
+                ClientId = "validclient",
+                ClientSecret = "validsecret",
+                DisplayName = "Valid Client",
+                Audience = "validaud"
+            }, config);
+
+            var isValid = AuthService.ValidateOidcClient("validclient", "wrongsecret", config);
+            isValid.Should().BeFalse("Validation should fail for invalid client credentials.");
+
+            TestDb.CleanupDb(config);
+        }
+
+        [Fact]
+        public void GetExpectedAudience_ShouldReturn_Audience_ForValidClient()
+        {
+            var config = TestHelpers.GetTestConfig();
+            TestDb.SetupDb(config);
+
+            ClientService.CreateClient(new madTypes.Api.Requests.CreateClientRequest
+            {
+                ClientId = "validclient",
+                ClientSecret = "validsecret",
+                DisplayName = "Valid Client",
+                Audience = "validaud1234"
+            }, config);
+
+            var audience = AuthService.GetExpectedAudienceForClient("validclient");
+            audience.Should().Be("validaud1234");
+
+            TestDb.CleanupDb(config);
+        }
+
+        [Fact]
+        public void RecordFailedLogin_ShouldReturn_NumberOfFailedLogins()
+        {
+            var config = TestHelpers.GetTestConfig();
+
+            TestDb.SetupDb(config);
+
+            var user = UserService.CreateUser(
+                "testuser",
+                "test@example.com",
+                "password123",
+                config).Value;
+
+            AuthService.RecordFailedLogin(user.Id, config);
+            AuthService.RecordFailedLogin(user.Id, config);
+
+            var failedLogins = AuthService.GetFailedLoginAttempts(user.Id);
+
+            failedLogins.Should().Be(2);
+
+            TestDb.CleanupDb(config);
+        }
     }
 }
