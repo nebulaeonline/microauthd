@@ -57,7 +57,7 @@
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="mad.conf">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToOutputDirectory>tou</CopyToOutputDirectory>
       </Content>
     </ItemGroup>
 
