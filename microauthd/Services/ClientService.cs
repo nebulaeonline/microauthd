@@ -217,7 +217,7 @@ public static class ClientService
     /// (e.g., due to a database error or if the client ID does not exist), the method returns a failure result.
     /// Additionally, an audit log entry is created for successful deletions, including optional metadata such as the
     /// actor's user ID, IP address, and user agent.</remarks>
-    /// <param name="clientId">The unique identifier of the client to delete. Cannot be null or empty.</param>
+    /// <param name="clientIdent">The unique identifier of the client to delete. Cannot be null or empty.</param>
     /// <param name="config">The application configuration used for logging and auditing. Cannot be null.</param>
     /// <param name="actorUserId">The ID of the user performing the operation, used for auditing. Optional.</param>
     /// <param name="ip">The IP address of the user performing the operation, used for auditing. Optional.</param>
@@ -226,34 +226,34 @@ public static class ClientService
     /// operation. Returns a success result if the client was deleted successfully; otherwise, returns a failure result
     /// with an error message.</returns>
     public static ApiResult<MessageResponse> DeleteClient(
-        string clientId,
+        string clientIdent,
         AppConfig config)
     {
         try
         {
             // Revoke sessions
-            ClientStore.RevokeClientSessions(clientId);
+            ClientStore.RevokeClientSessions(clientIdent);
 
             // Revoke refresh tokens
-            ClientStore.RevokeClientRefreshTokens(clientId);
+            ClientStore.RevokeClientRefreshTokens(clientIdent);
 
             // Delete client scopes
-            ClientStore.DeleteClientScopes(clientId);
+            ClientStore.DeleteClientScopes(clientIdent);
 
             // Finally delete the client
-            var deleted = ClientStore.DeleteClientByClientId(clientId);
+            var deleted = ClientStore.DeleteClientByClientIdentifier(clientIdent);
 
             if (!deleted)
                 return ApiResult<MessageResponse>.Fail("Failed to delete client");
 
             if (config.EnableAuditLogging) 
-                Utils.Audit.Logg("delete_client", clientId);
+                Utils.Audit.Logg("delete_client", clientIdent);
 
-            return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientId}' deleted"));
+            return ApiResult<MessageResponse>.Ok(new(true, $"Client '{clientIdent}' deleted"));
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error deleting client with ID {ClientId}", clientId);
+            Log.Error(ex, "Error deleting client with ID {ClientId}", clientIdent);
             return ApiResult<MessageResponse>.Fail("Internal error occurred while deleting client.");
         }
     }
@@ -264,7 +264,7 @@ public static class ClientService
     /// <remarks>This method generates a new client secret, hashes it using the provided application
     /// configuration, and updates the client record in the data store. The new secret is returned in plain text only
     /// once as part of the response. Audit logging is performed to record the action.</remarks>
-    /// <param name="clientId">The unique identifier of the client whose secret is being regenerated. Cannot be null or empty.</param>
+    /// <param name="id">The unique identifier of the client whose secret is being regenerated. Cannot be null or empty.</param>
     /// <param name="config">The application configuration used for hashing the secret. Must not be null.</param>
     /// <param name="actorUserId">The identifier of the user performing the operation. Used for audit logging. Cannot be null or empty.</param>
     /// <param name="ip">The IP address of the user performing the operation. Optional; can be null.</param>
@@ -272,25 +272,22 @@ public static class ClientService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> with the new client secret in plain
     /// text. The response indicates success or failure, along with an HTTP status code.</returns>
     public static ApiResult<MessageResponse> RegenerateClientSecret(
-            string clientId,
-            AppConfig config,
-            string actorUserId,
-            string? ip = null,
-            string? ua = null)
+            string id,
+            AppConfig config)
     {
-        if (string.IsNullOrWhiteSpace(clientId))
+        if (string.IsNullOrWhiteSpace(id))
             return ApiResult<MessageResponse>.Fail("Client ID is required.", 400);
 
         var newSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
         var hash = AuthService.HashPassword(newSecret, config);
 
-        var success = ClientStore.UpdateClientSecret(clientId, hash);
+        var success = ClientStore.UpdateClientSecret(id, hash);
         if (!success)
             return ApiResult<MessageResponse>.Fail("Failed to update client secret.", 500);
 
-        // Invalidate cache for the client ID
-        AuthService.InvalidateClientCache(clientId);
-        Log.Debug("Client cache invalidated for client ID {ClientId}", clientId);
+        // Invalidate cache for the client Identifier associated with this ID
+        AuthService.InvalidateClientCache(ClientStore.GetClientIdentifierById(id)!);
+        Log.Debug("Client cache invalidated for client ID {ClientId}", id);
 
         if (config.EnableAuditLogging)
             Utils.Audit.Logg(
@@ -332,6 +329,8 @@ public static class ClientService
 
         if (!ClientStore.UpdateClientSecret(client.Id, hash))
             return ApiResult<MessageResponse>.Fail("Failed to update client secret");
+
+        AuthService.InvalidateClientCache(client.ClientId);
 
         return ApiResult<MessageResponse>.Ok(new MessageResponse(true, newSecret));
     }

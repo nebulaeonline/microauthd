@@ -245,19 +245,19 @@ public static class AuthService
     /// If the cached secret is unavailable or does not match, the method falls back to Argon2id hash verification.  The
     /// client secret is cached for subsequent authentication attempts, with a sliding expiration of 15
     /// minutes.</remarks>
-    /// <param name="clientId">The unique identifier of the client to authenticate. Cannot be null or empty.</param>
+    /// <param name="clientIdent">The unique identifier of the client to authenticate. Cannot be null or empty.</param>
     /// <param name="clientSecret">The secret associated with the client. Cannot be null or empty.</param>
     /// <param name="config">The application configuration used for authentication settings. Cannot be null.</param>
     /// <returns>The authenticated <see cref="Client"/> instance if authentication succeeds; otherwise, <see langword="null"/>.</returns>
-    public static Client? AuthenticateClient(string clientId, string clientSecret, AppConfig config)
+    public static Client? AuthenticateClient(string clientIdent, string clientSecret, AppConfig config)
     {
         // Look up client in database
-        var client = ClientStore.GetClientByClientIdentifier(clientId);
+        var client = ClientStore.GetClientByClientIdentifier(clientIdent);
         if (client is null || !client.IsActive)
             return null;
 
         // Check cache
-        if (_clientSecretCache.TryGetValue(clientId, out var cachedSecret))
+        if (_clientSecretCache.TryGetValue(clientIdent, out var cachedSecret))
         {
             if (cachedSecret is not null && (string)cachedSecret == clientSecret)
                 return client;
@@ -268,7 +268,7 @@ public static class AuthService
         // Fall back to full Argon2id verification
         if (VerifyEncoded(Argon2Algorithm.Argon2id, client.ClientSecretHash, Encoding.UTF8.GetBytes(clientSecret)))
         {
-            _clientSecretCache.Set(clientId, clientSecret, new MemoryCacheEntryOptions
+            _clientSecretCache.Set(clientIdent, clientSecret, new MemoryCacheEntryOptions
             {
                 Size = 1,
                 SlidingExpiration = TimeSpan.FromMinutes(15)

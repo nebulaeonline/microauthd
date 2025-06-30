@@ -267,11 +267,37 @@ public static class ClientStore
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id FROM clients WHERE client_id = $client_id LIMIT 1;";
+            cmd.CommandText = "SELECT id FROM clients WHERE client_identifier = $client_id LIMIT 1;";
             cmd.Parameters.AddWithValue("$client_id", clientIdentifier);
 
-            var result = cmd.ExecuteScalar();
-            return result == null ? null : Convert.ToString(result);
+            var reader = cmd.ExecuteReader();
+
+            if (!reader.Read())
+                return null;
+            return reader.GetString(0);
+        });
+    }
+
+    /// <summary>
+    /// Retrieves the client identifier associated with the specified ID.
+    /// </summary>
+    /// <remarks>This method queries the database to find the client identifier corresponding to the provided
+    /// client ID. If no matching client is found, the method returns <see langword="null"/>.</remarks>
+    /// <param name="id">The unique identifier of the client. Cannot be null or empty.</param>
+    /// <returns>The client identifier as a string if a matching client is found; otherwise, <see langword="null"/>.</returns>
+    public static string? GetClientIdentifierById(string id)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT client_identifier FROM clients WHERE id = $id LIMIT 1;";
+            cmd.Parameters.AddWithValue("$id", id);
+
+            var reader = cmd.ExecuteReader();
+
+            if (!reader.Read())
+                return null;
+            return reader.GetString(0);
         });
     }
 
@@ -560,7 +586,7 @@ public static class ClientStore
     /// given identifier. Ensure that the database connection is properly configured and accessible.</remarks>
     /// <param name="clientId">The unique identifier of the client to be deleted. This value must not be <see langword="null"/> or empty.</param>
     /// <returns><see langword="true"/> if the client record was successfully deleted; otherwise, <see langword="false"/>.</returns>
-    public static bool DeleteClientByClientId(string clientId)
+    public static bool DeleteClientByClientIdentifier(string clientId)
     {
         return Db.WithConnection(conn =>
         {

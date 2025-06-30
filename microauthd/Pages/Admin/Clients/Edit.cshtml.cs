@@ -55,11 +55,8 @@ public class EditModel : BasePageModel
             return RedirectToPage("/Admin/Clients/Index");
 
         var result = ClientService.RegenerateClientSecret(
-            clientId: ClientForm.Id,
-            config: Config,
-            actorUserId: UserId,
-            ip: IpAddress,
-            ua: UserAgent
+            id: ClientForm.Id,
+            config: Config
         );
 
         if (!result.Success)
