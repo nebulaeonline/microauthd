@@ -1,9 +1,11 @@
 ﻿using FluentAssertions;
 
 using madTypes.Api.Common;
+using madTypes.Api.Requests;
 using madTests.Common;
 using madTests.Database;
 using microauthd.Services;
+using microauthd.Data;
 
 namespace madTests.Services;
 
@@ -177,5 +179,71 @@ public class ClientServiceTests
         TestDb.CleanupDb(config);
     }
 
-    
+    [Fact]
+    public void RegenerateClientSecret_Should_Change_Hash()
+    {
+        var config = TestHelpers.GetTestConfig();
+        TestDb.SetupDb(config);
+
+        var client = ClientService.CreateClient(new madTypes.Api.Requests.CreateClientRequest
+        {
+            ClientId = "validclient",
+            ClientSecret = "validsecret",
+            DisplayName = "Valid Client",
+            Audience = "validaud"
+        }, config).Value;
+
+        client.Should().NotBeNull("A created client should not be null.");
+
+        var newClient = ClientStore.GetClientByClientIdentifier(client.ClientId);
+
+        newClient.Should().NotBeNull("A retrieved client should not be null.");
+
+        var originalSecretHash = newClient.ClientSecretHash;
+
+        ClientService.RegenerateClientSecret(newClient.Id, config);
+
+        var updatedClient = ClientStore.GetClientByClientIdentifier(client.ClientId);
+
+        updatedClient.ClientSecretHash.Should().NotBe(originalSecretHash, "client secret hash should be different after regeneration.");
+        
+        TestDb.CleanupDb(config);
+    }
+
+    [Fact]
+    public void ChangingClientSecret_Should_Change_Hash()
+    {
+        var config = TestHelpers.GetTestConfig();
+        TestDb.SetupDb(config);
+
+        var client = ClientService.CreateClient(new madTypes.Api.Requests.CreateClientRequest
+        {
+            ClientId = "validclient",
+            ClientSecret = "validsecret",
+            DisplayName = "Valid Client",
+            Audience = "validaud"
+        }, config).Value;
+
+        client.Should().NotBeNull("A created client should not be null.");
+
+        var newClient = ClientStore.GetClientByClientIdentifier(client.ClientId);
+
+        newClient.Should().NotBeNull("A retrieved client should not be null.");
+
+        var originalSecretHash = newClient.ClientSecretHash;
+
+        ClientService.ChangeClientSecret(new ChangeClientSecretRequest
+        (
+            ClientId: newClient.Id,
+            NewSecret: "validsecret2"
+        ), config);
+
+        var updatedClient = ClientStore.GetClientByClientIdentifier(client.ClientId);
+
+        updatedClient.Should().NotBeNull("A retrieved client after changing secret should not be null.");
+
+        updatedClient.ClientSecretHash.Should().NotBe(originalSecretHash, "client secret hash should be different after regeneration.");
+
+        TestDb.CleanupDb(config);
+    }
 }
