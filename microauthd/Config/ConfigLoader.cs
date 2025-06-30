@@ -154,10 +154,12 @@ public static class ConfigLoader
             TokenSigningKeyPassphrase = GetOptional(Options.TokenSigningKeyPassphrase),
             AdminTokenSigningKeyPassphrase = GetOptional(Options.AdminTokenSigningKeyPassphrase),
             TokenExpiration = GetInt(Options.TokenExpirationTime),
+            TokenPurgeDays = GetInt(Options.TokenPurgeDays),
             AdminTokenExpiration = GetInt(Options.AdminTokenExpirationTime),
             EnableTokenRevocation = GetBool(Options.EnableTokenRevocation),
             EnableTokenRefresh = GetBool(Options.EnableTokenRefresh),
             RefreshTokenExpiration = GetInt(Options.RefreshTokenExpiration),
+            RefreshTokenPurgeDays = GetInt(Options.RefreshTokenPurgeDays),
 
             EnableOtpAuth = GetBool(Options.EnableOtpAuth),
             PrintEffectiveConfig = GetBool(Options.PrintEffectiveConfig),

@@ -174,6 +174,9 @@ public static class ServerHost
 
                 // Register the audit logging service
                 builder.Services.AddSingleton<AuditDos>();
+
+                // Set up our scheduled task service
+                builder.Services.AddHostedService<ScheduledTaskService>();
             },
             app =>
             {

@@ -185,6 +185,7 @@ internal static class OobePrompts
     {
         state.AuthTokenExpiration = PromptInt("AUTH token expiration (seconds)", state.Config.TokenExpiration, 60, 604800);
         state.AdminTokenExpiration = PromptInt("ADMIN token expiration (seconds)", state.Config.AdminTokenExpiration, 60, 604800);
+        state.TokenPurgeDays = PromptInt("Days to keep AUTH tokens after expiration (0 = forever)", 7, 0, 365);
     }
 
     public static void PromptFeatureFlags(OobeState state)
@@ -194,6 +195,7 @@ internal static class OobePrompts
         if (state.EnableRefresh)
         {
             state.RefreshTokenExpiration = PromptInt("Refresh token expiration (seconds)", state.Config.RefreshTokenExpiration, 300, 2592000);
+            state.RefreshTokenPurgeDays = PromptInt("Days to keep refresh tokens after expiration (0 = forever)", 7, 0, 365);
         }
         state.EnableOtp = PromptYesNo("Enable OTP auth?");
     }
@@ -336,9 +338,11 @@ internal static class OobePrompts
                 envLines.Add($"{state.EnvVarPrefix}AUTH_TOKEN_KEY_LENGTH_RSA={state.AuthTokenKeyLength.ToString()}");
             envLines.Add($"{state.EnvVarPrefix}AUTH_TOKEN_KEY_PASS=\"{state.AuthTokenKeyPass}\"");
             envLines.Add($"{state.EnvVarPrefix}AUTH_TOKEN_EXPIRATION={state.AuthTokenExpiration}");
+            envLines.Add($"{state.EnvVarPrefix}TOKEN_PURGE_DAYS={state.TokenPurgeDays}");
             envLines.Add($"{state.EnvVarPrefix}ENABLE_REVOCATION={(state.EnableRevocation ? "true" : "false")}");
             envLines.Add($"{state.EnvVarPrefix}ENABLE_REFRESH={(state.EnableRefresh ? "true" : "false")}");
             envLines.Add($"{state.EnvVarPrefix}REFRESH_TOKEN_EXPIRATION={state.RefreshTokenExpiration}");
+            envLines.Add($"{state.EnvVarPrefix}REFRESH_TOKEN_PURGE_DAYS={state.RefreshTokenPurgeDays}");
             envLines.Add($"{state.EnvVarPrefix}ADMIN_TOKEN_KEY_PATH=\"{state.AdminTokenKeyPath}\"");
             envLines.Add($"{state.EnvVarPrefix}USE_EC_ADMIN_SIGNER={(state.UseEcAdminSigner ? "true" : "false")}");
             if (!state.UseEcAdminSigner)
@@ -420,9 +424,11 @@ internal static class OobePrompts
                 $"token-signing-key-length-rsa = {state.AuthTokenKeyLength}",
                 $"token-signing-key-pass = {state.AuthTokenKeyPass}",
                 $"token-expiration = {state.AuthTokenExpiration}",
+                $"token-purge-days = {state.TokenPurgeDays}",
                 $"enable-token-revocation = {state.EnableRevocation.ToString().ToLower()}",
                 $"enable-token-refresh = {state.EnableRefresh.ToString().ToLower()}",
-                $"refresh-token-expiration = {state.RefreshTokenExpiration}\n",
+                $"refresh-token-expiration = {state.RefreshTokenExpiration}",
+                $"refresh-token-purge-days = {state.RefreshTokenPurgeDays}\n",
 
                 "# Admin token config",
                 $"admin-token-signing-key-file = {state.AdminTokenKeyPath}",

@@ -38,11 +38,12 @@ public class AppConfig
     public string? TokenSigningKeyPassphrase { get; set; } 
     public string? AdminTokenSigningKeyPassphrase { get; set; }
     public int TokenExpiration { get; set; } = 0;
+    public int TokenPurgeDays { get; set; } = 0;
     public int AdminTokenExpiration { get; set; } = 0;
     public bool EnableTokenRevocation { get; set; } = false;
     public bool EnableTokenRefresh { get; set; } = false;
     public int RefreshTokenExpiration { get; set; } = 0;
-
+    public int RefreshTokenPurgeDays { get; set; } = 0;
     public bool EnableOtpAuth { get; set; } = false;
 
     public bool PrintEffectiveConfig { get; set; } = false;

@@ -40,6 +40,7 @@ internal class OobeState
     public string AuthTokenKeyPass = string.Empty;
     public int AuthTokenKeyLength = 0;
     public int AuthTokenExpiration = 0;
+    public int TokenPurgeDays = 0;
 
     public string AdminTokenKeyPath = string.Empty;
     public string AdminTokenKeyPass = string.Empty;
@@ -49,6 +50,7 @@ internal class OobeState
     public bool EnableRevocation = false;
     public bool EnableRefresh = false;
     public int RefreshTokenExpiration = 0;
+    public int RefreshTokenPurgeDays = 0;
     public bool EnableOtp = false;
 
     public int MaxLoginFailures = 0;

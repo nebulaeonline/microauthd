@@ -342,6 +342,17 @@ internal static class Options
         };
 
     /// <summary>
+    /// Represents an option specifying the number of days after token expiration to purge tokens.
+    /// </summary>
+    /// <remarks>The default value is 7 days. This option can be configured using the environment variable 
+    /// <c>MAD_TOKEN_PURGE_DAYS</c>.</remarks>
+    public static readonly Option<int> TokenPurgeDays =
+        new Option<int>("--token-purge-days", () => 7, "Number of days after expiration to purge tokens (defaults to 7 days) (env var MAD_TOKEN_PURGE_DAYS)")
+        {
+            Arity = ArgumentArity.ExactlyOne
+        };
+
+    /// <summary>
     /// Represents the expiration time for admin tokens, in seconds.
     /// </summary>
     /// <remarks>The default value is 3600 seconds (1 hour). This option can be configured using the 
@@ -375,6 +386,17 @@ internal static class Options
     /// environment variable <c>MAD_TOKEN_REFRESH_TIME</c>.</remarks>
     public static readonly Option<int> RefreshTokenExpiration =
         new Option<int>("--refresh-token-expiration", () => 259200, "Expiration time for refresh tokens in seconds (defaults to 259200 (3 days)) (env var MAD_TOKEN_REFRESH_EXPIRATION)")
+        {
+            Arity = ArgumentArity.ExactlyOne
+        };
+
+    /// <summary>
+    /// Represents an option specifying the number of days after expiration to purge refresh tokens.
+    /// </summary>
+    /// <remarks>The default value is 7 days. This option can be configured using the environment variable 
+    /// <c>MAD_REFRESH_TOKEN_PURGE_DAYS</c>.</remarks>
+    public static readonly Option<int> RefreshTokenPurgeDays =
+        new Option<int>("--refresh-token-purge-days", () => 7, "Number of days after expiration to purge refresh tokens (defaults to 7 days) (env var MAD_REFRESH_TOKEN_PURGE_DAYS)")
         {
             Arity = ArgumentArity.ExactlyOne
         };
