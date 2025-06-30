@@ -36,7 +36,7 @@ public class AssignRolesModel : BasePageModel
 
         Username = user.Username;
         AllRoles = RoleService.GetAllRoleDtos().Value ?? new();
-        AssignedRoles = RoleService.GetAssignedRolesDto(targetUserId).Value ?? new();
+        AssignedRoles = RoleService.GetAssignedRoleDtos(targetUserId).Value ?? new();
 
         return Page();
     }

@@ -427,7 +427,7 @@ public static class RoleService
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="RoleDto"/> objects representing the user's
     /// assigned roles. If the operation fails, the result will include an error message and an appropriate HTTP status
     /// code.</returns>
-    public static ApiResult<List<RoleDto>> GetAssignedRolesDto(string userId)
+    public static ApiResult<List<RoleDto>> GetAssignedRoleDtos(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<List<RoleDto>>.Fail("Missing userId", 400);

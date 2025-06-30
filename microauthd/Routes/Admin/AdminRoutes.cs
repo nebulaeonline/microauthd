@@ -525,7 +525,7 @@ public static class AdminRoutes
         {
             var roles = all
                 ? RoleService.GetAllRoleDtos()
-                : RoleService.GetAssignedRolesDto(userId);
+                : RoleService.GetAssignedRoleDtos(userId);
 
             return roles.ToHttpResult();
         })
