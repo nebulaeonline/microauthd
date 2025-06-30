@@ -9,7 +9,8 @@
         public string InitialOidcClientId { get; init; } = string.Empty;
         public string InitialOidcClientSecret { get; init; } = string.Empty;
         public string InitialOidcAudience { get; init; } = string.Empty;
-
+        public bool InitEnvVars { get; init; } = false;
+        public string EnvVarPrefix { get; init; } = "MAD_";
         public bool NeedsAdminCreation => !string.IsNullOrWhiteSpace(AdminUsername);
         public bool NeedsOidcClientCreation => !string.IsNullOrWhiteSpace(InitialOidcClientId);
     }

@@ -75,4 +75,6 @@ public class AppConfig
 
     public bool EnablePassCache { get; set; } = false;
     public int PassCacheDuration { get; set; } = 0;
+
+    public bool DockerMode { get; set; } = false;
 }

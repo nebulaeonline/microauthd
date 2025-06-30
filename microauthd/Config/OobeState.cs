@@ -4,6 +4,9 @@ internal class OobeState
 {
     public AppConfig Config;
 
+    public bool WriteEnvFile = false;
+    public string EnvFilePath = string.Empty;
+    public string EnvVarPrefix = string.Empty;
     public string DbFilePath = string.Empty;
     public string ConfigFilePath = string.Empty;
     public string LogFile = string.Empty;

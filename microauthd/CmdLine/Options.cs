@@ -573,4 +573,13 @@ internal static class Options
         {
             Arity = ArgumentArity.ExactlyOne
         };
+
+    /// <summary>
+    /// Represents an option to enable or disable Docker mode.
+    /// </summary>
+    /// <remarks>When enabled, the application runs in Docker mode. The default value is <see
+    /// langword="false"/>. This option can also be configured using the environment variable <c>MAD_DOCKER</c>, which
+    /// should be set to <c>1</c> to enable Docker mode.</remarks>
+    public static readonly Option<bool> Docker =
+        new Option<bool>("--docker", () => false, "Run in Docker mode (defaults to false) (env var MAD_DOCKER = 1)");
 }

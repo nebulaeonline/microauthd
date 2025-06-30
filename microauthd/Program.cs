@@ -45,32 +45,53 @@ public class Program
             string adminEmail = string.Empty;
             string adminPass = string.Empty;
 
-            // See if our db file exists, if not, launch OOBE
-            if (!File.Exists(config.DbFile))
+            // In docker mode, we have them run the oobe tool separately
+            if (!config.DockerMode)
             {
-                var postConfig = OobeDos.LaunchOobe(config);
-                config = ConfigLoader.Load(parseResult); // Reload config after OOBE
-                DbInitializer.CreateDbTables(config);
-                DbMigrations.ApplyMigrations();
+                if (!File.Exists(config.DbFile))
+                {
+                    // See if our db file exists, if not, launch OOBE
+                    var postConfig = OobeDos.LaunchOobe(config);
+                    config = ConfigLoader.Load(parseResult); // Reload config after OOBE
+                    DbInitializer.CreateDbTables(config);
+                    DbMigrations.ApplyMigrations();
 
-                // Perform post-OOBE actions
+                    // Perform post-OOBE actions
 
-                // Set up the admin user
-                if (postConfig.NeedsAdminCreation)
-                    OobeDos.CreateOobeUserRaw(postConfig.AdminUsername, postConfig.AdminEmail, postConfig.AdminPassword, config);
+                    // Set up the admin user
+                    if (postConfig.NeedsAdminCreation)
+                        OobeDos.CreateOobeUserRaw(postConfig.AdminUsername, postConfig.AdminEmail, postConfig.AdminPassword, config);
 
-                // Set up the initial OIDC client
-                if (postConfig.NeedsOidcClientCreation)
-                    OobeDos.CreateOobeClientRaw(postConfig.InitialOidcClientId, postConfig.InitialOidcClientSecret, postConfig.InitialOidcAudience, config);
+                    // Set up the initial OIDC client
+                    if (postConfig.NeedsOidcClientCreation)
+                        OobeDos.CreateOobeClientRaw(postConfig.InitialOidcClientId, postConfig.InitialOidcClientSecret, postConfig.InitialOidcAudience, config);
+                }
+                else
+                {
+                    // Initialize the database
+                    DbInitializer.CreateDbTables(config);
+                    DbMigrations.ApplyMigrations();
+                    Db.FlushWal();
+                }
             }
             else
             {
-                // Initialize the database
-                DbInitializer.CreateDbTables(config);
-                DbMigrations.ApplyMigrations();
-                Db.FlushWal();
-            }               
-
+                // In Docker mode, we just error out if the database file doesn't exist
+                if (!File.Exists(config.DbFile))
+                {
+                    Log.Fatal("Database file does not exist (running in Docker mode). Please initialize the database by running the madOobe tool.");
+                    Console.Error.WriteLine("Database file does not exist in Docker mode. Please ensure the database is initialized.");
+                    Environment.Exit(1);
+                }
+                else
+                {
+                    // Initialize the database
+                    DbInitializer.CreateDbTables(config);
+                    DbMigrations.ApplyMigrations();
+                    Db.FlushWal();
+                }
+            }
+            
             // Get our token signing keys in order; that includes
             // generating them if they don't exist, and exporting the
             // public keys 

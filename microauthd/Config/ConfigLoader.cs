@@ -175,6 +175,7 @@ public static class ConfigLoader
             ServePublicAuthFiles = GetBool(Options.ServePublicAuthFiles),
             EnablePassCache = GetBool(Options.EnablePassCache),
             PassCacheDuration = GetInt(Options.PassCacheDuration),
+            DockerMode = GetBool(Options.Docker),
         };
     }
 
