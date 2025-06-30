@@ -246,4 +246,41 @@ public class ClientServiceTests
 
         TestDb.CleanupDb(config);
     }
+
+    [Fact]
+    public void AddingAndRemovingClientRedirectURIs_Works_AsExpected()
+    {
+        var config = TestHelpers.GetTestConfig();
+        TestDb.SetupDb(config);
+        var client = ClientService.CreateClient(new madTypes.Api.Requests.CreateClientRequest
+        {
+            ClientId = "validclient",
+            ClientSecret = "validsecret",
+            DisplayName = "Valid Client",
+            Audience = "validaud"
+        }, config).Value;
+
+        client.Should().NotBeNull("A created client should not be null.");
+
+        var newClient = ClientStore.GetClientByClientIdentifier(client.ClientId);
+
+        newClient.Should().NotBeNull("A retrieved client should not be null.");
+
+        // Add redirect URIs
+        ClientService.AddRedirectUri(newClient.Id, "https://example.com/callback");
+        ClientService.AddRedirectUri(newClient.Id, "https://example.com/another-callback");
+
+        var clientURIs = ClientStore.GetRedirectUrisByClientId(newClient.Id);
+
+        clientURIs.Count().Should().Be(2, "There should be two redirect URIs after adding.");
+
+        // Remove one redirect URI
+        ClientStore.DeleteRedirectUriById(clientURIs.First().Id);
+
+        var clientURIsAfterDelete = ClientStore.GetRedirectUrisByClientId(newClient.Id);
+
+        clientURIsAfterDelete.Count().Should().Be(1, "There should be one redirect URI after deleting one.");
+
+        TestDb.CleanupDb(config);
+    }
 }

@@ -198,10 +198,7 @@ namespace microauthd.Services
         /// result with an error message.</returns>
         public static ApiResult<MessageResponse> DeletePermission(
             string permissionId,
-            AppConfig config,
-            string? userId = null,
-            string? ip = null,
-            string? ua = null)
+            AppConfig config)
         {
             try
             {
@@ -290,7 +287,7 @@ namespace microauthd.Services
 
             try
             {
-                var removed = PermissionStore.RemovePermissionFromRole(roleId, permissionId);
+                var removed = PermissionStore.RemovePermissionFromRole(permissionId, roleId);
 
                 if (!removed)
                     return ApiResult<MessageResponse>.Fail("Failed to remove permission from role or permission does not exist");

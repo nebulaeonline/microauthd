@@ -632,14 +632,11 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // delete permission by ID endpoint*********************************************************
-        group.MapDelete("/permissions/{permissionId}", (string permissionId, HttpContext context, AppConfig config) =>
+        group.MapDelete("/permissions/{permissionId}", (string permissionId, AppConfig config) =>
         {
             var result = PermissionService.DeletePermission(
                 permissionId,
-                config,
-                context.User.GetUserId(),
-                context.Connection.RemoteIpAddress?.ToString(),
-                context.Request.Headers.UserAgent.ToString()
+                config
             );
             return result.ToHttpResult();
         })

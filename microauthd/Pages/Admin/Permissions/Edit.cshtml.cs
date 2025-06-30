@@ -53,10 +53,7 @@ public class EditModel : BasePageModel
 
         var result = PermissionService.DeletePermission(
             PermissionForm.Id,
-            Config,
-            UserId,
-            IpAddress,
-            UserAgent
+            Config
         );
 
         if (!result.Success)
