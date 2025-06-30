@@ -6,11 +6,6 @@
       <Version>0.8.4.2</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-      <PublishAot>true</PublishAot>
-      <SelfContained>true</SelfContained>
-      <StripSymbols>true</StripSymbols>
-      <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
-      <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
