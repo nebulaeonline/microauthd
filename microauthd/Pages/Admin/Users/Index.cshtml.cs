@@ -40,7 +40,7 @@ public class IndexModel : BasePageModel
         if (string.IsNullOrWhiteSpace(id))
             return RedirectToPage();
 
-        UserService.ReactivateSoftDeletedUser(id, Config);
+        UserService.ReactivateUser(id, Config);
 
         return RedirectToPage(new { pg = CurrentPage, inactive = true });
     }

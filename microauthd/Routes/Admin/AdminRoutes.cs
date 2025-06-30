@@ -177,7 +177,7 @@ public static class AdminRoutes
         // activate a (soft) deleted user endpoint**************************************************
         group.MapPost("/users/{id}/activate", (string id, AppConfig config) =>
         {
-            var result = UserService.ReactivateSoftDeletedUser(id, config);
+            var result = UserService.ReactivateUser(id, config);
             return result.ToHttpResult();
         })
         .RequireAuthorization()

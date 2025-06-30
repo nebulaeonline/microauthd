@@ -116,9 +116,7 @@ public static class UserService
     public static ApiResult<UserObject> CreateUserScoped(
         ClaimsPrincipal actingUser,
         CreateUserRequest request,
-        AppConfig config,
-        string? ipAddress,
-        string? userAgent)
+        AppConfig config)
     {
         if (!actingUser.HasScope(Constants.Scope_ProvisionUsers))
             return ApiResult<UserObject>.Forbidden("Permission Denied");
@@ -561,7 +559,7 @@ public static class UserService
     /// <param name="userId">The unique identifier of the user to reactivate. Cannot be null or empty.</param>
     /// <returns>The number of rows affected by the operation. Returns 1 if the user was successfully reactivated,  or 0 if no
     /// matching soft-deleted user was found.</returns>
-    public static ApiResult<MessageResponse> ReactivateSoftDeletedUser(
+    public static ApiResult<MessageResponse> ReactivateUser(
         string userId,
         AppConfig config
     )
@@ -623,7 +621,7 @@ public static class UserService
                 newPasswordHash: hash
             );
 
-            if (reset)
+            if (!reset)
                 return ApiResult<MessageResponse>.Fail("User not found or inactive", 400);
 
             if (config.EnableAuditLogging)

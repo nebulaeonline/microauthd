@@ -300,9 +300,7 @@ public static class AuthRoutes
             return UserService.CreateUserScoped(
                 actingUser: user,
                 request: req,
-                config: config,
-                ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
-                userAgent: ctx.Request.Headers["User-Agent"].FirstOrDefault()
+                config: config
             ).ToHttpResult();
         })
         .RequireAuthorization()

@@ -6,6 +6,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
+/// <summary>
+/// A background service that performs scheduled maintenance tasks, such as purging audit logs,  expired sessions, and
+/// revoked refresh tokens, at regular intervals.
+/// </summary>
+/// <remarks>This service runs continuously in the background and executes maintenance tasks based on 
+/// configuration settings provided in the <see cref="AppConfig"/> instance. The tasks include: <list type="bullet">
+/// <item><description>Purging audit logs older than the configured retention period.</description></item>
+/// <item><description>Purging expired and revoked user sessions.</description></item> <item><description>Purging
+/// expired and revoked refresh tokens.</description></item> </list> The service runs these tasks every hour and logs
+/// the results of each operation. If an error occurs  during execution, it is logged without interrupting the
+/// service.</remarks>
 public class ScheduledTaskService : BackgroundService
 {
     private readonly AppConfig _config;
