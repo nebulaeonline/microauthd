@@ -18,6 +18,10 @@ microauthd is not a Certified OpenID Connect Provider, nor is it Fully OIDC Comp
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth), my follow up [Auth Rolled: Part Deux](https://purplekungfu.com/Post/10/auth-rolled-part-deux) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
+**2025-06-30**
+
+The testsuite is rounding into shape. Normally I would have been writing tests as I went, but this one is a bit trickier than most. We have the end-to-end testing via the Python suite, which hits the CRUD on every endpoint including token issuance, renewal and invalidation testing. But there's a lot of standalone and database functions that don't get e2e testing via Python, and so I'm filling in the blanks. It's about 30% of the way done. I hope to have close to 100% coverage within the next week or so, so you can rest assured that microauthd is being worked out from a testing perspective.
+
 **2025-06-29**
 
 The OOBE tool has been separated into a standalone project called `madOobe`. It will still run as part of microauthd, but is accessible as a standalone tool for those who need it (Docker users primarily). You can start microauthd with --docker to prevent the OOBE tool from running as part of the first run.
