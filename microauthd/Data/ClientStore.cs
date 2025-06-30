@@ -50,7 +50,7 @@ public static class ClientStore
             cmd.Parameters.AddWithValue("$cid", clientIdent);
             cmd.Parameters.AddWithValue("$hash", secretHash);
             cmd.Parameters.AddWithValue("$name", displayName ?? "");
-            cmd.Parameters.AddWithValue("$aud", audience ?? "microauthd");
+            cmd.Parameters.AddWithValue("$aud", audience);
 
             try
             {
@@ -69,7 +69,7 @@ public static class ClientStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT id, client_identifier, display_name, created_at, is_active
+            SELECT id, client_identifier, display_name, audience, created_at, is_active
             FROM clients WHERE id = $id;
         """;
             cmd.Parameters.AddWithValue("$id", id);
@@ -82,8 +82,9 @@ public static class ClientStore
                 Id = reader.GetString(0),
                 ClientId = reader.GetString(1),
                 DisplayName = reader.GetString(2),
-                CreatedAt = reader.GetDateTime(3),
-                IsActive = reader.GetBoolean(4)
+                Audience = reader.GetString(3),
+                CreatedAt = reader.GetDateTime(4),
+                IsActive = reader.GetBoolean(5)
             };
         });
     }

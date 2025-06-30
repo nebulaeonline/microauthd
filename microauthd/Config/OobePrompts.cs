@@ -216,7 +216,7 @@ internal static class OobePrompts
 
         while (string.IsNullOrWhiteSpace(state.OidcAudience))
         {
-            state.OidcAudience = Prompt("OIDC Audience (default is microauthd)", "microauthd");
+            state.OidcAudience = Prompt("OIDC Audience", "app");
             if (string.IsNullOrWhiteSpace(state.OidcAudience))
                 Console.WriteLine("OIDC Audience cannot be empty!\n");
         }

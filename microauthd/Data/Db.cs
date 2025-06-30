@@ -128,4 +128,18 @@ public static class Db
             }
         }
     }
+
+    public static void Close()
+    {
+        lock (_lock)
+        {
+            if (_sharedConn != null)
+            {
+                _sharedConn.Close();
+                _sharedConn.Dispose();
+                _sharedConn = null;
+            }
+            _isConfigured = false;
+        }
+    }
 }

@@ -40,6 +40,9 @@ public static class ClientService
         if (string.IsNullOrWhiteSpace(req.ClientSecret))
             return ApiResult<ClientObject>.Fail("Client secret required");
 
+        if (string.IsNullOrWhiteSpace(req.Audience))
+            return ApiResult<ClientObject>.Fail("Audience required");
+
         try
         {
             var hash = AuthService.HashPassword(req.ClientSecret, config);
@@ -51,7 +54,7 @@ public static class ClientService
                 req.ClientId,
                 hash,
                 req.DisplayName ?? string.Empty,
-                req.Audience ?? "microauthd"
+                req.Audience
             );
 
             if (clientObj is null)
