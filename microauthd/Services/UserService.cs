@@ -621,6 +621,7 @@ public static class UserService
                 newPasswordHash: hash
             );
 
+            // NOT reset means the user was not found or is already inactive
             if (!reset)
                 return ApiResult<MessageResponse>.Fail("User not found or inactive", 400);
 
@@ -681,7 +682,8 @@ public static class UserService
                 newPasswordHash: hash
             );
 
-            if (reset)
+            // NOT reset means the user was not found or is already inactive
+            if (!reset)
                 return ApiResult<MessageResponse>.NotFound("User not found or already inactive");
 
             if (config.EnableAuditLogging)
@@ -709,6 +711,7 @@ public static class UserService
     /// token value, issue time, and expiration time. All properties must be populated.</param>
     /// <param name="config">The <see cref="AppConfig"/> object containing application-specific configuration settings. This parameter is
     /// required to establish a database connection.</param>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static void WriteSessionToDb(TokenInfo token, AppConfig config, string clientIdent)
     {
         try
@@ -731,6 +734,7 @@ public static class UserService
     /// returned with a status code of 500.</remarks>
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="SessionResponse"/> objects if the operation
     /// succeeds. If the operation fails, the result contains an error message and a status code of 500.</returns>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<List<SessionResponse>> ListSessions()
     {
         try
@@ -754,6 +758,7 @@ public static class UserService
     /// <param name="jti">The unique identifier of the session to retrieve. Cannot be null, empty, or whitespace.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing the session details if found, or an error result if the session is not
     /// found or the input is invalid.</returns>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<SessionResponse> GetSessionById(string jti)
     {
         if (string.IsNullOrWhiteSpace(jti))
@@ -784,6 +789,7 @@ public static class UserService
     /// <param name="userId">The unique identifier of the user whose sessions are to be retrieved. Cannot be null, empty, or whitespace.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="SessionResponse"/> objects representing the user's
     /// sessions. If the operation fails, the result will include an error message and an appropriate HTTP status code.</returns>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<List<SessionResponse>> GetSessionsByUserId(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -810,6 +816,7 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="SessionResponse"/> objects representing the user's
     /// active sessions.  If the <paramref name="userId"/> is invalid, the result will indicate failure with an
     /// appropriate error message and status code.</returns>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<List<SessionResponse>> GetSessionsForSelf(string userId)
     {
         return GetSessionsByUserId(userId);
@@ -826,6 +833,7 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="RefreshTokenResponse"/> objects representing the
     /// user's refresh tokens. If the <paramref name="userId"/> is null, empty, or whitespace, the result is an
     /// unauthorized response.</returns>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<List<RefreshTokenResponse>> GetRefreshTokensForSelf(string? userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -857,6 +865,7 @@ public static class UserService
     /// <param name="ua">The user agent string of the client initiating the revocation. This parameter is optional and can be null.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="RevokeResponse"/> object that describes the result of the
     /// revocation. The response includes the JTI, the revocation status, and a message providing additional details.</returns>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<RevokeResponse> RevokeSessionById(string jti, AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(jti))
@@ -912,6 +921,7 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that describes the result of the
     /// operation. If no sessions match the specified conditions, the message will indicate that nothing was purged.
     /// Otherwise, the message will specify the number of sessions that were purged.</returns>
+    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<MessageResponse> PurgeSessions(
     DateTime cutoffUtc,
     bool purgeExpired,
@@ -953,6 +963,7 @@ public static class UserService
     /// <param name="sessionId">The unique identifier of the session associated with the refresh token.</param>
     /// <returns>A base64-encoded string representing the raw refresh token. This token should be securely sent to the client
     /// and stored for subsequent authentication requests.</returns>
+    /// Refresh tokens are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static string GenerateAndStoreRefreshToken(
         AppConfig config,
         string userId,
@@ -987,6 +998,7 @@ public static class UserService
     /// ID, issuance and expiration timestamps, and revocation status.</remarks>
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="RefreshTokenResponse"/> objects if the operation
     /// succeeds. If the operation fails, the result contains an error message and a status code of 500.</returns>
+    /// Refresh tokens are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<List<RefreshTokenResponse>> ListRefreshTokens()
     {
         try
@@ -1009,6 +1021,7 @@ public static class UserService
     /// <param name="tokenId">The unique identifier of the refresh token to retrieve. Cannot be null, empty, or whitespace.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing the refresh token details if found, or an error result if the token is
     /// not found or the <paramref name="tokenId"/> is invalid.</returns>
+    /// Refresh tokens are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<RefreshTokenResponse> GetRefreshTokenById(string tokenId)
     {
         if (string.IsNullOrWhiteSpace(tokenId))
@@ -1041,6 +1054,7 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="RefreshTokenResponse"/> objects representing the
     /// user's refresh tokens. If the operation fails, the result contains an error message and an appropriate HTTP
     /// status code.</returns>
+    /// Refresh tokens are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<List<RefreshTokenResponse>> GetRefreshTokensByUserId(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -1073,6 +1087,7 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that describes the result of the
     /// operation. The message indicates the number of tokens purged or specifies that no tokens were purged if no
     /// criteria were met.</returns>
+    /// Refresh tokens are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
     public static ApiResult<MessageResponse> PurgeRefreshTokens(
         PurgeTokensRequest req,
         AppConfig config)
@@ -1133,7 +1148,7 @@ public static class UserService
 
             // Generate new TOTP secret
             var secret = Utils.GenerateBase32Secret();
-            var uri = $"otpauth://totp/microauthd:{user}?secret={secret}&issuer=microauthd";
+            var uri = $"otpauth://totp/microauthd:{Uri.EscapeDataString(user)}?secret={secret}&issuer=microauthd&digits=6&period=30&algorithm=SHA1";
 
             // Generate filename
             var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
