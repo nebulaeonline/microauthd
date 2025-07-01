@@ -76,7 +76,7 @@ internal static class AuditLogCommands
                 Console.WriteLine(new string('-', 140));
                 foreach (var e in entries)
                 {
-                    Console.WriteLine($"{e.Id,-36}  {e.UserId,-36}  {e.Action,-20}  {e.Target,-20}  {e.Secondary,-20} {e.Timestamp:u}");
+                    Console.WriteLine($"{e.Id,-36}  {e.ActorId,-36}  {e.Action,-20}  {e.Target,-20}  {e.Secondary,-20} {e.Timestamp:u}");
                 }
             }
             catch (Exception ex)
@@ -142,7 +142,7 @@ internal static class AuditLogCommands
                     Console.WriteLine("Audit Log Entry");
                     Console.WriteLine(new string('-', 80));
                     Console.WriteLine($"Id:         {entry.Id}");
-                    Console.WriteLine($"UserId:     {entry.UserId}");
+                    Console.WriteLine($"UserId:     {entry.ActorId}");
                     Console.WriteLine($"Action:     {entry.Action}");
                     Console.WriteLine($"Target:     {entry.Target}");
                     Console.WriteLine($"Secondary:  {entry.Secondary ?? "(none)"}");

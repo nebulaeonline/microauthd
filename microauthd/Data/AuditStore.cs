@@ -49,7 +49,7 @@ public static class AuditStore
                 list.Add(new AuditLogResponse
                 {
                     Id = reader.GetString(0),
-                    UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
+                    ActorId = reader.IsDBNull(1) ? null : reader.GetString(1),
                     Action = reader.GetString(2),
                     Target = reader.IsDBNull(3) ? null : reader.GetString(3),
                     Secondary = reader.IsDBNull(4) ? null : reader.GetString(4),
@@ -88,7 +88,7 @@ public static class AuditStore
             return new AuditLogResponse
             {
                 Id = reader.GetString(0),
-                UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
+                ActorId = reader.IsDBNull(1) ? null : reader.GetString(1),
                 Action = reader.GetString(2),
                 Target = reader.IsDBNull(3) ? null : reader.GetString(3),
                 Secondary = reader.IsDBNull(4) ? null : reader.GetString(4),
@@ -138,7 +138,7 @@ public static class AuditStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, timestamp, user_id, action, target, secondary, ip_address, user_agent
+                SELECT id, timestamp, actor_id, action, target, secondary, ip_address, user_agent
                 FROM audit_logs
                 ORDER BY timestamp DESC
                 LIMIT $limit OFFSET $offset
@@ -155,7 +155,7 @@ public static class AuditStore
                 {
                     Id = reader.GetString(0),
                     Timestamp = reader.GetDateTime(1),
-                    UserId = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    ActorId = reader.IsDBNull(2) ? null : reader.GetString(2),
                     Action = reader.IsDBNull(3) ? null : reader.GetString(3),
                     Target = reader.IsDBNull(4) ? null : reader.GetString(4),
                     Secondary = reader.IsDBNull(5) ? null : reader.GetString(5),

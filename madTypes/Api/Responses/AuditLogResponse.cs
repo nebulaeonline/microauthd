@@ -6,8 +6,8 @@ public class AuditLogResponse
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
-    [JsonPropertyName("user_id")]
-    public string? UserId { get; set; }
+    [JsonPropertyName("actor_id")]
+    public string? ActorId { get; set; }
     [JsonPropertyName("action")]
     public string Action { get; set; } = string.Empty;
     [JsonPropertyName("secondary")]
