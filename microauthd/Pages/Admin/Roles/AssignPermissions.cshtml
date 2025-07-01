@@ -8,6 +8,7 @@
 <h2 class="mb-4">Assign Permissions to @Model.RoleName</h2>
 
 <form method="post" id="permissionForm">
+    @Html.AntiForgeryToken()
     <div class="row">
         <div class="col">
             <label>Available Permissions</label>

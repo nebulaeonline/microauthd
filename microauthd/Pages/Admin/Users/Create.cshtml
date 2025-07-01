@@ -8,6 +8,7 @@
 <h2 class="mb-4">Create New User</h2>
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="mb-3">
         <label asp-for="Username" class="form-label"></label>
         <input asp-for="Username" class="form-control w-50" />

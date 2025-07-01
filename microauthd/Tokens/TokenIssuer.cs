@@ -17,7 +17,8 @@ public static class TokenIssuer
         DateTime IssuedAt,
         DateTime ExpiresAt,
         string UserId,
-        string MadUse
+        string MadUse,
+        string TokenUse
     );
 
     /// <summary>
@@ -86,7 +87,7 @@ public static class TokenIssuer
 
         var token = new JwtSecurityTokenHandler().WriteToken(jwt);
 
-        return new TokenInfo(token, jti, now, expires, userId, madUse);
+        return new TokenInfo(token, jti, now, expires, userId, madUse, "access");
     }
 
     /// <summary>

@@ -8,6 +8,7 @@
 <h2 class="mb-4">Edit User</h2>
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="mb-3">
         <label class="form-label fw-bold">User ID</label>
         <div class="form-control-plaintext text-monospace">@Model.UserForm!.Id</div>
@@ -50,6 +51,7 @@
 </form>
 <hr />
 <form method="post" asp-page-handler="Delete" onsubmit="return confirm('Are you sure you want to permanently delete this user?');">
+    @Html.AntiForgeryToken()
     <button type="submit" class="btn btn-danger">
         Permanently Delete User
     </button>

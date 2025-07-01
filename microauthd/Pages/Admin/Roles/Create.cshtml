@@ -8,6 +8,7 @@
 <h2>Create Role</h2>
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="mb-3">
         <label asp-for="RoleForm.Name" class="form-label"></label>
         <input asp-for="RoleForm.Name" class="form-control w-50" />

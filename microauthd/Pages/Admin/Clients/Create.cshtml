@@ -16,6 +16,7 @@
 <h2 class="mb-4">Create New Client</h2>
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="mb-3">
         <label asp-for="ClientForm.ClientId" class="form-label"></label>
         <input asp-for="ClientForm.ClientId" class="form-control w-50" />

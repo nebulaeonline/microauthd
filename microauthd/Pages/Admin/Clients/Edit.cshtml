@@ -15,6 +15,7 @@
 }
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <input type="hidden" asp-for="ClientForm.Id" />
 
     <div class="mb-3">
@@ -46,6 +47,7 @@
 </a>
 <hr />
 <form method="post" asp-page-handler="Delete" class="ms-2 d-inline">
+    @Html.AntiForgeryToken()
     <input type="hidden" asp-for="ClientForm.Id" />
     <button type="submit" class="btn btn-danger"
             onclick="return confirm('Are you sure you want to permanently delete this client?');">
@@ -54,6 +56,7 @@
 </form>
 <hr/>
 <form method="post" asp-page-handler="RegenerateSecret" class="ms-2 d-inline">
+    @Html.AntiForgeryToken()
     <input type="hidden" asp-for="ClientForm.Id" />
     <button type="submit" class="btn btn-warning"
             onclick="return confirm('Regenerate client secret? The previous one will become invalid.')">

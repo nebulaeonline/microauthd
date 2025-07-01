@@ -701,8 +701,8 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, token_use)
-                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $use);
+                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, token_use, mad_use)
+                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $tok_use, $mad_use);
                 """;
             cmd.Parameters.AddWithValue("$id", token.Jti);
             cmd.Parameters.AddWithValue("$uid", token.UserId);
@@ -710,7 +710,8 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$token", token.Token);
             cmd.Parameters.AddWithValue("$iat", token.IssuedAt.ToString("o"));
             cmd.Parameters.AddWithValue("$exp", token.ExpiresAt.ToString("o"));
-            cmd.Parameters.AddWithValue("$use", token.TokenUse);
+            cmd.Parameters.AddWithValue("$tok_use", token.TokenUse);
+            cmd.Parameters.AddWithValue("$mad_use", token.MadUse);
             cmd.ExecuteNonQuery();
         });
     }

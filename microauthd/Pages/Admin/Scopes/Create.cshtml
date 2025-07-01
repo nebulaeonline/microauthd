@@ -8,6 +8,7 @@
 <h2 class="mb-4">Create New Scope</h2>
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="mb-3">
         <label asp-for="ScopeForm.Name" class="form-label"></label>
         <input asp-for="ScopeForm.Name" class="form-control w-50" />

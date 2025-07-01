@@ -8,7 +8,7 @@
 <h2 class="mb-4">Assign Roles to @Model.Username</h2>
 
 <form method="post" id="roleForm">
-    <!-- Your existing form content -->
+    @Html.AntiForgeryToken()
     <div class="row">
         <div class="col">
             <label>Available Roles</label>

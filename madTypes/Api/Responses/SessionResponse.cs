@@ -19,5 +19,7 @@ public sealed class SessionResponse
     [JsonPropertyName("is_revoked")]
     public bool IsRevoked { get; init; }
     [JsonPropertyName("token_use")]
-    public string TokenUse { get; init; } = "auth";
+    public string TokenUse { get; init; } = string.Empty;
+    [JsonPropertyName("mad_use")]
+    public string MadUse { get; init; } = string.Empty;
 }

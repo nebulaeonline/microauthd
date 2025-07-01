@@ -72,14 +72,21 @@ public class LoginModel : PageModel
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
         claims.Add(new Claim("username", user.Username));
         claims.Add(new Claim("exp", exp.ToUnixTimeSeconds().ToString()));
-
-        // Add raw token as a claim
-        claims.Add(new Claim("access_token", tokenResult.Value!.AccessToken));
+        claims.Add(new Claim("auth_time", now.ToUnixTimeSeconds().ToString()));
+        claims.Add(new Claim("sid", Guid.NewGuid().ToString()));
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme, JwtRegisteredClaimNames.Sub, "role");
         var principal = new ClaimsPrincipal(identity);
 
-        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = exp,
+                IssuedUtc = now
+            });
 
         return RedirectToPage("/Dashboard");
     }

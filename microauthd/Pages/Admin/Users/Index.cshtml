@@ -51,6 +51,7 @@
                     @if (user.IsActive)
                     {
                         <form method="post" asp-page-handler="Deactivate" asp-route-id="@user.Id" class="d-inline">
+                            @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger">
                                 Deactivate
                             </button>
@@ -68,6 +69,7 @@
                     else
                     {
                         <form method="post" asp-page-handler="Activate" asp-route-id="@user.Id" class="d-inline">
+                            @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-success">
                                 Make Active
                             </button>

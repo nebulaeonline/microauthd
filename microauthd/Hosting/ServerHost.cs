@@ -347,8 +347,16 @@ public static class ServerHost
                     SwaggerSetup.ConfigureServices(builder, "microauthd admin API");
 
                 // Register razor pages for admin UI
-                builder.Services.AddAntiforgery(o => o.SuppressXFrameOptionsHeader = true);
-                builder.Services.AddRazorPages();
+                builder.Services.AddAntiforgery(options => {
+                    options.SuppressXFrameOptionsHeader = true;
+                    options.HeaderName = "X-CSRF-TOKEN"; // Use header for CSRF token
+                });
+
+                // Enable Razor Pages with auto antiforgery token validation
+                builder.Services.AddRazorPages(options =>
+                {
+                    options.Conventions.ConfigureFilter(new AutoValidateAntiforgeryTokenAttribute());
+                });
 
                 // Register http context accessor
                 builder.Services.AddHttpContextAccessor();

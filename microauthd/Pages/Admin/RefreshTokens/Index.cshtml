@@ -21,6 +21,7 @@
 
     <!-- Right: Purge form -->
     <form method="post" asp-page-handler="Purge" class="d-flex flex-wrap align-items-end gap-2">
+        @Html.AntiForgeryToken()
         <div>
             <label asp-for="OlderThan" class="form-label mb-0 small">Purge older than</label>
             <input asp-for="OlderThan" class="form-control" type="datetime-local" required />
@@ -70,6 +71,7 @@
                           asp-page-handler="RevokeAllForUser"
                           asp-route-userId="@token.UserId"
                           class="mt-1">
+                        @Html.AntiForgeryToken()
                         <button type="submit"
                                 class="btn btn-sm btn-outline-danger"
                                 onclick="return confirm('Revoke all refresh tokens for @token.Username?');">
@@ -107,6 +109,7 @@
                         <form method="post"
                               asp-page-handler="Revoke"
                               asp-route-id="@token.Id">
+                            @Html.AntiForgeryToken()
                             <button type="submit"
                                     class="btn btn-sm btn-warning">
                                 Revoke

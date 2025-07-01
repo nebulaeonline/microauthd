@@ -21,6 +21,7 @@
 
     <!-- Right: Purge form -->
     <form method="post" asp-page-handler="Purge" class="d-flex flex-wrap align-items-end gap-2">
+        @Html.AntiForgeryToken()
         <div>
             <label asp-for="OlderThan" class="form-label mb-0 small">Purge older than</label>
             <input asp-for="OlderThan" class="form-control" type="datetime-local" required />
@@ -56,6 +57,7 @@
             <th>Expires</th>
             <th>Revoked</th>
             <th>Token Use</th>
+            <th>Mad Use</th>
         </tr>
     </thead>
     <tbody>
@@ -69,6 +71,7 @@
                           asp-page-handler="RevokeAllForUser"
                           asp-route-userId="@s.UserId"
                           class="mt-1">
+                        @Html.AntiForgeryToken()
                         <button type="submit"
                                 class="btn btn-sm btn-outline-danger"
                                 onclick="return confirm('Revoke all sessions for @s.Username?');">
@@ -98,11 +101,13 @@
                     {
                         <span class="badge bg-success me-2">No</span>
                         <form method="post" asp-page-handler="Revoke" asp-route-id="@s.Id" class="d-inline">
+                            @Html.AntiForgeryToken()
                             <button class="btn btn-sm btn-warning">Revoke</button>
                         </form>
                     }
                 </td>
                 <td>@s.TokenUse</td>
+                <td>@s.MadUse</td>
             </tr>
         }
     </tbody>

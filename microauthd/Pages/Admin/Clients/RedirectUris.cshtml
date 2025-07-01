@@ -12,6 +12,7 @@
 </div>
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="input-group mb-3 w-75">
         <input name="NewUri" class="form-control" placeholder="https://example.com/callback" />
         <button class="btn btn-success" type="submit">Add URI</button>
@@ -47,6 +48,7 @@ else
                     <td>@uri.RedirectUri</td>
                     <td class="text-end">
                         <form method="post" asp-page-handler="Delete" class="d-inline">
+                            @Html.AntiForgeryToken()
                             <input type="hidden" name="UriId" value="@uri.Id" />
                             <input type="hidden" name="id" value="@Model.ClientId" />
                             <button class="btn btn-danger btn-sm" onclick="return confirm('Delete this URI?')">Delete</button>

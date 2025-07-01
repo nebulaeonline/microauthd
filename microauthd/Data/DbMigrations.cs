@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -137,6 +137,9 @@ public static class DbMigrations
             case (2, 3):
                 Migrate_2_to_3();
                 break;
+            case (3, 4):
+                Migrate_3_to_4();
+                break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
         }
@@ -183,5 +186,20 @@ public static class DbMigrations
             """;
             cmd.ExecuteNonQuery();
         });
+    }
+
+    // Migration: v3 to v4
+    // Add `mad_use` column to `sessions` table
+    private static void Migrate_3_to_4()
+    {
+        if (!ColumnExists("sessions", "mad_use"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE sessions ADD COLUMN mad_use TEXT DEFAULT '';";
+                cmd.ExecuteNonQuery();
+            });
+        }
     }
 }

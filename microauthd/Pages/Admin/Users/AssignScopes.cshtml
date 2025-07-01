@@ -8,6 +8,7 @@
 <h2 class="mb-4">Assign Scopes to @Model.Username</h2>
 
 <form method="post" id="scopeForm">
+    @Html.AntiForgeryToken()
     <div class="row">
         <div class="col">
             <label>Available Scopes</label>

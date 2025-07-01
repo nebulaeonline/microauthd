@@ -13,6 +13,7 @@
 }
 
 <form asp-pages="/Login" method="post" class="space-y-4">
+    @Html.AntiForgeryToken()
     <div>
         <label asp-for="Username" class="block font-medium">Username</label>
         <input asp-for="Username" class="border rounded w-full px-2 py-1" />

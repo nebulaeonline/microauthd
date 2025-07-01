@@ -8,6 +8,7 @@
 <h2 class="mb-4">Create New Permission</h2>
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="mb-3">
         <label asp-for="PermissionForm.Name" class="form-label">Name</label>
         <input asp-for="PermissionForm.Name" class="form-control w-50" />

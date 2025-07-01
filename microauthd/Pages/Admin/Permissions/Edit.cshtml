@@ -15,6 +15,7 @@
 }
 
 <form method="post">
+    @Html.AntiForgeryToken()
     <div class="mb-3">
         <label asp-for="PermissionForm.Name" class="form-label">Name</label>
         <input asp-for="PermissionForm.Name" class="form-control w-50" />
@@ -33,6 +34,7 @@
 @if (!string.IsNullOrWhiteSpace(Model.PermissionForm.Id))
 {
     <form method="post" asp-page-handler="Delete" class="d-inline">
+        @Html.AntiForgeryToken()
         <input type="hidden" asp-for="PermissionForm.Id" />
         <button type="submit" class="btn btn-danger"
                 onclick="return confirm('Are you sure you want to permanently delete this permission?');">
