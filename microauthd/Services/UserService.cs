@@ -53,8 +53,7 @@ public static class UserService
         string username,
         string email,
         string password,
-        AppConfig config
-)
+        AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(username) ||
             string.IsNullOrWhiteSpace(email) ||
@@ -206,7 +205,7 @@ public static class UserService
         catch (Exception ex)
         {
             Log.Error($"Failed to update user {id}: {ex.Message}");
-            return ApiResult<UserObject>.Fail("User update failed due to an error.");
+            return ApiResult<UserObject>.Fail("User update failed due to an error.", 500);
         }
     }
 
@@ -230,7 +229,7 @@ public static class UserService
 
         return ok
             ? ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Email marked as verified.")) 
-            : ApiResult<MessageResponse>.Fail("Could not update user's email verification status.");
+            : ApiResult<MessageResponse>.Fail("Could not update user's email verification status.", 500);
     }
 
     /// <summary>
@@ -250,7 +249,7 @@ public static class UserService
         catch (Exception ex)
         {
             Log.Error($"Failed to retrieve users: {ex.Message}");
-            return ApiResult<List<UserObject>>.Fail("Failed to retrieve users from the database.");
+            return ApiResult<List<UserObject>>.Fail("Failed to retrieve users from the database.", 500);
         }
     }
 

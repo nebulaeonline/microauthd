@@ -81,6 +81,7 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("ListUsers")
         .Produces<List<UserObject>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -94,6 +95,7 @@ public static class AdminRoutes
         .WithName("GetUser")
         .Produces<UserObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -106,6 +108,7 @@ public static class AdminRoutes
         .WithName("GetUserIdByUsername")
         .Produces<ApiResult<string>>(StatusCodes.Status200OK)
         .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -124,6 +127,7 @@ public static class AdminRoutes
         .WithName("UpdateUser")
         .Produces<UserObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -133,6 +137,9 @@ public static class AdminRoutes
         )
         .RequireAuthorization()
         .WithName("VerifyEmail")
+        .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users");
 
         // soft-delete user endpoint****************************************************************
@@ -145,6 +152,7 @@ public static class AdminRoutes
         .WithName("DeactivateUser")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -157,6 +165,7 @@ public static class AdminRoutes
         .WithName("DeleteUser")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -171,6 +180,7 @@ public static class AdminRoutes
         .WithName("ResetUserPassword")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -184,6 +194,7 @@ public static class AdminRoutes
         .WithName("ActivateUser")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -197,6 +208,7 @@ public static class AdminRoutes
         .WithName("SetUserLockout")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithOpenApi();
 
@@ -248,6 +260,7 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("ListSessions")
         .Produces<List<SessionResponse>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Sessions")
         .WithOpenApi();
 
@@ -277,6 +290,7 @@ public static class AdminRoutes
             .WithName("RevokeSession")
             .Produces(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
             .WithTags("Sessions")
             .WithOpenApi();
         }
@@ -289,6 +303,8 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("GetSessionsByUser")
         .Produces<List<SessionResponse>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Sessions")
         .WithOpenApi();
 
@@ -312,6 +328,7 @@ public static class AdminRoutes
             .WithName("RevokeToken")
             .Produces<MessageResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
             .WithTags("Tokens")
             .Accepts<IFormCollection>("application/x-www-form-urlencoded")
             .WithOpenApi();
@@ -328,6 +345,7 @@ public static class AdminRoutes
             .RequireAuthorization()
             .WithName("ListRefreshTokens")
             .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
             .WithTags("Refresh Tokens")
             .WithOpenApi();
         }
@@ -344,6 +362,7 @@ public static class AdminRoutes
             .WithName("GetRefreshToken")
             .Produces<RefreshTokenResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
             .WithTags("Refresh Tokens")
             .WithOpenApi();
         }
@@ -359,6 +378,8 @@ public static class AdminRoutes
             .RequireAuthorization()
             .WithName("GetRefreshTokensByUser")
             .Produces<List<RefreshTokenResponse>>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
             .WithTags("Refresh Tokens")
             .WithTags("Users")
             .WithOpenApi();
@@ -375,6 +396,7 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("PurgeSessions")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Sessions")
         .WithOpenApi();
 
@@ -390,6 +412,7 @@ public static class AdminRoutes
             .WithName("PurgeRefreshTokens")
             .Produces<MessageResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
             .WithTags("Refresh Tokens")
             .WithOpenApi();
         }
@@ -404,6 +427,7 @@ public static class AdminRoutes
         .WithName("CreateRole")
         .Produces<RoleObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -421,6 +445,7 @@ public static class AdminRoutes
         .WithName("UpdateRole")
         .Produces<RoleObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -433,6 +458,7 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("ListRoles")
         .Produces<List<RoleObject>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -449,6 +475,7 @@ public static class AdminRoutes
         .WithName("GetRoleById")
         .Produces<RoleObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -460,7 +487,9 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("GetRoleIdByName")
         .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -474,6 +503,7 @@ public static class AdminRoutes
         .WithName("DeleteRole")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -487,6 +517,7 @@ public static class AdminRoutes
         .WithName("AssignRoleToUser")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithOpenApi();
 
@@ -500,6 +531,7 @@ public static class AdminRoutes
         .WithName("UnassignRoleFromUser")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithTags("Users")
         .WithOpenApi();
@@ -513,6 +545,8 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("ListRolesForUser")
         .Produces<List<string>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Roles")
         .WithTags("Users")
         .WithOpenApi();
@@ -533,6 +567,7 @@ public static class AdminRoutes
         .WithName("GetUserRoles")
         .Produces<ApiResult<List<RoleDto>>>(StatusCodes.Status200OK)
         .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users")
         .WithTags("Roles")
         .WithOpenApi();
@@ -574,6 +609,7 @@ public static class AdminRoutes
         .WithName("CreatePermission")
         .Produces<PermissionObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -591,6 +627,7 @@ public static class AdminRoutes
         .WithName("UpdatePermission")
         .Produces<PermissionObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -603,6 +640,7 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("ListPermissions")
         .Produces<List<PermissionObject>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -616,6 +654,7 @@ public static class AdminRoutes
         .WithName("GetPermissionById")
         .Produces<PermissionObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -627,7 +666,9 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("GetPermissionIdByName")
         .Produces<ApiResult<string>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -644,6 +685,7 @@ public static class AdminRoutes
         .WithName("DeletePermission")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -688,6 +730,7 @@ public static class AdminRoutes
         .WithName("AssignPermissionsToRole")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithTags("Roles")
         .WithOpenApi();
@@ -709,6 +752,7 @@ public static class AdminRoutes
         .WithName("RemovePermissionFromRole")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithTags("Roles")
         .WithOpenApi();
@@ -722,6 +766,7 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("GetPermissionsForUser")
         .Produces<List<PermissionObject>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithTags("Users")
         .WithOpenApi();
@@ -736,6 +781,7 @@ public static class AdminRoutes
         .WithName("CheckAccess")
         .Produces(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithOpenApi();
 
@@ -749,6 +795,7 @@ public static class AdminRoutes
         .WithName("GetPermissionsForRole")
         .Produces<List<PermissionObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Permissions")
         .WithTags("Roles")
         .WithOpenApi();
@@ -769,6 +816,7 @@ public static class AdminRoutes
         .WithName("CreateScope")
         .Produces<ScopeObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Scopes")
         .WithOpenApi();
 
@@ -786,6 +834,7 @@ public static class AdminRoutes
         .WithName("UpdateScope")
         .Produces<ScopeObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Scopes")
         .WithOpenApi();
 
@@ -799,6 +848,7 @@ public static class AdminRoutes
         .WithName("ListScopes")
         .Produces<List<ScopeObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Scopes")
         .WithOpenApi();
 
@@ -824,6 +874,7 @@ public static class AdminRoutes
         .WithName("GetScopeIdByName")
         .Produces<ApiResult<string>>(StatusCodes.Status200OK)
         .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Scopes")
         .WithOpenApi();
 
@@ -843,6 +894,7 @@ public static class AdminRoutes
         .WithName("DeleteScope")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Scopes")
         .WithOpenApi();
 
@@ -862,6 +914,7 @@ public static class AdminRoutes
         .WithName("CreateClient")
         .Produces<ClientObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -879,6 +932,7 @@ public static class AdminRoutes
         .WithName("UpdateClient")
         .Produces<ClientObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -892,6 +946,7 @@ public static class AdminRoutes
         .WithName("ListClients")
         .Produces<List<ClientObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -905,6 +960,7 @@ public static class AdminRoutes
         .WithName("GetClientById")
         .Produces<ClientObject>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -917,6 +973,7 @@ public static class AdminRoutes
         .WithName("GetClientIdByClientIdentifier")
         .Produces<ApiResult<string>>(StatusCodes.Status200OK)
         .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -933,6 +990,7 @@ public static class AdminRoutes
         .WithName("UpdateClientSecret")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -952,6 +1010,7 @@ public static class AdminRoutes
         .WithName("DeleteClient")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -964,6 +1023,7 @@ public static class AdminRoutes
         .WithName("AddRedirectUri")
         .Produces<ClientRedirectUriObject>(StatusCodes.Status201Created)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("clients");
 
         // list all redirect URIs for a client endpoint*********************************************
@@ -974,7 +1034,9 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("GetRedirectUris")
         .Produces<List<string>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("clients");
 
         // delete a redirect URI from a client endpoint*********************************************
@@ -985,7 +1047,9 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("DeleteRedirectUri")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("clients");
 
         // add scopes to client endpoint************************************************************
@@ -1006,6 +1070,7 @@ public static class AdminRoutes
         .WithName("AssignScopesToClient")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithOpenApi();
 
@@ -1019,6 +1084,7 @@ public static class AdminRoutes
         .WithName("ListClientScopes")
         .Produces<List<ScopeObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithTags("Scopes")
         .WithOpenApi();
@@ -1042,6 +1108,7 @@ public static class AdminRoutes
         .WithName("RemoveScopeFromClient")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Clients")
         .WithTags("Scopes")
         .WithOpenApi();
@@ -1056,6 +1123,7 @@ public static class AdminRoutes
         .WithName("ListUserScopes")
         .Produces<List<ScopeObject>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Scopes")
         .WithTags("Users")
         .WithOpenApi();
@@ -1079,6 +1147,7 @@ public static class AdminRoutes
         .WithName("AssignScopesToUser")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
         // remove scope from user endpoint**********************************************************
@@ -1099,6 +1168,7 @@ public static class AdminRoutes
         .WithName("RemoveUserScope")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
         // get audit logs endpoint******************************************************************
@@ -1115,6 +1185,7 @@ public static class AdminRoutes
         .RequireAuthorization()
         .WithName("ListAuditLogs")
         .Produces<List<AuditLogResponse>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Audit")
         .WithOpenApi();
 
@@ -1129,6 +1200,7 @@ public static class AdminRoutes
         .WithName("GetAuditLogById")
         .Produces<AuditLogResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Audit")
         .WithOpenApi();
 
@@ -1148,6 +1220,7 @@ public static class AdminRoutes
         .WithName("PurgeAuditLogs")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Audit")
         .WithOpenApi();
 
@@ -1171,6 +1244,8 @@ public static class AdminRoutes
         .WithName("AdminIntrospectToken")
         .Produces<Dictionary<string, object>>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Admin")
         .WithOpenApi();
 
@@ -1184,8 +1259,9 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithTags("Users")
-        .Produces<TotpQrResponse>(200)
-        .Produces<ErrorResponse>(400)
+        .Produces<TotpQrResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithName("GenerateTotpQr");
 
         // verify TOTP code endpoint****************************************************************
@@ -1197,8 +1273,9 @@ public static class AdminRoutes
         })
         .RequireAuthorization()
         .WithTags("Users")
-        .Produces<MessageResponse>(200)
-        .Produces<ErrorResponse>(400)
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithName("VerifyTotpCode");
 
         // verify username/password combo endpoint**************************************************
@@ -1225,6 +1302,8 @@ public static class AdminRoutes
         .WithTags("TOTP")
         .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
         return group;

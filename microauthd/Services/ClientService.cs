@@ -35,13 +35,13 @@ public static class ClientService
         AppConfig config)
     {
         if (!Utils.IsValidTokenName(req.ClientId))
-            return ApiResult<ClientObject>.Fail("Invalid client_id");
+            return ApiResult<ClientObject>.Fail("Invalid client_id", 400);
 
         if (string.IsNullOrWhiteSpace(req.ClientSecret))
-            return ApiResult<ClientObject>.Fail("Client secret required");
+            return ApiResult<ClientObject>.Fail("Client secret required", 400);
 
         if (string.IsNullOrWhiteSpace(req.Audience))
-            return ApiResult<ClientObject>.Fail("Audience required");
+            return ApiResult<ClientObject>.Fail("Audience required", 400);
 
         try
         {
@@ -58,7 +58,7 @@ public static class ClientService
             );
 
             if (clientObj is null)
-                return ApiResult<ClientObject>.Fail("Client creation failed (duplicate client_id?)");
+                return ApiResult<ClientObject>.Fail("Client creation failed (duplicate client_id?)", 400);
 
             if (config.EnableAuditLogging)
                     Utils.Audit.Logg("create_client", req.ClientId);
@@ -68,7 +68,7 @@ public static class ClientService
         catch (Exception ex)
         {
             Log.Error(ex, "Error creating client with ID {ClientId}", req.ClientId);
-            return ApiResult<ClientObject>.Fail("Internal error occurred while creating client.");
+            return ApiResult<ClientObject>.Fail("Internal error occurred while creating client.", 500);
         }
     }
 
@@ -92,10 +92,10 @@ public static class ClientService
     )
     {
         if (string.IsNullOrWhiteSpace(updated.ClientId))
-            return ApiResult<ClientObject>.Fail("Client identifier is required.");
+            return ApiResult<ClientObject>.Fail("Client identifier is required.", 400);
 
         if (!Utils.IsValidTokenName(updated.ClientId))
-            return ApiResult<ClientObject>.Fail("Client identifier is not valid.");
+            return ApiResult<ClientObject>.Fail("Client identifier is not valid.", 400);
 
         try
         {
@@ -103,12 +103,12 @@ public static class ClientService
             var conflict = ClientStore.DoesClientIdExist(id, updated.ClientId);
 
             if (conflict)
-                return ApiResult<ClientObject>.Fail("Another client already uses that identifier.");
+                return ApiResult<ClientObject>.Fail("Another client already uses that identifier.", 400);
 
             var success = ClientStore.UpdateClient(id, updated);
 
             if (!success)
-                return ApiResult<ClientObject>.Fail("Client update failed or client not found.");
+                return ApiResult<ClientObject>.Fail("Client update failed or client not found.", 400);
 
             // Invalidate cache for the client ID if it was updated
             if (!string.IsNullOrEmpty(updated.ClientId))
@@ -122,12 +122,12 @@ public static class ClientService
 
             return client is not null
                 ? ApiResult<ClientObject>.Ok(client)
-                : ApiResult<ClientObject>.Fail("Updated client could not be retrieved.");
+                : ApiResult<ClientObject>.Fail("Updated client could not be retrieved.", 400);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Error updating client with ID {ClientId}", id);
-            return ApiResult<ClientObject>.Fail("Internal error occurred while updating client.");
+            return ApiResult<ClientObject>.Fail("Internal error occurred while updating client.", 500);
         }
     }
 
@@ -150,7 +150,7 @@ public static class ClientService
         catch (Exception ex)
         {
             Log.Error(ex, "Error retrieving all clients");
-            return ApiResult<List<ClientObject>>.Fail("Internal error occurred while retrieving clients.");
+            return ApiResult<List<ClientObject>>.Fail("Internal error occurred while retrieving clients.", 500);
         }
     }
 
@@ -176,7 +176,7 @@ public static class ClientService
         catch (Exception ex)
         {
             Log.Error(ex, "Error retrieving client with ID {ClientId}", id);
-            return ApiResult<ClientObject>.Fail("Internal error occurred while retrieving client.");
+            return ApiResult<ClientObject>.Fail("Internal error occurred while retrieving client.", 500);
         }
     }
 
@@ -244,7 +244,7 @@ public static class ClientService
             var deleted = ClientStore.DeleteClientByClientIdentifier(clientIdent);
 
             if (!deleted)
-                return ApiResult<MessageResponse>.Fail("Failed to delete client");
+                return ApiResult<MessageResponse>.Fail("Failed to delete client", 400);
 
             if (config.EnableAuditLogging) 
                 Utils.Audit.Logg("delete_client", clientIdent);
@@ -254,7 +254,7 @@ public static class ClientService
         catch (Exception ex)
         {
             Log.Error(ex, "Error deleting client with ID {ClientId}", clientIdent);
-            return ApiResult<MessageResponse>.Fail("Internal error occurred while deleting client.");
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while deleting client.", 500);
         }
     }
 
@@ -328,7 +328,7 @@ public static class ClientService
         var hash = AuthService.HashPassword(newSecret, config);
 
         if (!ClientStore.UpdateClientSecret(client.Id, hash))
-            return ApiResult<MessageResponse>.Fail("Failed to update client secret");
+            return ApiResult<MessageResponse>.Fail("Failed to update client secret", 400);
 
         AuthService.InvalidateClientCache(client.ClientId);
 
@@ -404,7 +404,7 @@ public static class ClientService
             var result = ClientStore.InsertRedirectUri(clientId, redirectUri);
             return result is not null
                 ? ApiResult<ClientRedirectUriObject>.Ok(result, 201)
-                : ApiResult<ClientRedirectUriObject>.Fail("Failed to add redirect URI", 500);
+                : ApiResult<ClientRedirectUriObject>.Fail("Failed to add redirect URI", 400);
         }
         catch (Exception ex)
         {

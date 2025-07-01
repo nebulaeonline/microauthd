@@ -81,7 +81,7 @@ public static class RoleService
     )
     {
         if (updated.IsProtected)
-            return ApiResult<RoleObject>.Fail("Cannot mark a role as protected through this API.");
+            return ApiResult<RoleObject>.Fail("Cannot mark a role as protected through this API.", 400);
 
         try
         {
@@ -91,14 +91,14 @@ public static class RoleService
                 var conflict = RoleStore.DoesNameConflictExist(id, updated.Name);
 
                 if (conflict)
-                    return ApiResult<RoleObject>.Fail("Another role already uses that name.");
+                    return ApiResult<RoleObject>.Fail("Another role already uses that name.", 400);
             }
 
             // Perform the update dynamically
             var updatedRole = RoleStore.UpdateRole(id, updated);
 
             if (updatedRole is null)
-                return ApiResult<RoleObject>.Fail("Role update failed. Role may be protected or not found.");
+                return ApiResult<RoleObject>.Fail("Role update failed. Role may be protected or not found.", 400);
 
             return ApiResult<RoleObject>.Ok(updatedRole);
         }
@@ -222,7 +222,7 @@ public static class RoleService
             var added = RoleStore.AddRoleToUser(userId, roleId);
 
             if (!added)
-                return ApiResult<MessageResponse>.Fail("Failed to assign role (user or role not found, or already assigned)");
+                return ApiResult<MessageResponse>.Fail("Failed to assign role (user or role not found, or already assigned)", 400);
 
             if (config.EnableAuditLogging)
                 Utils.Audit.Logg(
@@ -252,7 +252,7 @@ public static class RoleService
     public static ApiResult<List<string>> ListRolesForUser(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<List<string>>.Fail("User Id is required");
+            return ApiResult<List<string>>.Fail("User Id is required", 400);
 
         try
         {
@@ -331,7 +331,7 @@ public static class RoleService
             var removed = RoleStore.RemoveRoleFromUser(userId, roleId);
 
             if (!removed)
-                return ApiResult<MessageResponse>.Fail("Failed to remove role (user or role not found, or not assigned)");
+                return ApiResult<MessageResponse>.Fail("Failed to remove role (user or role not found, or not assigned)", 400);
 
             if (config.EnableAuditLogging)
                 Utils.Audit.Logg(

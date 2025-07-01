@@ -45,6 +45,10 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 I will keep the last 5 days of updates here; older updates can be found in the [CHANGELOG](CHANGELOG.md) file.
 
+**2025-07-01**
+
+The next big project in preparation for an alpha release is to solidify API responses and make them uniform. What I am specifically going to focus on is returning 404 errors where appropriate rather than blanket 400 errors. It'll be a big project, but it will bring clarity to consumers of the JSON/HTTP APIs.
+
 **2025-06-30**
 
 The testsuite is rounding into shape. Normally I would have been writing tests as I went, but this one is a bit trickier than most. We have the end-to-end testing via the Python suite, which hits the CRUD on every endpoint including token issuance, renewal and invalidation testing. But there's a lot of standalone and database functions that don't get e2e testing via Python, and so I'm filling in the blanks. It's about 90% of the way done. I hope to have close to 100% coverage within the next week or so, so you can rest assured that microauthd is being worked out from a testing perspective.
@@ -72,14 +76,6 @@ We now cache password hashes (if enabled); the feature and duration are configur
 We have implemented db schema versioning, which will allow us to upgrade painlessly in the future. If you have started with a version prior to the last few days, you should be fine. Users on much older versions may have to do some surgery. Let us know if you need assistance.
 
 Big change with `mad` CLI tool: it now uses a persistent admin url that is set the first time you run `mad session login`. For commands issued after that, you can omit the --admin-url cli option and it will just work. Thank goodness- that was my least favorite part of mad.
-
-**2025-06-26**
-
-So why is microauthd slow? Well, it is secure. The truth is that microauthd is cpu limited- it does a lot of argon2id hashing (and verifying) in the name of security; so depending upon your settings, you *will* notice it. Token issuance profiling shows 30%+ of microauthd's time is spent verifying the username & password, 30%+ of time is spent verifying the client id & client secret, and 30%+ of the time is spent generating the refresh token. What does this mean? Argon2id is deliberately expensive, and it means we're cpu bound, something async'ing all the things will not fix. It means that in the name of security, we are always going to be cpu bound. There's a few tracks we can take- we can verify the client secret by a different hash, we can cache the client secrets, and we can tone down the argon2id parameters (we run at 2 time cost / 2 parallelism / and 32MB memory). That would probably altogether result in a 40% speedup (not insignificant). But microauthd values security above all other things. So where is it falling now? ~20rps bursting to 1100rps. Not super fast. But is it suitable for 90% of the sites out there? Yes. So just keep that in mind when evaluating microauthd. I was getting < 1 rps on KeyCloak and Authentik, so we're at least in the ballpark. These benchmarks were run with 5,000 requests and 50 concurrent requests.
-
-microauthd isn't built to be the fastest- it's built to be **secure**, **transparent**, and **manageable**. If you're running an API with tens of millions of users, you may outgrow it. But for 99% of modern apps, it's more than fast enough. So when you evaluate microauthd, keep this in mind: Security-first means CPU-first, and we wouldn't have it any other way.
-
-Adding client secret caching brought about a 50% speedup in token issuance, and now microauthd is hovering around 30rps with bursts to 1200rps. This is a significant improvement.
 
 ---
 

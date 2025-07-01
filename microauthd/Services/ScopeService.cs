@@ -32,7 +32,7 @@ public static class ScopeService
         AppConfig config)
     {
         if (!Utils.IsValidTokenName(req.Name))
-            return ApiResult<ScopeObject>.Fail("Invalid scope name: must be non-empty, and cannot contain whitespace.");
+            return ApiResult<ScopeObject>.Fail("Invalid scope name: must be non-empty, and cannot contain whitespace.", 400);
 
         var scopeId = Guid.NewGuid().ToString();
 
@@ -41,7 +41,7 @@ public static class ScopeService
             var scopeObj = ScopeStore.CreateScope(scopeId, req);
 
             if (scopeObj is null)
-                return ApiResult<ScopeObject>.Fail("Scope creation failed (duplicate name?)");
+                return ApiResult<ScopeObject>.Fail("Scope creation failed (duplicate name?)", 400);
 
             if (config.EnableAuditLogging) 
                 Utils.Audit.Logg("create_scope", req.Name, scopeId);
@@ -51,7 +51,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to create scope {ScopeName}", req.Name);
-            return ApiResult<ScopeObject>.Fail("Internal error occurred while creating scope");
+            return ApiResult<ScopeObject>.Fail("Internal error occurred while creating scope", 500);
         }
     }
 
@@ -74,10 +74,10 @@ public static class ScopeService
     )
     {
         if (string.IsNullOrWhiteSpace(updated.Name))
-            return ApiResult<ScopeObject>.Fail("Scope name is required.");
+            return ApiResult<ScopeObject>.Fail("Scope name is required.", 400);
 
         if (!Utils.IsValidTokenName(updated.Name))
-            return ApiResult<ScopeObject>.Fail("Scope name must be a valid token identifier.");
+            return ApiResult<ScopeObject>.Fail("Scope name must be a valid token identifier.", 400);
 
         try
         {
@@ -85,19 +85,19 @@ public static class ScopeService
             var conflict = ScopeStore.DoesScopeNameExist(id, updated.Name);
 
             if (conflict)
-                return ApiResult<ScopeObject>.Fail("Another scope already uses that name.");
+                return ApiResult<ScopeObject>.Fail("Another scope already uses that name.", 400);
 
             var scopeObj = ScopeStore.UpdateScope(id, updated);
 
             if (scopeObj is null)
-                return ApiResult<ScopeObject>.Fail("Scope update failed or not found.");
+                return ApiResult<ScopeObject>.Fail("Scope update failed or not found.", 400);
 
             return ApiResult<ScopeObject>.Ok(scopeObj);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to update scope {ScopeId}", id);
-            return ApiResult<ScopeObject>.Fail("Internal error occurred while updating scope");
+            return ApiResult<ScopeObject>.Fail("Internal error occurred while updating scope", 500);
         }
     }
 
@@ -120,7 +120,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to list all scopes");
-            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while listing scopes");
+            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while listing scopes", 500);
         }
     }
 
@@ -146,7 +146,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Error retrieving scope by ID: {ScopeId}", id);
-            return ApiResult<ScopeObject>.Fail("Internal error occurred while retrieving scope");
+            return ApiResult<ScopeObject>.Fail("Internal error occurred while retrieving scope", 500);
         }
     }
 
@@ -203,7 +203,7 @@ public static class ScopeService
             var deleted = ScopeStore.DeleteScope(scopeId);
 
             if (!deleted)
-                return ApiResult<MessageResponse>.Fail("Failed to delete scope");
+                return ApiResult<MessageResponse>.Fail("Failed to delete scope", 400);
 
             if (config.EnableAuditLogging) 
                 Utils.Audit.Logg("delete_scope", scopeId);
@@ -213,7 +213,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to delete scope {ScopeId}", scopeId);
-            return ApiResult<MessageResponse>.Fail("Internal error occurred while deleting scope");
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while deleting scope", 500);
         }
     }
 
@@ -238,17 +238,17 @@ public static class ScopeService
         AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(clientId))
-            return ApiResult<MessageResponse>.Fail("Client ID is required");
+            return ApiResult<MessageResponse>.Fail("Client ID is required", 400);
 
         if (req.ScopeIds is null || req.ScopeIds.Count == 0)
-            return ApiResult<MessageResponse>.Fail("At least one scope ID is required");
+            return ApiResult<MessageResponse>.Fail("At least one scope ID is required", 400);
 
         try
         {
             var added = ScopeStore.AddScopesToClient(clientId, req);
 
             if (added == 0)
-                return ApiResult<MessageResponse>.Fail("No scopes were assigned. Check scope IDs or duplicates.");
+                return ApiResult<MessageResponse>.Fail("No scopes were assigned. Check scope IDs or duplicates.", 400);
 
             if (config.EnableAuditLogging) 
                 Utils.Audit.Logg("assign_scope_to_client", clientId, req.ScopeIds.Count.ToString());
@@ -258,7 +258,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to assign scopes to client {ClientId}", clientId);
-            return ApiResult<MessageResponse>.Fail("Internal error occurred while assigning scopes to client");
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while assigning scopes to client", 500);
         }
     }
 
@@ -275,7 +275,7 @@ public static class ScopeService
     public static ApiResult<List<ScopeObject>> GetScopesForClient(string clientId)
     {
         if (string.IsNullOrWhiteSpace(clientId))
-            return ApiResult<List<ScopeObject>>.Fail("Client ID is required");
+            return ApiResult<List<ScopeObject>>.Fail("Client ID is required", 400);
 
         try
         {
@@ -286,7 +286,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to retrieve scopes for client {ClientId}", clientId);
-            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while retrieving scopes for client");
+            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while retrieving scopes for client", 500);
         }
     }
 
@@ -307,14 +307,14 @@ public static class ScopeService
         AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(scopeId))
-            return ApiResult<MessageResponse>.Fail("Client ID and Scope ID are required");
+            return ApiResult<MessageResponse>.Fail("Client ID and Scope ID are required", 400);
 
         try
         {
             var affected = ScopeStore.RemoveScopeFromClient(clientId, scopeId);
 
             if (affected == 0)
-                return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
+                return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed", 400);
 
             if (config.EnableAuditLogging) 
                 Utils.Audit.Logg("remove_scope_from_client", scopeId, clientId);
@@ -324,7 +324,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to remove scope {ScopeId} from client {ClientId}", scopeId, clientId);
-            return ApiResult<MessageResponse>.Fail("Internal error occurred while removing scope from client");
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while removing scope from client", 500);
         }
     }
 
@@ -339,7 +339,7 @@ public static class ScopeService
     public static ApiResult<List<ScopeObject>> ListScopesForUser(string userId)
     {
         if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<List<ScopeObject>>.Fail("User ID is required");
+            return ApiResult<List<ScopeObject>>.Fail("User ID is required", 400);
 
         try
         {
@@ -350,7 +350,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to list scopes for user {UserId}", userId);
-            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while listing scopes for user");
+            return ApiResult<List<ScopeObject>>.Fail("Internal error occurred while listing scopes for user", 500);
         }
     }
 
@@ -374,17 +374,17 @@ public static class ScopeService
         AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<MessageResponse>.Fail("User ID is required");
+            return ApiResult<MessageResponse>.Fail("User ID is required", 400);
 
         if (req.ScopeIds.Count == 0)
-            return ApiResult<MessageResponse>.Fail("At least one scope ID is required");
+            return ApiResult<MessageResponse>.Fail("At least one scope ID is required", 400);
 
         try
         {
             var added = ScopeStore.AddScopesToUser(userId, req);
 
             if (added == 0)
-                return ApiResult<MessageResponse>.Fail("No scopes were assigned — check if they exist or were already assigned");
+                return ApiResult<MessageResponse>.Fail("No scopes were assigned — check if they exist or were already assigned", 400);
 
             if (config.EnableAuditLogging) 
                 Utils.Audit.Logg("assign_scope_to_user", userId, req.ScopeIds.Count.ToString());
@@ -394,7 +394,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to assign scopes to user {UserId}", userId);
-            return ApiResult<MessageResponse>.Fail("Internal error occurred while assigning scopes to user");
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while assigning scopes to user", 500);
         }   
     }
 
@@ -418,14 +418,14 @@ public static class ScopeService
         AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(scopeId))
-            return ApiResult<MessageResponse>.Fail("User ID and Scope ID are required");
+            return ApiResult<MessageResponse>.Fail("User ID and Scope ID are required", 400);
 
         try
         {
             var affected = ScopeStore.RemoveScopeFromUser(userId, scopeId);
 
             if (affected == 0)
-                return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed");
+                return ApiResult<MessageResponse>.Fail("Scope not assigned or already removed", 400);
 
             if (config.EnableAuditLogging) 
                 Utils.Audit.Logg("remove_scope_from_user", scopeId, userId);
@@ -435,7 +435,7 @@ public static class ScopeService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to remove scope {ScopeId} from user {UserId}", scopeId, userId);
-            return ApiResult<MessageResponse>.Fail("Internal error occurred while removing scope from user");
+            return ApiResult<MessageResponse>.Fail("Internal error occurred while removing scope from user", 500);
         }
     }
 

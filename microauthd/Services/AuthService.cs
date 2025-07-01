@@ -1537,7 +1537,7 @@ public static class AuthService
     public static ApiResult<VerifyPasswordResponse> VerifyPasswordOnly(VerifyPasswordRequest req, AppConfig config)
     {
         if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
-            return ApiResult<VerifyPasswordResponse>.Fail("Missing username or password", 400);
+            return ApiResult<VerifyPasswordResponse>.Forbidden("Invalid credentials");
 
         var result = AuthService.AuthenticateUser(req.Username, req.Password, config);
         if (result is not { Success: true } r)

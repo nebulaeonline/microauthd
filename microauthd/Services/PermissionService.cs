@@ -39,7 +39,7 @@ namespace microauthd.Services
                 var permissionObj = PermissionStore.CreatePermission(permissionId, name);
 
                 if (permissionObj is null)
-                    return ApiResult<PermissionObject>.Fail("Permission creation failed (maybe duplicate?)");
+                    return ApiResult<PermissionObject>.Fail("Permission creation failed (maybe duplicate?)", 400);
 
                 if (config.EnableAuditLogging) 
                     Utils.Audit.Logg("create_permission", name);
@@ -49,7 +49,7 @@ namespace microauthd.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to create permission with name {Name}", name);
-                return ApiResult<PermissionObject>.Fail("Permission creation failed (maybe duplicate?)");
+                return ApiResult<PermissionObject>.Fail("Permission creation failed (maybe duplicate?)", 500);
             }
         }
 
@@ -84,19 +84,19 @@ namespace microauthd.Services
                 var conflict = PermissionStore.DoesPermissionNameExist(id, updated.Name);
 
                 if (conflict)
-                    return ApiResult<PermissionObject>.Fail("Another permission already uses that name.");
+                    return ApiResult<PermissionObject>.Fail("Another permission already uses that name.", 400);
 
                 var permissionObj = PermissionStore.UpdatePermission(id, updated);
 
                 if (permissionObj is null)
-                    return ApiResult<PermissionObject>.Fail("Permission update failed or not found.");
+                    return ApiResult<PermissionObject>.Fail("Permission update failed or not found.", 400);
 
                 return ApiResult<PermissionObject>.Ok(permissionObj);
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to update permission with ID {Id}", id);
-                return ApiResult<PermissionObject>.Fail("Permission update failed.");
+                return ApiResult<PermissionObject>.Fail("Permission update failed.", 500);
             }
         }
 
@@ -118,7 +118,7 @@ namespace microauthd.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to list all permissions");
-                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve permissions");
+                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve permissions", 500);
             }
         }
 
@@ -205,7 +205,7 @@ namespace microauthd.Services
                 var deleted = PermissionStore.DeletePermission(permissionId);
 
                 if (!deleted)
-                    return ApiResult<MessageResponse>.Fail("Failed to delete permission");
+                    return ApiResult<MessageResponse>.Fail("Failed to delete permission", 400);
 
                 if (config.EnableAuditLogging) 
                     Utils.Audit.Logg("delete_permission", permissionId);
@@ -215,7 +215,7 @@ namespace microauthd.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to delete permission with ID {PermissionId}", permissionId);
-                return ApiResult<MessageResponse>.Fail("Failed to delete permission");
+                return ApiResult<MessageResponse>.Fail("Failed to delete permission", 500);
             }
         }
 
@@ -240,14 +240,14 @@ namespace microauthd.Services
             AppConfig config)
         {
             if (string.IsNullOrWhiteSpace(roleId) || permissionId == null)
-                return ApiResult<MessageResponse>.Fail("Role Id and at least one Permission Id are required");
+                return ApiResult<MessageResponse>.Fail("Role Id and at least one Permission Id are required", 400);
 
             try
             {
                 var assigned = PermissionStore.AssignPermissionToRole(permissionId, roleId);
 
                 if (!assigned)
-                    return ApiResult<MessageResponse>.Fail("Failed to assign permission to role or permission already exists");
+                    return ApiResult<MessageResponse>.Fail("Failed to assign permission to role or permission already exists", 400);
 
                 if (config.EnableAuditLogging) 
                     Utils.Audit.Logg("assigned_permission", permissionId, roleId);
@@ -257,7 +257,7 @@ namespace microauthd.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to assign permission {PermissionId} to role {RoleId}", permissionId, roleId);
-                return ApiResult<MessageResponse>.Fail("Failed to assign permission to role");
+                return ApiResult<MessageResponse>.Fail("Failed to assign permission to role", 500);
             }
         }
 
@@ -290,7 +290,7 @@ namespace microauthd.Services
                 var removed = PermissionStore.RemovePermissionFromRole(permissionId, roleId);
 
                 if (!removed)
-                    return ApiResult<MessageResponse>.Fail("Failed to remove permission from role or permission does not exist");
+                    return ApiResult<MessageResponse>.Fail("Failed to remove permission from role or permission does not exist", 400);
 
                 if (config.EnableAuditLogging)
                     Utils.Audit.Logg(
@@ -305,7 +305,7 @@ namespace microauthd.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to remove permission {PermissionId} from role {RoleId}", permissionId, roleId);
-                return ApiResult<MessageResponse>.Fail("Failed to remove permission from role");
+                return ApiResult<MessageResponse>.Fail("Failed to remove permission from role", 500);
             }
         }
 
@@ -323,7 +323,7 @@ namespace microauthd.Services
         public static ApiResult<List<PermissionObject>> GetEffectivePermissionsForUser(string userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
-                return ApiResult<List<PermissionObject>>.Fail("User Id is required");
+                return ApiResult<List<PermissionObject>>.Fail("User Id is required", 400);
 
             try
             {
@@ -334,7 +334,7 @@ namespace microauthd.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to retrieve effective permissions for user {UserId}", userId);
-                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve effective permissions");
+                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve effective permissions", 500);
             }
         }
 
@@ -353,7 +353,7 @@ namespace microauthd.Services
         {
             if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(permissionId))
             {
-                return ApiResult<AccessCheckResponse>.Fail("User Id and Permission Id are required");
+                return ApiResult<AccessCheckResponse>.Fail("User Id and Permission Id are required", 400);
             }
 
             try
@@ -382,7 +382,7 @@ namespace microauthd.Services
         public static ApiResult<List<PermissionObject>> GetPermissionsForRole(string roleId)
         {
             if (string.IsNullOrWhiteSpace(roleId))
-                return ApiResult<List<PermissionObject>>.Fail("Role Id is required");
+                return ApiResult<List<PermissionObject>>.Fail("Role Id is required", 400);
 
             try
             {
@@ -393,7 +393,7 @@ namespace microauthd.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to retrieve permissions for role {RoleId}", roleId);
-                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve permissions for role");
+                return ApiResult<List<PermissionObject>>.Fail("Failed to retrieve permissions for role", 500);
             }
         }
 
