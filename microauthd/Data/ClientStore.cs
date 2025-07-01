@@ -83,7 +83,7 @@ public static class ClientStore
                 ClientId = reader.GetString(1),
                 DisplayName = reader.GetString(2),
                 Audience = reader.GetString(3),
-                CreatedAt = reader.GetDateTime(4),
+                CreatedAt = reader.GetDateTime(4).ToUniversalTime(),
                 IsActive = reader.GetBoolean(5)
             };
         });
@@ -212,7 +212,7 @@ public static class ClientStore
                 DisplayName = reader.GetString(2),
                 Audience = reader.GetString(3),
                 IsActive = reader.GetBoolean(4),
-                CreatedAt = reader.GetDateTime(5)
+                CreatedAt = reader.GetDateTime(5).ToUniversalTime()
             };
         });
     }
@@ -442,7 +442,7 @@ public static class ClientStore
                     DisplayName = reader.GetString(2),
                     Audience = reader.GetString(3),
                     IsActive = reader.GetBoolean(4),
-                    CreatedAt = reader.GetDateTime(5)
+                    CreatedAt = reader.GetDateTime(5).ToUniversalTime()
                 });
             }
             return results;
@@ -486,7 +486,7 @@ public static class ClientStore
                     DisplayName = reader.GetString(2),
                     Audience = reader.GetString(3),
                     IsActive = reader.GetBoolean(4),
-                    CreatedAt = reader.GetDateTime(5)
+                    CreatedAt = reader.GetDateTime(5).ToUniversalTime()
 
                 });
             }

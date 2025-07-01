@@ -66,7 +66,7 @@ public static class UserStore
                     Id = reader.GetString(0),
                     Username = reader.GetString(1),
                     Email = reader.GetString(2),
-                    CreatedAt = reader.GetDateTime(3),
+                    CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                     IsActive = reader.GetInt64(4) == 1
                 };
             }
@@ -258,9 +258,9 @@ public static class UserStore
                 Id = reader.GetString(0),
                 Username = reader.GetString(1),
                 Email = reader.GetString(2),
-                CreatedAt = reader.GetDateTime(3),
+                CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                 IsActive = reader.GetBoolean(4),
-                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5),
+                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5).ToUniversalTime(),
                 EmailVerified = reader.GetBoolean(6)
             };
         });
@@ -354,9 +354,9 @@ public static class UserStore
                 Id = reader.GetString(0),
                 Username = reader.GetString(1),
                 Email = reader.GetString(2),
-                CreatedAt = reader.GetDateTime(3),
+                CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                 IsActive = reader.GetBoolean(4),
-                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5)
+                LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5).ToUniversalTime()
             };
         });
     }
@@ -393,8 +393,8 @@ public static class UserStore
                     Username = reader.GetString(1),
                     Email = reader.GetString(2),
                     IsActive = reader.GetBoolean(3),
-                    CreatedAt = reader.GetDateTime(4),
-                    LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5)
+                    CreatedAt = reader.GetDateTime(4).ToUniversalTime(),
+                    LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5).ToUniversalTime()
                 });
             }
 
@@ -437,7 +437,7 @@ public static class UserStore
                     Username = reader.GetString(1),
                     Email = reader.GetString(2),
                     IsActive = reader.GetBoolean(3),
-                    CreatedAt = reader.GetDateTime(4)
+                    CreatedAt = reader.GetDateTime(4).ToUniversalTime()
                 });
             }
 
@@ -604,8 +604,8 @@ public static class UserStore
                     Username = reader.GetString(2),
                     SessionId = reader.GetString(3),
                     ClientIdentifier = reader.GetString(4),
-                    IssuedAt = reader.GetDateTime(5),
-                    ExpiresAt = reader.GetDateTime(6),
+                    IssuedAt = reader.GetDateTime(5).ToUniversalTime(),
+                    ExpiresAt = reader.GetDateTime(6).ToUniversalTime(),
                     IsRevoked = reader.GetBoolean(7)
                 });
             }
@@ -806,8 +806,8 @@ public static class UserStore
                     UserId = reader.GetString(1),
                     Username = reader.GetString(2),
                     ClientIdentifier = reader.GetString(3),
-                    IssuedAt = reader.GetDateTime(4),
-                    ExpiresAt = reader.GetDateTime(5),
+                    IssuedAt = reader.GetDateTime(4).ToUniversalTime(),
+                    ExpiresAt = reader.GetDateTime(5).ToUniversalTime(),
                     IsRevoked = reader.GetBoolean(6),
                     TokenUse = reader.GetString(7)
                 });

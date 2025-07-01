@@ -136,7 +136,7 @@ namespace microauthd.Data
                         Id = reader.GetString(0),
                         Name = reader.GetString(1),
                         Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                        CreatedAt = reader.GetDateTime(3),
+                        CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                         IsActive = reader.GetInt64(4) == 1
                     });
                 }
@@ -327,7 +327,7 @@ namespace microauthd.Data
                         Id = reader.GetString(0),
                         Name = reader.GetString(1),
                         Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                        CreatedAt = reader.GetDateTime(3),
+                        CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                         IsActive = reader.GetInt64(4) == 1
                     });
                 }
@@ -467,7 +467,7 @@ namespace microauthd.Data
                         Name = reader.GetString(1),
                         Description = reader.IsDBNull(2) ? null : reader.GetString(2),
                         IsProtected = reader.GetBoolean(3),
-                        CreatedAt = reader.GetDateTime(4)
+                        CreatedAt = reader.GetDateTime(4).ToUniversalTime()
                     });
                 }
                 return results;
@@ -507,7 +507,7 @@ namespace microauthd.Data
                         Name = reader.GetString(1),
                         Description = reader.IsDBNull(2) ? null : reader.GetString(2),
                         IsProtected = reader.GetBoolean(3),
-                        CreatedAt = reader.GetDateTime(4)
+                        CreatedAt = reader.GetDateTime(4).ToUniversalTime()
                     };
                 }
                 return null;

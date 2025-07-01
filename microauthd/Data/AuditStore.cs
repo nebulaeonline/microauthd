@@ -53,7 +53,7 @@ public static class AuditStore
                     Action = reader.GetString(2),
                     Target = reader.IsDBNull(3) ? null : reader.GetString(3),
                     Secondary = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    Timestamp = reader.GetDateTime(5),
+                    Timestamp = reader.GetDateTime(5).ToUniversalTime(),
                     IpAddress = reader.IsDBNull(6) ? null : reader.GetString(6),
                     UserAgent = reader.IsDBNull(7) ? null : reader.GetString(7),
                 });
@@ -92,7 +92,7 @@ public static class AuditStore
                 Action = reader.GetString(2),
                 Target = reader.IsDBNull(3) ? null : reader.GetString(3),
                 Secondary = reader.IsDBNull(4) ? null : reader.GetString(4),
-                Timestamp = reader.GetDateTime(5),
+                Timestamp = reader.GetDateTime(5).ToUniversalTime(),
                 IpAddress = reader.IsDBNull(6) ? null : reader.GetString(6),
                 UserAgent = reader.IsDBNull(7) ? null : reader.GetString(7),
             };
@@ -154,7 +154,7 @@ public static class AuditStore
                 logs.Add(new AuditLogResponse
                 {
                     Id = reader.GetString(0),
-                    Timestamp = reader.GetDateTime(1),
+                    Timestamp = reader.GetDateTime(1).ToUniversalTime(),
                     ActorId = reader.IsDBNull(2) ? null : reader.GetString(2),
                     Action = reader.IsDBNull(3) ? null : reader.GetString(3),
                     Target = reader.IsDBNull(4) ? null : reader.GetString(4),
