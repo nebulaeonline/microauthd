@@ -47,6 +47,8 @@ I will keep the last 5 days of updates here; older updates can be found in the [
 
 **2025-07-01**
 
+Big changes in bringing several of the API responses into RFC compliance with OAuth2 & OIDC. This included a new error object and the expansion of our ApiResponse to include the new object. Testing has gone well, but things may be screwy here or there until the dust settles.
+
 The next big project in preparation for an alpha release is to solidify API responses and make them uniform. What I am specifically going to focus on is returning 404 errors where appropriate rather than blanket 400 errors. It'll be a big project, but it will bring clarity to consumers of the JSON/HTTP APIs.
 
 **2025-06-30**
