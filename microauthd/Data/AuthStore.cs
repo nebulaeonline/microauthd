@@ -185,6 +185,89 @@ namespace microauthd.Data
         }
 
         /// <summary>
+        /// Inserts a nonce value into the database for a specified user and client.
+        /// </summary>
+        /// <remarks>This method stores a nonce value in the database for OpenID Connect (OIDC)
+        /// operations.  The nonce is used to associate a client request with a user session and to mitigate replay
+        /// attacks.</remarks>
+        /// <param name="userId">The unique identifier of the user associated with the nonce. Cannot be <see langword="null"/> or empty.</param>
+        /// <param name="clientId">The unique identifier of the client associated with the nonce. Cannot be <see langword="null"/> or empty.</param>
+        /// <param name="nonce">The nonce value to be stored. Cannot be <see langword="null"/> or empty.</param>
+        /// <returns><see langword="true"/> if the nonce was successfully inserted into the database; otherwise, <see
+        /// langword="false"/>.</returns>
+        public static bool InsertNonce(string userId, string clientId, string nonce)
+        {
+            return Db.WithConnection(conn =>
+            {
+                var id = Guid.NewGuid().ToString();
+
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    INSERT INTO oidc_nonces (id, user_id, client_id, nonce) VALUES
+                    ($id, $uid, $cid, $nonce);
+                """;
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.Parameters.AddWithValue("$uid", userId);
+                cmd.Parameters.AddWithValue("$cid", clientId);
+                cmd.Parameters.AddWithValue("$nonce", nonce);
+
+                var result = cmd.ExecuteNonQuery();
+                return result > 0; // Returns true if the insert was successful
+            });
+        }
+
+        /// <summary>
+        /// Determines whether a specific nonce exists for the given user and client in the database.
+        /// </summary>
+        /// <remarks>This method queries the database to verify the existence of a nonce associated with 
+        /// the specified user and client. It is typically used in OpenID Connect (OIDC) flows  to prevent replay
+        /// attacks by ensuring the nonce has not been reused.</remarks>
+        /// <param name="userId">The unique identifier of the user.</param>
+        /// <param name="clientId">The unique identifier of the client application.</param>
+        /// <param name="nonce">The nonce value to check for existence.</param>
+        /// <returns><see langword="true"/> if the specified nonce exists for the given user and client;  otherwise, <see
+        /// langword="false"/>.</returns>
+        public static bool DoesNonceExistForUserAndClient(string userId, string clientId, string nonce)
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    SELECT 1 FROM oidc_nonces
+                    WHERE user_id = $uid AND client_id = $cid AND nonce = $nonce
+                    LIMIT 1;
+                """;
+                cmd.Parameters.AddWithValue("$uid", userId);
+                cmd.Parameters.AddWithValue("$cid", clientId);
+                cmd.Parameters.AddWithValue("$nonce", nonce);
+                using var reader = cmd.ExecuteReader();
+                return reader.Read(); // true if found
+            });
+        }
+
+        /// <summary>
+        /// Deletes all nonces from the database that were created before the specified date and time.
+        /// </summary>
+        /// <remarks>This method removes expired nonces from the database to maintain data integrity and
+        /// reduce storage usage. The operation is performed as a single database command.</remarks>
+        /// <param name="olderThanDateTime">The cutoff date and time. Nonces created before this value will be deleted.</param>
+        /// <returns><see langword="true"/> if one or more nonces were deleted; otherwise, <see langword="false"/>.</returns>
+        public static bool PurgeNonces(DateTime olderThanDateTime)
+        {
+            return Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    DELETE FROM oidc_nonces
+                    WHERE strftime('%Y-%m-%d %H:%M:%S', created_at) < $olderThan;
+                """;
+                cmd.Parameters.AddWithValue("$olderThan", olderThanDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+                var result = cmd.ExecuteNonQuery();
+                return result > 0; // Returns true if any rows were deleted
+            });
+        }
+
+        /// <summary>
         /// Retrieves a list of claims associated with the specified user.
         /// </summary>
         /// <remarks>This method fetches claims based on the user's active roles and scopes from the

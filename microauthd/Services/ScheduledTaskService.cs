@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
+using microauthd.Data;
 
 /// <summary>
 /// A background service that performs scheduled maintenance tasks, such as purging audit logs,  expired sessions, and
@@ -54,6 +55,9 @@ public class ScheduledTaskService : BackgroundService
                     UserService.PurgeRefreshTokens(new PurgeTokensRequest(_config.RefreshTokenPurgeDays * 60 * 60 * 24, true, true), _config);
                     Log.Information("Purged refresh tokens older than {Days} days", _config.RefreshTokenPurgeDays);
                 }
+
+                // Purge old nonces for OIDC PKCE logins after 2 days
+                AuthStore.PurgeNonces(DateTime.UtcNow.AddDays(-2));
 
                 // Run every hour
                 await Task.Delay(TimeSpan.FromHours(1), stoppingToken);

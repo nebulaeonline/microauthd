@@ -29,7 +29,7 @@ public static class AuthRoutes
         group.MapGet("/ping", () =>
         {
             var ping = new PingResponse("pong from auth");
-            return Results.Json(ping, MicroauthJsonContext.Default.PingResponse);
+            return Results.Json(ping, MicroauthdJsonContext.Default.PingResponse);
         })
         .AllowAnonymous()
         .WithTags("Info")
@@ -39,7 +39,7 @@ public static class AuthRoutes
         group.MapGet("/version", () =>
         {
             var response = new VersionResponse();
-            return Results.Json(response, MicroauthJsonContext.Default.VersionResponse);
+            return Results.Json(response, MicroauthdJsonContext.Default.VersionResponse);
         })
         .AllowAnonymous()
         .WithTags("Info")
@@ -103,7 +103,7 @@ public static class AuthRoutes
                 : scopeClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
             var me = new MeResponse(sub, email, roles, scopes.ToList());
-            return Results.Json(me, MicroauthJsonContext.Default.MeResponse);
+            return Results.Json(me, MicroauthdJsonContext.Default.MeResponse);
         })
         .RequireAuthorization()
         .WithTags("me")
@@ -223,7 +223,8 @@ public static class AuthRoutes
         .AllowAnonymous()
         .WithName("IssueToken")
         .Produces<TokenResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+        .Produces<OidcErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<OidcErrorResponse>(StatusCodes.Status403Forbidden)
         .WithTags("Auth")
         .WithOpenApi();
 

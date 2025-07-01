@@ -35,10 +35,10 @@ public static class ServerHost
             "auth",
             builder =>
             {
-                builder.Services.ConfigureHttpJsonOptions(opts =>
+                builder.Services.ConfigureHttpJsonOptions((Action<Microsoft.AspNetCore.Http.Json.JsonOptions>)(opts =>
                 {
-                    opts.SerializerOptions.TypeInfoResolverChain.Insert(0, MicroauthJsonContext.Default);
-                });
+                    opts.SerializerOptions.TypeInfoResolverChain.Insert(0, (System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver)MicroauthdJsonContext.Default);
+                }));
                 builder.Services.AddAuthorization();
                 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .AddJwtBearer(options =>
@@ -245,10 +245,10 @@ public static class ServerHost
             "admin",
             builder =>
             {
-                builder.Services.ConfigureHttpJsonOptions(opts =>
+                builder.Services.ConfigureHttpJsonOptions((Action<Microsoft.AspNetCore.Http.Json.JsonOptions>)(opts =>
                 {
-                    opts.SerializerOptions.TypeInfoResolverChain.Insert(0, MicroauthJsonContext.Default);
-                });
+                    opts.SerializerOptions.TypeInfoResolverChain.Insert(0, (System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver)MicroauthdJsonContext.Default);
+                }));
                 
                 builder.Services.AddAuthorization();
                 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -439,10 +439,10 @@ public static class ServerHost
             builder.WebHost.UseSetting(WebHostDefaults.PreventHostingStartupKey, "true");
 
             // Register our json serializer context
-            builder.Services.ConfigureHttpJsonOptions(opts =>
+            builder.Services.ConfigureHttpJsonOptions((Action<Microsoft.AspNetCore.Http.Json.JsonOptions>)(opts =>
             {
-                opts.SerializerOptions.TypeInfoResolverChain.Insert(0, MicroauthJsonContext.Default);
-            });
+                opts.SerializerOptions.TypeInfoResolverChain.Insert(0, (System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver)MicroauthdJsonContext.Default);
+            }));
 
             // Enable verbose model binding error logging
             builder.Services.Configure<ApiBehaviorOptions>(options =>

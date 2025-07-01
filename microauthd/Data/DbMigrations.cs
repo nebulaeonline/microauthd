@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -134,6 +134,9 @@ public static class DbMigrations
             case (1, 2):
                 Migrate_1_to_2();
                 break;
+            case (2, 3):
+                Migrate_2_to_3();
+                break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
         }
@@ -152,5 +155,33 @@ public static class DbMigrations
                 cmd.ExecuteNonQuery();
             });
         }
+    }
+
+    // Migration: v2 to v3
+    // Add nonce tracking table
+    private static void Migrate_2_to_3()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS oidc_nonces (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    client_id TEXT NOT NULL,
+                    nonce TEXT NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_nonce_lookup
+                    ON oidc_nonces (client_id, user_id, nonce);
+                CREATE INDEX IF NOT EXISTS idx_nonce_created
+                    ON oidc_nonces (created_at);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_nonce_user_client 
+                    ON oidc_nonces(user_id, client_id, nonce);
+            """;
+            cmd.ExecuteNonQuery();
+        });
     }
 }

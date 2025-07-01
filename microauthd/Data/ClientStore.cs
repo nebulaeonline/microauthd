@@ -662,11 +662,11 @@ public static class ClientStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-            SELECT id, client_id, uri
-            FROM redirect_uris
-            WHERE client_id = $cid
-            ORDER BY uri;
-        """;
+                SELECT id, client_id, uri
+                FROM redirect_uris
+                WHERE client_id = $cid
+                ORDER BY uri;
+            """;
             cmd.Parameters.AddWithValue("$cid", clientId);
 
             using var reader = cmd.ExecuteReader();

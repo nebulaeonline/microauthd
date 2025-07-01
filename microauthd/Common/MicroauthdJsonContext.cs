@@ -85,6 +85,7 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(List<ClientRedirectUriObject>))]
 [JsonSerializable(typeof(SetUserLockoutRequest))]
 [JsonSerializable(typeof(ChangeClientSecretRequest))]
-public partial class MicroauthJsonContext : JsonSerializerContext
+[JsonSerializable(typeof(OidcErrorResponse))]
+public partial class MicroauthdJsonContext : JsonSerializerContext
 {
 }

@@ -7,145 +7,199 @@ namespace microauthd.Common
 {
     public static class ApiResultExtensions
     {
+        /// <summary>
+        /// Converts an <see cref="ApiResult{T}"/> to an HTTP response result.
+        /// </summary>
+        /// <remarks>This method handles both successful and error cases of the <see
+        /// cref="ApiResult{T}"/>: <list type="bullet"> <item> <description>If <paramref name="result"/> is successful,
+        /// the value is serialized as JSON and returned with the status code specified in <see
+        /// cref="ApiResult{T}.StatusCode"/>.</description> </item> <item> <description>If <paramref name="result"/>
+        /// contains an error and the value is an <see cref="OidcErrorResponse"/>, the error object is serialized as
+        /// JSON using the appropriate type information.</description> </item> <item> <description>For all other error
+        /// cases, a generic error response is returned as JSON with the error message and a success flag set to <see
+        /// langword="false"/>.</description> </item> </list></remarks>
+        /// <typeparam name="T">The type of the value contained in the <see cref="ApiResult{T}"/>.</typeparam>
+        /// <param name="result">The <see cref="ApiResult{T}"/> to convert to an HTTP response.</param>
+        /// <returns>An <see cref="IResult"/> representing the HTTP response. If the operation was successful, the response
+        /// contains the value of the <see cref="ApiResult{T}"/> serialized as JSON with the appropriate status code. If
+        /// the operation failed, the response contains an error object serialized as JSON with the appropriate status
+        /// code.</returns>
         public static IResult ToHttpResult<T>(this ApiResult<T> result)
         {
-            return result.Success
-                ? Results.Json(result.Value!, ApiResultExtensions.GetJsonTypeInfo<T>(), statusCode: result.StatusCode)
-                : Results.Json(new ErrorResponse(false, result.Error ?? "An error occurred"), MicroauthJsonContext.Default.ErrorResponse, statusCode: result.StatusCode);
+            if (result.Success)
+            {
+                return Results.Json(
+                    result.Value!,
+                    ApiResultExtensions.GetJsonTypeInfo<T>(),
+                    statusCode: result.StatusCode
+                );
+            }
+
+            // If error is an OIDC error object
+            if (result.Value is OidcErrorResponse oidcError)
+            {
+                return Results.Json(
+                    oidcError,
+                    MicroauthdJsonContext.Default.OidcErrorResponse,
+                    statusCode: result.StatusCode
+                );
+            }
+
+            // Default fallback: return error message as flat object
+            var error = new ErrorResponse(false, result.Error ?? "An error occurred");
+
+            return Results.Json(
+                error,
+                MicroauthdJsonContext.Default.ErrorResponse,
+                statusCode: result.StatusCode
+            );
         }
 
+        /// <summary>
+        /// Retrieves the <see cref="JsonTypeInfo{T}"/> for the specified type <typeparamref name="T"/>.
+        /// </summary>
+        /// <remarks>This method uses a predefined mapping of types to their corresponding <see
+        /// cref="JsonTypeInfo{T}"/> instances within the <c>MicroauthdJsonContext</c>. If the type <typeparamref
+        /// name="T"/> is not registered, an <see cref="InvalidOperationException"/> is thrown.</remarks>
+        /// <typeparam name="T">The type for which to retrieve the JSON type information.</typeparam>
+        /// <returns>The <see cref="JsonTypeInfo{T}"/> instance associated with the specified type <typeparamref name="T"/>.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if the JSON type information for the specified type <typeparamref name="T"/> is not registered in
+        /// <c>MicroauthdJsonContext</c>.</exception>
         public static JsonTypeInfo<T> GetJsonTypeInfo<T>()
         {
             object? resolved = typeof(T) switch
             {
                 var t when t == typeof(List<string>) =>
-                    MicroauthJsonContext.Default.ListString,
+                    MicroauthdJsonContext.Default.ListString,
 
                 var t when t == typeof(AccessCheckResponse) =>
-                    MicroauthJsonContext.Default.AccessCheckResponse,
+                    MicroauthdJsonContext.Default.AccessCheckResponse,
 
                 var t when t == typeof(AuditLogResponse) =>
-                    MicroauthJsonContext.Default.AuditLogResponse,
+                    MicroauthdJsonContext.Default.AuditLogResponse,
 
                 var t when t == typeof(List<AuditLogResponse>) =>
-                    MicroauthJsonContext.Default.ListAuditLogResponse,
+                    MicroauthdJsonContext.Default.ListAuditLogResponse,
 
                 var t when t == typeof(ClientObject) =>
-                    MicroauthJsonContext.Default.ClientObject,
+                    MicroauthdJsonContext.Default.ClientObject,
 
                 var t when t == typeof(List<ClientObject>) =>
-                    MicroauthJsonContext.Default.ListClientObject,
+                    MicroauthdJsonContext.Default.ListClientObject,
 
                 var t when t == typeof(ClientRedirectUriObject) =>
-                    MicroauthJsonContext.Default.ClientRedirectUriObject,
+                    MicroauthdJsonContext.Default.ClientRedirectUriObject,
 
                 var t when t == typeof(List<ClientRedirectUriObject>) =>
-                    MicroauthJsonContext.Default.ListClientRedirectUriObject,
+                    MicroauthdJsonContext.Default.ListClientRedirectUriObject,
 
                 var t when t == typeof(Dictionary<string, object>) =>
-                    MicroauthJsonContext.Default.DictionaryStringObject,
+                    MicroauthdJsonContext.Default.DictionaryStringObject,
 
                 var t when t == typeof(ErrorResponse) =>
-                    MicroauthJsonContext.Default.ErrorResponse,
+                    MicroauthdJsonContext.Default.ErrorResponse,
 
                 var t when t == typeof(JwksResponse) =>
-                    MicroauthJsonContext.Default.JwksResponse,
+                    MicroauthdJsonContext.Default.JwksResponse,
 
                 var t when t == typeof(MeResponse) =>
-                    MicroauthJsonContext.Default.MeResponse,
+                    MicroauthdJsonContext.Default.MeResponse,
 
                 var t when t == typeof(MessageResponse) =>
-                    MicroauthJsonContext.Default.MessageResponse,
+                    MicroauthdJsonContext.Default.MessageResponse,
+
+                var t when t == typeof(OidcErrorResponse) =>
+                    MicroauthdJsonContext.Default.OidcErrorResponse,
 
                 var t when t == typeof(OidcDiscoveryResponse) =>
-                    MicroauthJsonContext.Default.OidcDiscoveryResponse,
+                    MicroauthdJsonContext.Default.OidcDiscoveryResponse,
 
                 var t when t == typeof(PermissionAssignmentDto) =>
-                    MicroauthJsonContext.Default.PermissionAssignmentDto,
+                    MicroauthdJsonContext.Default.PermissionAssignmentDto,
 
                 var t when t == typeof(PermissionDto) =>
-                    MicroauthJsonContext.Default.PermissionDto,
+                    MicroauthdJsonContext.Default.PermissionDto,
 
                 var t when t == typeof(List<PermissionDto>) =>
-                    MicroauthJsonContext.Default.ListPermissionDto,
+                    MicroauthdJsonContext.Default.ListPermissionDto,
 
                 var t when t == typeof(PermissionObject) =>
-                    MicroauthJsonContext.Default.PermissionObject,
+                    MicroauthdJsonContext.Default.PermissionObject,
 
                 var t when t == typeof(List<PermissionObject>) =>
-                    MicroauthJsonContext.Default.ListPermissionObject,
+                    MicroauthdJsonContext.Default.ListPermissionObject,
 
                 var t when t == typeof(PingResponse) =>
-                    MicroauthJsonContext.Default.PingResponse,
+                    MicroauthdJsonContext.Default.PingResponse,
 
                 var t when t == typeof(RefreshTokenResponse) =>
-                    MicroauthJsonContext.Default.RefreshTokenResponse,
+                    MicroauthdJsonContext.Default.RefreshTokenResponse,
 
                 var t when t == typeof(List<RefreshTokenResponse>) =>
-                    MicroauthJsonContext.Default.ListRefreshTokenResponse,
+                    MicroauthdJsonContext.Default.ListRefreshTokenResponse,
 
                 var t when t == typeof(RevokeResponse) =>
-                    MicroauthJsonContext.Default.RevokeResponse,
+                    MicroauthdJsonContext.Default.RevokeResponse,
 
                 var t when t == typeof(RoleAssignmentDto) =>
-                    MicroauthJsonContext.Default.RoleAssignmentDto,
+                    MicroauthdJsonContext.Default.RoleAssignmentDto,
 
                 var t when t == typeof(RoleDto) =>
-                    MicroauthJsonContext.Default.RoleDto,
+                    MicroauthdJsonContext.Default.RoleDto,
 
                 var t when t == typeof(List<RoleDto>) =>
-                    MicroauthJsonContext.Default.ListRoleDto,
+                    MicroauthdJsonContext.Default.ListRoleDto,
 
                 var t when t == typeof(RoleObject) =>
-                    MicroauthJsonContext.Default.RoleObject,
+                    MicroauthdJsonContext.Default.RoleObject,
 
                 var t when t == typeof(List<RoleObject>) =>
-                    MicroauthJsonContext.Default.ListRoleObject,
+                    MicroauthdJsonContext.Default.ListRoleObject,
 
                 var t when t == typeof(ScopeAssignmentDto) =>
-                    MicroauthJsonContext.Default.ScopeAssignmentDto,
+                    MicroauthdJsonContext.Default.ScopeAssignmentDto,
 
                 var t when t == typeof(ScopeDto) =>
-                    MicroauthJsonContext.Default.ScopeDto,
+                    MicroauthdJsonContext.Default.ScopeDto,
 
                 var t when t == typeof(List<ScopeDto>) =>
-                    MicroauthJsonContext.Default.ListScopeDto,
+                    MicroauthdJsonContext.Default.ListScopeDto,
 
                 var t when t == typeof(ScopeObject) =>
-                    MicroauthJsonContext.Default.ScopeObject,
+                    MicroauthdJsonContext.Default.ScopeObject,
 
                 var t when t == typeof(List<ScopeObject>) =>
-                    MicroauthJsonContext.Default.ListScopeObject,
+                    MicroauthdJsonContext.Default.ListScopeObject,
 
                 var t when t == typeof(SessionResponse) =>
-                    MicroauthJsonContext.Default.SessionResponse,
+                    MicroauthdJsonContext.Default.SessionResponse,
 
                 var t when t == typeof(string) =>
-                    MicroauthJsonContext.Default.String,
+                    MicroauthdJsonContext.Default.String,
 
                 var t when t == typeof(List<SessionResponse>) =>
-                    MicroauthJsonContext.Default.ListSessionResponse,
+                    MicroauthdJsonContext.Default.ListSessionResponse,
 
                 var t when t == typeof(TokenResponse) =>
-                    MicroauthJsonContext.Default.TokenResponse,
+                    MicroauthdJsonContext.Default.TokenResponse,
 
                 var t when t == typeof(TotpQrResponse) =>
-                    MicroauthJsonContext.Default.TotpQrResponse,
+                    MicroauthdJsonContext.Default.TotpQrResponse,
 
                 var t when t == typeof(UserObject) =>
-                    MicroauthJsonContext.Default.UserObject,
+                    MicroauthdJsonContext.Default.UserObject,
 
                 var t when t == typeof(List<UserObject>) =>
-                    MicroauthJsonContext.Default.ListUserObject,
+                    MicroauthdJsonContext.Default.ListUserObject,
 
                 var t when t == typeof(VerifyPasswordResponse) =>
-                    MicroauthJsonContext.Default.VerifyPasswordResponse,
+                    MicroauthdJsonContext.Default.VerifyPasswordResponse,
 
                 var t when t == typeof(VersionResponse) =>
-                    MicroauthJsonContext.Default.VersionResponse,
+                    MicroauthdJsonContext.Default.VersionResponse,
 
                 var t when t == typeof(WhoamiResponse) =>
-                    MicroauthJsonContext.Default.WhoamiResponse,
+                    MicroauthdJsonContext.Default.WhoamiResponse,
 
                 _ => throw new InvalidOperationException(
                     $"JsonTypeInfo for {typeof(T).Name} not registered in MicroauthJsonContext.")

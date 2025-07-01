@@ -40,7 +40,7 @@ public static class AdminRoutes
         group.MapGet("/ping", () =>
         {
             var ping = new PingResponse("pong from admin");
-            return Results.Json(ping, MicroauthJsonContext.Default.PingResponse);
+            return Results.Json(ping, MicroauthdJsonContext.Default.PingResponse);
 
         })
         .AllowAnonymous()
@@ -51,7 +51,7 @@ public static class AdminRoutes
         group.MapGet("/version", () =>
         {
             var response = new VersionResponse();
-            return Results.Json(response, MicroauthJsonContext.Default.VersionResponse);
+            return Results.Json(response, MicroauthdJsonContext.Default.VersionResponse);
 
         })
         .AllowAnonymous()

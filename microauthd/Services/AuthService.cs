@@ -300,10 +300,11 @@ public static class AuthService
     /// and a corresponding HTTP status code.</returns>
     public static IResult HandleAuthorizationRequest(HttpRequest req, AppConfig config)
     {
+        // Get the query parameters from the request
         var query = req.Query;
 
         var responseType = query["response_type"].ToString();
-        var clientId = query["client_id"].ToString(); // Client identifier (not row id)
+        var clientId = query["client_id"].ToString();
         var redirectUri = query["redirect_uri"].ToString();
         var scope = query["scope"].ToString();
         var state = query["state"].ToString();
@@ -311,33 +312,41 @@ public static class AuthService
         var codeChallengeMethod = query["code_challenge_method"].ToString();
         var nonce = query["nonce"].ToString();
 
+        // Make sure we support the method of the pkce flow
         if (string.IsNullOrWhiteSpace(responseType) || responseType != "code")
-            return Results.BadRequest("Invalid credentials");
+            return OidcErrors.OidcRedirectError(redirectUri, "unsupported_response_type", "Only 'code' response type is supported", state);
 
-        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(redirectUri))
-            return Results.BadRequest("Invalid credentials");
+        // Make sure we have all required fields
+        if (string.IsNullOrWhiteSpace(clientId) ||
+            string.IsNullOrWhiteSpace(redirectUri) ||
+            string.IsNullOrWhiteSpace(codeChallenge) ||
+            string.IsNullOrWhiteSpace(codeChallengeMethod))
+        {
+            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Missing required fields", state);
+        }
 
-        if (string.IsNullOrWhiteSpace(codeChallenge))
-            return Results.BadRequest("Invalid credentials");
-
+        // Make sure we support the code challenge method
         if (codeChallengeMethod != "S256" && codeChallengeMethod != "plain")
-            return Results.BadRequest("Invalid credentials");
+        {
+            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Unsupported code_challenge_method", state);
+        }
 
+        // Check that the redirect URI is valid for the client
         if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
         {
             Log.Warning("Authorization request rejected: invalid redirect_uri {RedirectUri} for client_id {ClientId}", redirectUri, clientId);
-            return Results.BadRequest("Invalid credentials");
+            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Invalid redirect_uri for client", state);
         }
 
-        // If scope includes 'openid', and nonce is missing — reject the request
-        if (scope.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("openid") &&
-            string.IsNullOrWhiteSpace(nonce))
+        // Reject if openid scope is requested but no nonce is provided
+        var openIdScope = scope.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("openid");
+        if (openIdScope && string.IsNullOrWhiteSpace(nonce))
         {
             Log.Warning("Authorization request rejected: openid scope requires nonce");
-            return Results.BadRequest("Invalid credentials");
+            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Nonce required for openid scope", state);
         }
 
-        // Generate and store auth code
+        // Success path
         var code = Utils.GenerateBase64EncodedRandomBytes(32);
 
         var pkceCode = new PkceCode
@@ -353,12 +362,12 @@ public static class AuthService
             Nonce = nonce
         };
 
+        // Store the PKCE code in the auth store
         AuthStore.StorePkceCode(pkceCode);
 
         var redirectUrl = $"{redirectUri}?code={WebUtility.UrlEncode(code)}&state={WebUtility.UrlEncode(state)}";
         return Results.Redirect(redirectUrl);
     }
-
 
     /// <summary>
     /// Exchanges a PKCE authorization code for a token response.
@@ -378,50 +387,44 @@ public static class AuthService
     /// validation fails, the result contains an error message and an appropriate HTTP status code.</returns>
     public static ApiResult<TokenResponse> ExchangePkceCode(IFormCollection form, AppConfig config)
     {
+        // Check if PKCE is enabled in the configuration; if not, return an error
         if (!config.EnablePkce)
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidGrant<TokenResponse>();
 
+        // Attempt to get req'd fields from the form
         var code = form["code"].ToString();
         var clientId = form["client_id"].ToString();
         var codeVerifier = form["code_verifier"].ToString();
         var redirectUri = form["redirect_uri"].ToString();
 
+        // If we didn't get them all, return an error
         if (string.IsNullOrWhiteSpace(code) ||
             string.IsNullOrWhiteSpace(clientId) ||
             string.IsNullOrWhiteSpace(codeVerifier) ||
             string.IsNullOrWhiteSpace(redirectUri))
         {
             Log.Warning("PKCE exchange failed: missing required fields. client_id={ClientId}, redirect_uri={RedirectUri}", clientId, redirectUri);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidRequest<TokenResponse>("Missing required fields");
         }
 
+        // Validate the PKCE code
         var pkce = AuthStore.GetPkceCode(code);
-        if (pkce is null)
+        if (pkce is null || pkce.IsUsed || pkce.ExpiresAt < DateTime.UtcNow)
         {
-            Log.Warning("PKCE exchange failed: code not found. client_id={ClientId}, code={Code}", clientId, code);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            Log.Warning("PKCE exchange failed: code invalid/used/expired. client_id={ClientId}, code={Code}", clientId, code);
+            return OidcErrors.InvalidGrant<TokenResponse>();
         }
 
-        if (pkce.IsUsed)
-        {
-            Log.Warning("PKCE exchange failed: code already used. client_id={ClientId}, code={Code}", clientId, code);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
-        }
-
-        if (pkce.ExpiresAt < DateTime.UtcNow)
-        {
-            Log.Warning("PKCE exchange failed: code expired. client_id={ClientId}, code={Code}, expired_at={ExpiredAt}", clientId, code, pkce.ExpiresAt);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
-        }
-
+        // Check if the client_id and redirect_uri match the stored values
         if (!string.Equals(pkce.ClientIdentifier, clientId, StringComparison.Ordinal) ||
             !string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
         {
             Log.Warning("PKCE exchange failed: client_id or redirect_uri mismatch. client_id={ClientId}, expected_client_id={Expected}, redirect_uri={RedirectUri}, expected_redirect_uri={ExpectedUri}",
                 clientId, pkce.ClientIdentifier, redirectUri, pkce.RedirectUri);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidGrant<TokenResponse>();
         }
 
+        // Validate the code challenge against the code verifier
         var challengeValid = pkce.CodeChallengeMethod.ToLowerInvariant() switch
         {
             "plain" => pkce.CodeChallenge == codeVerifier,
@@ -429,30 +432,46 @@ public static class AuthService
             _ => false
         };
 
+        // If the challenge is not valid, return an error
         if (!challengeValid)
         {
             Log.Warning("PKCE exchange failed: code_verifier did not match challenge. client_id={ClientId}, method={Method}", clientId, pkce.CodeChallengeMethod);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidGrant<TokenResponse>();
         }
 
+        // Mark the PKCE code as used to prevent reuse
         AuthStore.MarkPkceCodeAsUsed(code);
 
+        // Make sure we have a valid user id associated with the PKCE code
         if (string.IsNullOrWhiteSpace(pkce.UserId))
         {
             Log.Warning("PKCE exchange failed: no user associated with code. client_id={ClientId}, code={Code}", clientId, code);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidGrant<TokenResponse>();
         }
 
-        // retrieve the user object for email claim
+        // Retrieve the user associated with the PKCE code from the db
         var user = UserStore.GetUserById(pkce.UserId);
         if (user == null)
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+        {
+            Log.Warning("PKCE exchange failed: user not found. user_id={UserId}", pkce.UserId);
+            return OidcErrors.InvalidGrant<TokenResponse>();
+        }
 
+        // Check to see if the nonce (if specified) was re-used
+        var actualClientId = ClientStore.GetClientIdByIdentifier(clientId);
+
+        if (actualClientId is null)
+        {
+            Log.Warning("PKCE exchange failed: client_id not found. client_id={ClientId}", clientId);
+            return OidcErrors.InvalidGrant<TokenResponse>();
+        }
+
+        // Do the claims for this token
         var claims = AuthStore.GetUserClaims(pkce.UserId);
         claims.Insert(0, new Claim(JwtRegisteredClaimNames.Sub, pkce.UserId));
         claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""));
         claims.Add(new Claim("client_id", pkce.ClientIdentifier));
-        
+
         var scopeValues = claims
             .Where(c => c.Type == "scope")
             .Select(c => c.Value)
@@ -462,12 +481,34 @@ public static class AuthService
         if (scopeValues.Any())
             claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
+        // If this is an OIDC request, check for nonce re-use
+        var issueIdToken = scopeValues.Contains("openid");
+
+        if (issueIdToken)
+        {
+            if (!string.IsNullOrWhiteSpace(pkce.Nonce))
+            {
+                if (AuthStore.DoesNonceExistForUserAndClient(user.Id, actualClientId, pkce.Nonce))
+                {
+                    Log.Warning("PKCE exchange failed: nonce was re-used for this user={UserId}, client={ClientId}, Nonce={Nonce}.", user.Id, actualClientId, pkce.Nonce);
+                    return OidcErrors.InvalidGrant<TokenResponse>();
+                }
+
+                AuthStore.InsertNonce(user.Id, actualClientId, pkce.Nonce);
+            }
+            else
+            {
+                Log.Warning("PKCE exchange failed: nonce is required for openid scope but was not provided.");
+                return OidcErrors.InvalidGrant<TokenResponse>();
+            }
+        }
+
         var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientIdentifier);
 
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience);
-
         UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientIdentifier);
 
+        // Generate a refresh token if enabled in the configuration
         string? refreshToken = null;
         if (config.EnableTokenRefresh)
         {
@@ -475,13 +516,14 @@ public static class AuthService
                 config, pkce.UserId, tokenInfo.Jti, pkce.ClientIdentifier);
         }
 
+        // Generate an ID token if the openid scope is requested
         string? idToken = null;
-        if (scopeValues.Contains("openid"))
+        if (issueIdToken)
         {
             idToken = TokenIssuer.IssueIdToken(config, claims, pkce.ClientIdentifier, pkce.Nonce);
         }
 
-        // attach the JTI to the PKCE code for later reference
+        // Attach the JTI to the PKCE code for later reference
         AuthStore.AttachJtiToPkceCode(code, tokenInfo.Jti);
 
         Log.Debug("PKCE exchange successful. client_id={ClientId}, user_id={UserId}, jti={Jti}", clientId, pkce.UserId, tokenInfo.Jti);
@@ -520,41 +562,45 @@ public static class AuthService
         string redirectUri,
         AppConfig config)
     {
+        // Get the form fields and validate that we have all required fields
         if (string.IsNullOrWhiteSpace(username) ||
             string.IsNullOrWhiteSpace(password) ||
             string.IsNullOrWhiteSpace(code) ||
             string.IsNullOrWhiteSpace(redirectUri))
         {
-            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidRequest<MessageResponse>("Missing required fields");
         }
 
+        // Validate the PKCE code
         var pkce = AuthStore.GetPkceCode(code);
         if (pkce is null || pkce.IsUsed || pkce.ExpiresAt < DateTime.UtcNow)
         {
             Log.Warning("Rejected login: code missing/expired/used");
-            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidGrant<MessageResponse>();
         }
 
+        // Make sure the redirect uri matches the one stored with the PKCE code
         if (!string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
         {
             Log.Warning("Rejected login: redirect_uri mismatch");
-            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidGrant<MessageResponse>();
         }
 
+        // Authenticate the user with the provided credentials
         var authResult = AuthenticateUser(username, password, config);
         if (authResult is not { Success: true } r)
         {
             Log.Warning("Failed login attempt for {Username}", username);
-            return ApiResult<MessageResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidGrant<MessageResponse>();
         }
 
-        // Save user ID to pkce code record
+        // Attach the user id to the PKCE code
         AuthStore.AttachUserIdToPkceCode(code, r.UserId!);
-
         Log.Debug("Login successful for user {UserId} via PKCE", r.UserId);
 
         return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Login successful"));
     }
+
 
     /// <summary>
     /// Issues an administrative access token for a user with valid credentials and the required admin role.
@@ -573,8 +619,7 @@ public static class AuthService
         TokenRequest req,
         AppConfig config,
         string ip,
-        string ua
-    )
+        string ua)
     {
         if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
         {
@@ -638,10 +683,10 @@ public static class AuthService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> if the request is successful. Returns a
     /// forbidden result if the credentials or client information are invalid.</returns>
     public static ApiResult<TokenResponse> IssueUserToken(
-        IFormCollection form,
-        AppConfig config,
-        string ip,
-        string userAgent)
+    IFormCollection form,
+    AppConfig config,
+    string ip,
+    string userAgent)
     {
         var username = form["username"].ToString().Trim();
         var password = form["password"].ToString().Trim();
@@ -650,43 +695,33 @@ public static class AuthService
 
         if (string.IsNullOrWhiteSpace(username) ||
             string.IsNullOrWhiteSpace(password) ||
-            string.IsNullOrWhiteSpace(clientIdent))
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
-
-        // check the DB for the client identifier
-        if (string.IsNullOrEmpty(clientIdent))
-        {
-            Log.Warning("Unknown or inactive client_identifier {ClientIdent}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
-        }
+            string.IsNullOrWhiteSpace(clientIdent) ||
+            string.IsNullOrWhiteSpace(clientSecret))
+            return OidcErrors.InvalidRequest<TokenResponse>("Missing required fields");
 
         if (!ValidateOidcClient(clientIdent, clientSecret, config))
         {
             Log.Warning("Client authentication failed for {ClientId}. IP {IP} UA {UA}", clientIdent, ip, userAgent);
-            return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            return OidcErrors.InvalidClient<TokenResponse>();
         }
 
         try
         {
-            // Get the audience for the client identifier
             var audience = ClientStore.GetClientAudienceByIdentifier(clientIdent);
 
-            // Must have a valid audience
             if (string.IsNullOrWhiteSpace(audience))
             {
                 Log.Warning("Client identifier not found or missing audience: {ClientId}", clientIdent);
-                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+                return OidcErrors.InvalidClient<TokenResponse>();
             }
 
-            // Authenticate user
             var result = AuthenticateUser(username, password, config);
             if (result is not { Success: true } r)
             {
                 Log.Warning("Failed login attempt for {Username}. IP {IP} UA {UA}", username, ip, userAgent);
-                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+                return OidcErrors.InvalidGrant<TokenResponse>();
             }
 
-            // Check if TOTP is required for this user
             var requiresTotp = UserStore.IsTotpEnabledForUserId(r.UserId!);
             if (requiresTotp)
             {
@@ -694,19 +729,17 @@ public static class AuthService
                 if (string.IsNullOrWhiteSpace(totpCode) || !ValidateTotpCode(r.UserId!, totpCode))
                 {
                     Log.Warning("TOTP required and failed for user {UserId}", r.UserId);
-                    return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+                    return OidcErrors.InvalidGrant<TokenResponse>();
                 }
             }
 
-            // Assemble base claims
             var claims = new List<Claim>
-            {
-                new(JwtRegisteredClaimNames.Sub, r.UserId!),
-                new(JwtRegisteredClaimNames.Email, r.Email ?? ""),
-                new("client_id", clientIdent)
-            };
+        {
+            new(JwtRegisteredClaimNames.Sub, r.UserId!),
+            new(JwtRegisteredClaimNames.Email, r.Email ?? ""),
+            new("client_id", clientIdent)
+        };
 
-            // Extract role + scope claims from r.Claims
             var roleClaims = r.Claims.Where(c => c.Type == "role");
             var scopeValues = r.Claims
                 .Where(c => c.Type == "scope")
@@ -715,21 +748,16 @@ public static class AuthService
 
             claims.AddRange(roleClaims);
 
-            // Add email_verified if present
             var emailVerifiedClaim = r.Claims.FirstOrDefault(c => c.Type == "email_verified");
             if (emailVerifiedClaim != null)
-            {
                 claims.Add(emailVerifiedClaim);
-            }
 
             if (scopeValues.Any())
                 claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
-            // Issue JWT
             var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
             UserService.WriteSessionToDb(tokenInfo, config, clientIdent);
 
-            // Optionally generate refresh token
             string? refreshToken = null;
             if (config.EnableTokenRefresh)
             {
@@ -737,7 +765,6 @@ public static class AuthService
                     config, tokenInfo.UserId, tokenInfo.Jti, clientIdent);
             }
 
-            // Optionally generate id token
             string? idToken = null;
             if (scopeValues.Contains("openid"))
             {
@@ -745,12 +772,6 @@ public static class AuthService
             }
 
             Log.Debug("Issued token for user {UserId} under client {ClientIdent}", r.UserId, clientIdent);
-
-            // No need to audit log every token issuance, only for admin tokens or significant events
-            //Utils.Audit.Logg(
-            //    action: "token_issued",
-            //    target: clientIdent
-            //);
 
             return ApiResult<TokenResponse>.Ok(new TokenResponse
             {
@@ -770,6 +791,7 @@ public static class AuthService
         }
     }
 
+
     /// <summary>
     /// Refreshes the access token using the provided refresh token and application configuration.
     /// </summary>
@@ -785,64 +807,59 @@ public static class AuthService
     {
         try
         {
-            // Get the raw token and make sure it's not empty
             var raw = form["refresh_token"].ToString();
             var clientId = form["client_id"].ToString();
             var clientSecret = form["client_secret"].ToString();
 
-            if (string.IsNullOrWhiteSpace(raw))
-                return ApiResult<TokenResponse>.Fail("Missing refresh token", 400);
+            if (string.IsNullOrWhiteSpace(raw) ||
+                string.IsNullOrWhiteSpace(clientId) ||
+                string.IsNullOrWhiteSpace(clientSecret))
+                return OidcErrors.InvalidRequest<TokenResponse>("Missing required fields");
 
             if (!ValidateOidcClient(clientId, clientSecret, config))
             {
                 Log.Warning("Refresh token request failed client validation: {ClientId}", clientId);
-                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+                return OidcErrors.InvalidClient<TokenResponse>();
             }
 
-            // Lookup the refresh token by sha256 hash
             var sha256 = Utils.Sha256Base64(raw);
             var tokenRow = UserStore.GetRefreshTokenBySha256Hash(sha256);
 
-            // If the refresh token is null, revoked, or expired, return forbidden
             if (tokenRow is null || tokenRow.IsRevoked || tokenRow.ExpiresAt < DateTime.UtcNow)
-                return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
+            {
+                Log.Warning("Refresh token invalid or expired for client {ClientId}", clientId);
+                return OidcErrors.InvalidGrant<TokenResponse>();
+            }
 
-            // Revoke the token to prevent reuse
             UserStore.RevokeRefreshToken(tokenRow.Id);
 
-            // Build claims (initial set)
             var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, tokenRow.UserId),
             new("client_id", tokenRow.ClientIdentifier)
         };
 
-            // Retrieve roles and scopes
             var userClaims = AuthStore.GetUserClaims(tokenRow.UserId);
             var roleClaims = userClaims.Where(c => c.Type == "role");
-            var scopeClaims = userClaims.Where(c => c.Type == "scope").Select(c => c.Value).Distinct();
+            var scopeClaims = userClaims
+                .Where(c => c.Type == "scope")
+                .Select(c => c.Value)
+                .Distinct();
 
             claims.AddRange(roleClaims);
 
-            // Add email_verified if present
             var emailVerifiedClaim = userClaims.FirstOrDefault(c => c.Type == "email_verified");
             if (emailVerifiedClaim != null)
-            {
                 claims.Add(emailVerifiedClaim);
-            }
 
-            // Add single OAuth2-style space-delimited scope claim
             if (scopeClaims.Any())
                 claims.Add(new Claim("scope", string.Join(' ', scopeClaims)));
 
-            // Get the audience for the given client identifier
             var audience = ClientStore.GetClientAudienceByIdentifier(tokenRow.ClientIdentifier);
 
-            // Issue the new token and store it in the session table
             var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
             UserService.WriteSessionToDb(tokenInfo, config, tokenRow.ClientIdentifier);
 
-            // Generate and store a new refresh token
             var newRefreshToken = UserService.GenerateAndStoreRefreshToken(
                 config,
                 tokenRow.UserId,
@@ -851,17 +868,18 @@ public static class AuthService
             );
 
             if (config.EnableAuditLogging)
+            {
                 Utils.Audit.Logg(
                     action: "refresh_token_used",
                     target: tokenRow.ClientIdentifier
                 );
+            }
 
-            // Generate a new id token
             string? idToken = null;
             if (scopeClaims.Contains("openid"))
             {
                 idToken = TokenIssuer.IssueIdToken(config, claims, tokenRow.ClientIdentifier);
-            }            
+            }
 
             return ApiResult<TokenResponse>.Ok(new TokenResponse
             {
@@ -880,6 +898,7 @@ public static class AuthService
             return ApiResult<TokenResponse>.Fail("Internal server error", 500);
         }
     }
+
 
     /// <summary>
     /// Validates the credentials of an OpenID Connect (OIDC) client.

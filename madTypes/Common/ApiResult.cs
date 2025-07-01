@@ -15,6 +15,9 @@ public class ApiResult<T>
     public static ApiResult<T> Fail(string error, int status = 400)
         => new() { Success = false, Error = error, StatusCode = status };
 
+    public static ApiResult<T> FailObj(object errorObject, int status = 400)
+    => new() { Success = false, Value = (T?)(object)errorObject, StatusCode = status };
+
     public static ApiResult<T> Forbidden(string message = "Forbidden")
         => new() { Success = false, Error = message, StatusCode = 403 };
 
