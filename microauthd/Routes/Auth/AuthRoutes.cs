@@ -51,6 +51,13 @@ public static class AuthRoutes
             var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
                    ?? user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
+            if (string.IsNullOrWhiteSpace(sub) || !Guid.TryParse(sub, out _))
+                return Results.Unauthorized(); // must be a valid user token
+
+            var scope = user.FindFirst("scope")?.Value;
+            if (string.IsNullOrWhiteSpace(scope) || !scope.Split(' ').Contains("openid"))
+                return Results.Forbid(); // requires openid scope
+
             var email = user.FindFirst(ClaimTypes.Email)?.Value;
             var name = user.FindFirst("name")?.Value
                      ?? user.FindFirst("preferred_username")?.Value
@@ -58,7 +65,7 @@ public static class AuthRoutes
 
             var claims = new Dictionary<string, object>
             {
-                ["sub"] = sub ?? "unknown",
+                ["sub"] = sub,
                 ["iss"] = config.OidcIssuer
             };
 
