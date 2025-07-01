@@ -6,17 +6,44 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 **A Note on Standards**
 
-microauthd is a lightweight, security-first OAuth 2.0 authorization server with OpenID Connect support. It supports standard flows such as password, client_credentials, refresh_token, and PKCE, and includes ID token issuance and discovery endpoints for OIDC compatibility.
+microauthd is a lightweight, security-first OAuth 2.0 authorization server with OpenID Connect support. It supports standard flows such as password, client_credentials, refresh_token, and PKCE, and includes ID token issuance and discovery endpoints for OIDC compatibility. It is suitable for integrating with OIDC clients, SDKs, and libraries that conform to the OpenID Connect specification.
 
-microauthd is suitable for integrating with OIDC clients, SDKs, and libraries that conform to the OpenID Connect specification.
+microauthd is not a Certified OpenID Connect Provider, nor is it Fully OIDC Compliant as it has not been validated against the OIDC conformance suite, although adherence to one or more OIDC profiles is planned prior to a v1.0, along with validation against the publicly available compliance test.
 
-microauthd is not a Certified OpenID Connect Provider, nor is it Fully OIDC Compliant as it has not been validated against the OIDC conformance suite.
+Currently, microauthd can not act as an OIDC client, but support is planned prior to the 1.0 release. microauthd currently supports the /userinfo, /authorize, /login, /token, /oidc/token, /introspect, /.well-known/openid-configuration, and /jwks.json endpoints, and can issue ID tokens alongside access tokens.
+
+**What are the Various Visual Studio Projects?**
+
+- `mad` is the CLI tool for managing microauthd. It allows you to create users, roles, permissions, and clients, as well as manage tokens and sessions.
+- `madClient` is a client library for making ADMIN & AUTH API calls via the JSON/HTTP APIs.
+- `madAuthClient` is a client library for integrating the token-based authentication of microauthd with ASP.NET Core's cookie authentication (including refresh token middleware).
+- `madRazorExample` is a sample ASP.NET Core Razor Pages application that uses the `madAuthClient` library to authenticate users and manage roles/permissions.
+- `madTypes` contains the data transfer objects (DTOs) used by `microauthd`, the `mad` CLI tool, the `madClient` library, and the additional bindings provided for other languages (these DTOs include common objects, requests & responses)
+- `madOobe` is the out-of-the-box experience (OOBE) tool that sets up microauthd for the first time, including initial admin user creation and database initialization. The OOBE is also usable directly from `microauthd`, unless the "--docker" command line option is specified, due to the way Docker handles stdin/stdout.
+- `microauthd` is the main project that contains the identity server implementation, including the ADMIN and AUTH endpoints, token issuance, user management, role management, and the web-based GUI.
+- `madTests` is an Xunit test project that contains tests for microauthd's functionality. End-to-end tests are written in Python and use the `mad` CLI tool to interact with the JSON/HTTP ADMIN endpoints that microauthd exposes for managing the system.
+- `docs` is not a Visual Studio project, but a directory that contains documentation for microauthd (getting stronger every day). It includes explanations of the architecture, addresses the concepts of Users, Permissions, and Scopes, contains code examples, details the TOTP flow, and talks about the OOBE and the various configuration options available.
+
+**Recent Features Include:**
+
+1.  Caching of the admin-url and the admin token in `mad` CLI tool for convenience.
+2.  Support for PKCE (Proof Key for Code Exchange) in the authorization code flow.
+3.  Implementation of ID Token issuance in compliance with OpenID Connect.
+4.  Support for TOTP-based login with QR code generation and verification.
+5.  Improved performance with client secret caching and password hash caching.
+6.  Database schema versioning for easier upgrades.
+7.  Support for serving static files (e.g., login page) from the `/public` folder for the AUTH server.
+8.  A web-based management GUI using Razor Pages for managing users, roles, permissions, scopes, clients, sessions & refresh tokens.
+9.  Aot-safe JSON serialization across all DTOs for better performance and reduced memory footprint.
+10. Robust testing suite using Xunit for internal functions and end-to-end testing via Pytest and the `mad` CLI tool. Approximately 90% coverage for services, and around the same 90% for API coverage.
 
 ---
 
 ## microauthd Status Updates
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth), my follow up [Auth Rolled: Part Deux](https://purplekungfu.com/Post/10/auth-rolled-part-deux) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
+
+I will keep the last 5 days of updates here; older updates can be found in the [CHANGELOG](CHANGELOG.md) file.
 
 **2025-06-30**
 
@@ -54,80 +81,6 @@ microauthd isn't built to be the fastest — it’s built to be **secure**, **transp
 
 Adding client secret caching brought about a 50% speedup in token issuance, and now microauthd is hovering around 30rps with bursts to 1200rps. This is a significant improvement.
 
-**2025-06-25**
-
-PKCE (Proof Key for Code Exchange) is now implemented. The example is served up from the public folder. ~~Empty this folder out if you don't want files served from it; I will likely add an option to enable/disable the static file hosting, but it is not implemented yet.~~ Fixed. Now, setting --serve-public-auth-files (or config file or env vars) enables the local webserver to serve static files from the /public subfolder of the microauthd working directory (defaults to false). Files will be served up as the root of the webserver (there will be no /public in the url). This is useful for serving up a simple login page or other static files that you want to be accessible from the auth server. The example login page can be removed to store your own files & assets.
-
-PKCE is a security measure that mitigates the risk of authorization code interception attacks. It is primarily used in OAuth 2.0 and OpenID Connect flows to enhance security, especially for public clients (like mobile or single-page applications) that cannot securely store client secrets. It is similar to a challenge-response system. In the PKCE flow, the client generates a code verifier and a code challenge. The code verifier is a random string, while the code challenge is derived from the code verifier using a transformation method (usually SHA-256). When the client requests an authorization code, it includes the code challenge. Later, when exchanging the authorization code for an access token, the client must provide the original code verifier. The server then verifies that the code verifier matches the code challenge and issues the access token if they match.
-
-**2025-06-24**
-
-Some people are confused about what exactly microauthd is. You would use this instead of the built-in ASP.NET Core Identity system when you need real authentication across multiple platforms — not just a website. microauthd is built for shared login across web, SPA, mobile, and desktop apps, with proper token issuance, refresh, revocation, and machine-to-machine support. It separates identity from UI, so your backend services, CI jobs, and clients all speak the same auth language — without tying your auth logic to Razor Pages or EF Core.
-
-It is important to note that although microauthd is written in C#, it is not tied to ASP.NET Core, or .NET Core at all except needing the .NET 8 runtime to run. It is designed to be used with any platform that can support Json Web Tokens (JWT) and can be used from any language that allows you to issue HTTP POST commands against a web endpoint (basically all of them). Don't be afriad of microauthd if you're not a .NET Core person or your platform is not running on .NET Core. This is quite common as systems like KeyCloak are written in Java and Authentik is written in Python.
-
-~~I am going to begin working on the machinery needed to be reliably hosted behind a reverse proxy. This will include the forwarded headers along with support for trusted proxies. I hope to have this in an working by tomorrow.~~ (Done)
-
-**2025-06-23**
-
-I put together a client library (madAuthClient) to bridge the token-based authentication of microauthd with ASP.NET Core's cookie authentication. This allows you to use microauthd as a drop-in replacement for ASP.NET Core's built-in authentication system, while still using the same token-based authentication that microauthd provides. There is an example project in madRazorExample which uses this library to set up its auth provider.
-
-~~Big changes coming to the audit logger. It was poorly thought out and implemented, so I'm going to be reworking it to use a more structured aproach. The current implementation is static and has no access to the HttpContext which results in many log entries having incorrect (or blank) values for the user id. Time to make it a bona-fide instance class and do it right. I should have the refactor done by tomorrow.~~ Done.
-
-The web-based GUI threw the AOT compilation for a loop; this marks the end of the AOT compilation work for now. It is more important to have a robust web-based GUI than to shave 100ms off of startup time and 10-15MB of memory.
-
-**2025-06-22**
-
-Web-based GUI is available at `http://localhost:9041/Dashboard` (substitute your hostname / port as needed). 
-
-Still working on the web-based management GUI. The Razor Pages implementation is progressing well and should be ready for initial testing soon. The project is a good demonstration of using microauthd's auth capabilities, as it generates all tokens and handles logins for the admin site.
-
-**2025-06-21**
-
-Working on a web-based management GUI. Currently implementing via Razor Pages, which will allow us to create a simple web interface for managing users, roles, permissions, scopes, and clients. About 10% of the way there, but it is a start.
-
-Realized there wasn't an example login flow, so I added a simple example at public/login.html. The public/ folder in microauthd is used to serve static files, such as a login page or documentation. Any files placed in this folder will be available at the root of the AUTH server (e.g., /login.html). By default, login.html is included as a simple authentication interface.
-
-You can customize the login experience by modifying this file or replacing it entirely. During build and publish, the contents of public/ are automatically copied to the output directory and served by the AUTH server.
-
-The contract for the login page is that it should POST to `/token` with the following fields / parameters: grant_type=password, username, password, and client_id (should mirror the client you set up during OOBE). You can also refresh at `/token` with grant_type = refresh_token and token set to the refresh token value obtained with the original token grant.
-
-**2025-06-20**
-
-Started separating the data layer from the service layer internally. This will allow us to swap out the data layer in the future without affecting the service logic. There is currently no plan to abandon SQLite, so this will be an ongoing background process.
-
-We haven't had a lot of time to test the bindings, so please stay tuned for updates on that front. The idea was to get *something* out there for people to use, but we will be actively auditing for full coverage and putting together testsuites for each of the sets of bindings.
-
-**2025-06-19**
-
-Bindings are up for Python, Go, and JS/TS. Please consider all of them a work in progress, but the should be usable for most operations (both AUTH & ADMIN).
-
-So the cli tool `mad` is now in a pretty good state, but it is **slow**. And not just a little slow, but *really* slow. That is fine for the time being, because it is a cli bootstrapping tool mostly, it is not expected that heavy scripting will be done using it. I figure most people will code against the JSON HTTP APIs directly, and those are plenty fast. I just wanted to give people a heads up that the CLI is not fast. Know that it is not microauthd itself.
-
-**2025-06-18**
-
-~~Things are a bit in flux at the moment. Some things are broken.~~ Token introspection and token revocation should be solid again.
-
-~~We are going to be implementing TOTP-based login in the next day or so, so the repo might be in flux for a bit. 0.7.1.4 is a stable release for testing purposes.~~
-
-TOTP-based login is now implemented and will be undergoing testing. Stick at 7.1.4 for now if you want something stable to play with. The way TOTP works is that a request is made to generate a QR code, and then the user has to verify before it is set to active. We also added an endpoint to validate username/password without issuing a token, so expected login flows of validating user/pass and then MFA via TOTP works as generally implemented elsewhere. TOTP can also be disabled via JSON/HTTP API.
-
-Remember please that the database schema is still in flux, and we do not provide migrations yet, so you will need to drop the database and re-run the OOBE wizard. When we go stable, we will begin providing db migrations.
-
-**2025-06-17**
-
-CRUD operations are now implemented for our 5 main data types: users, roles, permissions, clients, and scopes. The API is now consistent across all endpoints, with uniform response structures and error handling. The `mad` CLI tool has also been significantly improved to support these operations.
-
-The python test harness is now complete and has been used to validate the API surface, the back-end functions and the `mad` CLI tool. `mad` can now be used to create, update, delete, and assign users, roles, permissions, clients, and scopes. Additional tests will be added for token grant, revocation and refresh token redemption (all 3 have been tested manually and via script and the system does work as intended).
-
-**2025-06-16**
-
-microauthd is currently not yet ready for production use. It has a LOT of rough edges right now. The code is functional and has been tested in a few scenarios, but it is most definitely not ready for production use. There is no documentation yet, either.
-
-Please read on to understand its current capabilities, design philosophy, real-world security posture, known limitations, and how it will evolve toward a production-ready release.
-
-Understand that this is **NOT A PRODUCTION READY SYSTEM**. It is not even suitable for testing in production-like environments yet. It is a work in progress.
-
 ---
 
 ## Design Goals / Philosophy
@@ -144,7 +97,7 @@ microauthd is architected for *deliberate minimal surface area*. Security featur
 - **Argon2id** password hashing with configurable time/memory/parallelism parameters
 - **Per-session JWTs** (with unique jti) and optional **refresh tokens**
 - **RSA or ECDSA Signing** with separate signing keys for auth and admin tokens
-- **One-time-use Refresh Tokens** with hashed storage (`Argon2id` + SHA-256)
+- **One-time-use Refresh Tokens** with hashed storage (SHA-256; refresh tokens themselves are never stored)
 - **Audit Logging** of all sensitive operations (create, delete, assign, revoke, etc.)
 - **Role + Scope Enforcement** via access tokens and scoped APIs
 - Built-in support for **SQLCipher** (encrypted SQLite databases)
@@ -162,7 +115,6 @@ We have adoped a **Secure by Default** mindset. From its first line to its lates
 2. Token Security is Tight
     - JTI (unique token id) is generated per token and tracked in the database
     - Refresh tokens are one-time use, stored only as:
-      - An Argon2id hash (`refresh_token_hash`)
       - A SHA-256 fingerprint (`refresh_token_sha256`) for lookup
     - All session records include client ID, `issued_at`, `expires_at`, and `token_use`- giving you replay analysis opportunities
     - *Result*: Even if a refresh token is leaked, it cannot be reused. Access tokens are short-lived and auditable.
@@ -181,9 +133,9 @@ We have adoped a **Secure by Default** mindset. From its first line to its lates
     - Audit logs are stored in an append-only model and can be purged with retention policies
     - *Result*: There is a durable, inspectable trail for every sensitive operation
 5. Minimal Attack Surface
-    - No browser-exposed UI. microauthd exposes only a clean JSON/HTTP interface
+    - microauthd exposes a clean JSON/HTTP interface, as well as an ADMIN gui via Razor Pages- the two do not overlap: logging in to the admin interface does not grant the ability to call ADMIN or AUTH endpoints- all endpoints are bearer token only.
     - Admin and Auth endpoints are split, run on different ports, and have separate JWT signing keys
-    - Only a few admin scopes exist, and all are seeded securely in the database (`is_protected = 1`)
+    - Only a few admin scopes exist, and all are seeded securely in the database (these scopes are flagged as protected and cannot be removed, though they can be renamed)
     - No scope or role creation is allowed via anonymous requests
     - *Result*: This isn't just a low surface, it's a well-armored one.
 6. Defensive Defaults Everywhere
@@ -202,13 +154,13 @@ If you're building internal tooling, embedded platforms, or machine-to-machine A
 
 microauthd ships with a full-featured CLI tool called `mad` that:
 
-- Works with any admin endpoint (via Bearer token or session login)
+- Works with any admin endpoint (via Bearer token; which can be cached for convenience)
 - Allows automation of:
   - User creation, update, deletion, activation, and deactivation
   - Role creation, update, deletion, and assignment 
-  - Permission checks
-  - Scope + client management
-- Uses a persistent token store (`~/.mad_token`) for login sessions
+  - Permission creation, update, deletion & checks
+  - Full Scope + client management
+- Uses a persistent token store (`~/.mad_token`) for login sessions; can cache the admin url as well for convenience
 - Designed to be scriptable for CI/CD, provisioning, and test automation
 
 Example usage:
@@ -216,8 +168,8 @@ Example usage:
 ```bash
 
 mad session login --admin-url http://localhost:9041
-mad user create --username alice --user-email alice@example.com --user-password s3cret --admin-url http://localhost:9041
-mad role assign --user-id <user-guid> --role-id <role-guid> --admin-url http://localhost:9041
+mad user create --username alice --user-email alice@example.com --user-password s3cret
+mad role assign --user-id <user-guid> --role-id <role-guid>
 
 ```
 
@@ -250,11 +202,11 @@ Future bindings will be released for common languages (C#, ~~Go~~ (Done), ~~Pyth
 
 ### What Still Needs Work
 
-- Web-based management GUI is in progress (Razor Pages)
-- `mad` CLI still a WIP but has improved significantly
+- ~~Web-based management GUI is in progress (Razor Pages)~~ (Mostly complete)
+- ~~`mad` CLI still a WIP but has improved significantly~~ (`mad` CLI has feature parity with the API)
 - ~~Some minor inconsistencies in API response formatting~~ (APIs are now consistent)
-- Token usage metadata is stored but not yet used for token tracing
-- Audit log field consistency still being refined
+- ~~Token usage metadata is stored but not yet used for token tracing~~ (Tokens should be traceable now)
+- ~~Audit log field consistency still being refined~~ (Audit logs are now consistent)
 - Swaggger/OpenAPI coverage is in progress (tags are set but needs polish)
 
 ### Known Shortcomings
@@ -264,9 +216,9 @@ Future bindings will be released for common languages (C#, ~~Go~~ (Done), ~~Pyth
 - ~~**No UI** - this is a text-first, CLI- and API-driven system~~ (In progress)
 - **One shared DB connection** limits concurrency- will be addressed via per-request pooled connections
 - **Does not enforce fine-graned resource ownership or external ACLs** - leaves this to calling systems
-- OOBE is helpful, but **not quite production-ready** for large deployments (much better in v2 of OOBE now)
+- ~~OOBE is **not quite production-ready** for large deployments~~ (OOBE v2 is tight)
 - ~~OTP-based loginis not yet implemented (on roadmap)~~ (Done)
-- **Bindings for Python, Go, and JS/TS are in the repo; other languages are not yet published**
+- **Bindings for Python, Go, and JS/TS are in the repo; C# bindings have their own project; other languages are not yet published**
 
 ### Project Roadmap
 
@@ -275,11 +227,12 @@ Future bindings will be released for common languages (C#, ~~Go~~ (Done), ~~Pyth
 3. Replace shared DB connection with per-request pooling (WAL-mode safe)
 4. ~~Clean up API DTOs (uniform `MessageResponse`, consistent `id + name`)~~ Done.
 5. ~~Launch test harness using `mad` + Python bindings (in progress)~~ Done.
-6. Ship bindings for C# & Rust
+6. Ship bindings for ~~C#~~ (Done) & Rust (forthcoming)
 7. More robust failed password mechanisms (~~rate limiting~~ (done) / exponential backoff)
 8. ~~OTP login flow~~ (Done)
-9. Example code for common languages
+9. Example code for common languages (slowly coming along for languages that have bindings)
 10. Documentation for all endpoints, CLI, and bindings
+
 ---
 
 ## Summary
