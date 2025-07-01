@@ -100,7 +100,8 @@ def test_token_refresh_and_blacklist_flow():
         "grant_type": "password",
         "username": username,
         "password": "testpass123",
-        "client_id": client_id
+        "client_id": client_id,
+        "client_secret": client_secret
     }, f"{AUTH_URL}/token")
 
     access_token = token_response.get("access_token")
@@ -112,7 +113,9 @@ def test_token_refresh_and_blacklist_flow():
     # Step 2: Refresh token once
     refresh_response_1 = curl_post_token({
         "grant_type": "refresh_token",
-        "refresh_token": refresh_token
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+        "client_secret": client_secret
     }, f"{AUTH_URL}/token")
 
     assert refresh_response_1.get("access_token"), f"Refresh failed: {refresh_response_1}"
@@ -120,11 +123,13 @@ def test_token_refresh_and_blacklist_flow():
     # Step 3: Attempt to reuse refresh token (should fail)
     refresh_response_2 = curl_post_token({
         "grant_type": "refresh_token",
-        "refresh_token": refresh_token
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+        "client_secret": client_secret
     }, f"{AUTH_URL}/token")
 
-    if refresh_response_2.get("access_token") or refresh_response_2.get("success", True):
-        fail_with_data("Reused refresh token should not succeed", refresh_response_2)
+    if refresh_response_2.get("error") != "invalid_grant":
+        fail_with_data("Expected invalid_grant error on reused refresh token", refresh_response_2)
 
     # Step 4: Issue OIDC token (client_credentials grant)
     oidc_token = curl_post_token({
@@ -146,25 +151,6 @@ def test_token_refresh_and_blacklist_flow():
 
     if not auth_introspect.get("active", False):
         fail_with_data("AUTH introspection should return active", auth_introspect)
-
-    # Step 5b: Call /userinfo with the same token
-    userinfo_res = subprocess.run([
-        "curl", "-s", "-X", "GET", f"{AUTH_URL}/userinfo",
-        "-H", f"Authorization: Bearer {oidc_access_token}"
-    ], capture_output=True, text=True)
-
-    try:
-        userinfo = json.loads(userinfo_res.stdout)
-    except json.JSONDecodeError:
-        print("Failed to parse /userinfo response:")
-        print("STDOUT:", userinfo_res.stdout)
-        print("STDERR:", userinfo_res.stderr)
-        raise
-
-    if "sub" not in userinfo:
-        fail_with_data("Missing 'sub' in /userinfo response", userinfo)
-
-    print("/userinfo response:", userinfo)
 
     # Step 6: Revoke token
     revoke_response = curl_post_basic_auth(

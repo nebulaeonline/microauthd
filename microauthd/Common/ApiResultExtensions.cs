@@ -36,7 +36,7 @@ namespace microauthd.Common
             }
 
             // If error is an OIDC error object
-            if (result.Value is OidcErrorResponse oidcError)
+            if (result.ErrorObject is OidcErrorResponse oidcError)
             {
                 return Results.Json(
                     oidcError,
