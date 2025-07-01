@@ -1108,7 +1108,7 @@ public static class AuthService
             SubjectTypesSupported = new[] { "public" },
             IdTokenSigningAlgValuesSupported = new[] { "RS256", "ES256" },
             ScopesSupported = new[] { "openid", "email", "profile" },
-            ClaimsSupported = new[] { "sub", "email", "jti", "iat", "exp", "aud", "iss", "token_use" },
+            ClaimsSupported = new[] { "sub", "email", "jti", "iat", "exp", "aud", "iss", "token_use", "mad" },
             UserInfoEndpoint = $"{baseUrl}/userinfo",
         };
 
@@ -1219,7 +1219,7 @@ public static class AuthService
             {
                 new(JwtRegisteredClaimNames.Sub, clientId),
                 new("client_id", clientId),
-                new("token_use", "client")
+                new("token_use", "access")
             };
 
             if (scopes.Count > 0)
@@ -1304,9 +1304,9 @@ public static class AuthService
                 return ApiResult<Dictionary<string, object>>.Ok(new() { ["active"] = false });
 
             // check if token's session is deleted/revoked
-            var tokenUse = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "auth";
+            var madUse = jwt.Claims.FirstOrDefault(c => c.Type == "mad")?.Value ?? "auth";
 
-            if (tokenUse == "auth")
+            if (madUse == "auth")
             {
                 var isRevoked = UserStore.IsTokenRevoked(token);
 
@@ -1315,12 +1315,12 @@ public static class AuthService
             }
             else
             {
-                Log.Debug("Introspection for non-auth token (use = {Use})", tokenUse);
+                Log.Debug("Introspection for non-auth token (use = {Use})", madUse);
 
                 if (config.EnableAuditLogging)
                     Utils.Audit.Logg(
                         action: "token.introspect.non_auth",
-                        target: $"client={clientId} token_use={tokenUse}"
+                        target: $"client={clientId} mad={madUse}"
                     );
             }
 
@@ -1337,7 +1337,8 @@ public static class AuthService
                 ["scope"] = jwt.Claims.Where(c => c.Type == "scope").Select(c => c.Value).ToArray(),
                 ["client_id"] = jwt.Claims.FirstOrDefault(c => c.Type == "client_id")?.Value ?? "unknown",
                 ["username"] = jwt.Claims.FirstOrDefault(c => c.Type == "username")?.Value ?? "unknown",
-                ["token_use"] = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "auth"
+                ["token_use"] = jwt.Claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "access",
+                ["mad"] = jwt.Claims.FirstOrDefault(c => c.Type == "mad")?.Value ?? "auth"
             };
 
             if (config.EnableAuditLogging)

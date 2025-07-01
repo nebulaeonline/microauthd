@@ -17,7 +17,7 @@ public static class TokenIssuer
         DateTime IssuedAt,
         DateTime ExpiresAt,
         string UserId,
-        string TokenUse
+        string MadUse
     );
 
     /// <summary>
@@ -48,7 +48,7 @@ public static class TokenIssuer
         var now = DateTime.UtcNow;
         var expires = now.AddSeconds(isAdmin ? config.AdminTokenExpiration : config.TokenExpiration);
         var jti = Guid.NewGuid().ToString("N");
-        var tokenUse = isAdmin ? "admin" : "auth";
+        var madUse = isAdmin ? "admin" : "auth";
         var aud = audience;
 
         // Base claims (ignore Aud as claim — it’s redundant)
@@ -57,7 +57,8 @@ public static class TokenIssuer
             new(JwtRegisteredClaimNames.Sub, userClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value ?? "unknown"),
             new(JwtRegisteredClaimNames.Jti, jti),
             new(JwtRegisteredClaimNames.Iat, ((DateTimeOffset)now).ToUnixTimeSeconds().ToString()),
-            new("token_use", tokenUse)
+            new("mad", madUse),
+            new("token_use", "access")
         };
 
         // Propagate other claims, including client_id
@@ -67,18 +68,25 @@ public static class TokenIssuer
                 claims.Add(c);
         }
 
+        // Set the JWT header
+        var header = new JwtHeader(signingCredentials);
+        header["typ"] = "JWT";
+
         var jwt = new JwtSecurityToken(
-            issuer: config.OidcIssuer,
-            audience: aud,
-            claims: claims,
-            notBefore: now,
-            expires: expires,
-            signingCredentials: signingCredentials
+            header,
+            payload: new JwtPayload(
+                issuer: config.OidcIssuer,
+                audience: aud,
+                claims: claims,
+                notBefore: now,
+                expires: expires,
+                issuedAt: now
+            )
         );
 
         var token = new JwtSecurityTokenHandler().WriteToken(jwt);
 
-        return new TokenInfo(token, jti, now, expires, userId, tokenUse);
+        return new TokenInfo(token, jti, now, expires, userId, madUse);
     }
 
     /// <summary>
@@ -117,7 +125,9 @@ public static class TokenIssuer
             new(JwtRegisteredClaimNames.Aud, clientId),
             new(JwtRegisteredClaimNames.Iat, ((DateTimeOffset)now).ToUnixTimeSeconds().ToString()),
             new(JwtRegisteredClaimNames.Exp, ((DateTimeOffset)expires).ToUnixTimeSeconds().ToString()),
-            new("token_use", "id")
+            new("token_use", "id"),
+            new("mad", "id"),
+            new("auth_time", ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeSeconds().ToString())
         };
 
         // email + email_verified if present
@@ -131,13 +141,19 @@ public static class TokenIssuer
         if (!string.IsNullOrEmpty(nonce))
             claims.Add(new Claim("nonce", nonce));
 
+        var header = new JwtHeader(signingCredentials);
+        header["typ"] = "JWT";
+
         var jwt = new JwtSecurityToken(
-            issuer: config.OidcIssuer,
-            audience: clientId,
-            claims: claims,
-            notBefore: now,
-            expires: expires,
-            signingCredentials: signingCredentials
+            header,
+            payload: new JwtPayload(
+                issuer: config.OidcIssuer,
+                audience: clientId,
+                claims: claims,
+                notBefore: now,
+                expires: expires,
+                issuedAt: now
+            )
         );
 
         return new JwtSecurityTokenHandler().WriteToken(jwt);

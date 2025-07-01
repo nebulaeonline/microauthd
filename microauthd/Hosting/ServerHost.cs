@@ -112,10 +112,11 @@ public static class ServerHost
 
                                 var claims = context.Principal?.Claims?.ToList() ?? new List<Claim>();
                                 var rawUserId = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
-                                var tokenUse = claims.FirstOrDefault(c => c.Type == "token_use")?.Value ?? "";
+                                var madUse = claims.FirstOrDefault(c => c.Type == "mad")?.Value ?? "";
                                 Guid parsed;
-                                var userId = tokenUse == "auth" && Guid.TryParse(rawUserId, out parsed) ? rawUserId : null;
+                                var userId = madUse == "auth" && Guid.TryParse(rawUserId, out parsed) ? rawUserId : null;
                                 var jti = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+                                var tokenUse = claims.FirstOrDefault(c => c.Type == "token_use")?.Value;
 
                                 // Heuristic to reject ID tokens used as access tokens
                                 if (claims.Any(c => c.Type == "nonce"))
@@ -133,7 +134,7 @@ public static class ServerHost
                                 }
 
                                 // Check session revocation if enabled
-                                if (config.EnableTokenRevocation && tokenUse == "auth")
+                                if (config.EnableTokenRevocation && madUse == "auth")
                                 {
                                     if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(jti))
                                     {
