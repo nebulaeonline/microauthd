@@ -47,7 +47,7 @@ I will keep the last 5 days of updates here; older updates can be found in the [
 
 **2025-06-30**
 
-The testsuite is rounding into shape. Normally I would have been writing tests as I went, but this one is a bit trickier than most. We have the end-to-end testing via the Python suite, which hits the CRUD on every endpoint including token issuance, renewal and invalidation testing. But there's a lot of standalone and database functions that don't get e2e testing via Python, and so I'm filling in the blanks. It's about 30% of the way done. I hope to have close to 100% coverage within the next week or so, so you can rest assured that microauthd is being worked out from a testing perspective.
+The testsuite is rounding into shape. Normally I would have been writing tests as I went, but this one is a bit trickier than most. We have the end-to-end testing via the Python suite, which hits the CRUD on every endpoint including token issuance, renewal and invalidation testing. But there's a lot of standalone and database functions that don't get e2e testing via Python, and so I'm filling in the blanks. It's about 90% of the way done. I hope to have close to 100% coverage within the next week or so, so you can rest assured that microauthd is being worked out from a testing perspective.
 
 **2025-06-29**
 
