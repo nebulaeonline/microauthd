@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 6;
+    private const int CurrentSchemaVersion = 7;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -146,6 +146,9 @@ public static class DbMigrations
             case (5, 6):
                 Migrate_5_to_6();
                 break;
+            case (6, 7):
+                Migrate_6_to_7();
+                break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
         }
@@ -240,6 +243,21 @@ public static class DbMigrations
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = "ALTER TABLE pkce_codes ADD COLUMN scope TEXT;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+    }
+
+    // Migration: v6 to v7
+    // Add `is_openid_token` column to `refresh_tokens` table
+    private static void Migrate_6_to_7()
+    {
+        if (!ColumnExists("refresh_tokens", "is_openid_token"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE refresh_tokens ADD COLUMN is_openid_token INT DEFAULT 0;";
                 cmd.ExecuteNonQuery();
             });
         }

@@ -3,6 +3,7 @@ using microauthd.Config;
 using Serilog;
 using System.Globalization;
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace microauthd.Data
 {
@@ -272,25 +273,43 @@ namespace microauthd.Data
         /// <summary>
         /// Retrieves a list of claims associated with the specified user.
         /// </summary>
-        /// <remarks>This method fetches claims based on the user's active roles and scopes from the
-        /// database. Claims are generated for roles and scopes that are marked as active for both the user and the
-        /// respective entities.</remarks>
-        /// <param name="userId">The unique identifier of the user whose claims are to be retrieved.</param>
-        /// <returns>A list of <see cref="Claim"/> objects representing the user's roles and scopes. Each claim will have a type
-        /// of "role" or "scope" and a value corresponding to the role or scope ID.</returns>
+        /// <remarks>This method retrieves claims from multiple sources, including user information, 
+        /// roles, and scopes. Claims are deduplicated where applicable.  The caller is responsible for ensuring that
+        /// the <paramref name="userId"/>  is valid and corresponds to an existing user.</remarks>
+        /// <param name="userId">The unique identifier of the user for whom claims are to be retrieved.  This value cannot be null or empty.</param>
+        /// <returns>A list of <see cref="Claim"/> objects representing the user's claims.  The list will include standard claims
+        /// such as the user's ID, username, email,  email verification status, roles, and scopes. If the user does not
+        /// exist,  an empty list is returned.</returns>
         public static List<Claim> GetUserClaims(string userId)
         {
             var claims = new List<Claim>();
 
-            foreach (var role in RoleStore.GetUserRoles(userId))
+            var user = UserStore.GetUserById(userId);
+
+            if (user is not null)
+            {
+                // Add standard claims
+
+                // Preferred username
+                if (!string.IsNullOrEmpty(user.Username))
+                    claims.Add(new Claim("preferred_username", user.Username));
+
+                // User Id
+                claims.Add(new Claim(JwtRegisteredClaimNames.Sub, user.Id));
+
+                // Email
+                if (!string.IsNullOrEmpty(user.Email))
+                    claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+
+                // Email verification status
+                claims.Add(new Claim(JwtRegisteredClaimNames.EmailVerified, user.EmailVerified ? "true" : "false"));
+            }
+
+            foreach (var role in RoleStore.GetUserRoles(userId).Distinct())
                 claims.Add(new Claim("role", role));
 
-            foreach (var scope in ScopeStore.GetUserScopes(userId))
+            foreach (var scope in ScopeStore.GetUserScopes(userId).Distinct())
                 claims.Add(new Claim("scope", scope));
-
-            var emailVerified = UserStore.GetUserEmailVerified(userId);
-            claims.Add(new Claim("email_verified", emailVerified ? "true" : "false"));
-
 
             return claims;
         }

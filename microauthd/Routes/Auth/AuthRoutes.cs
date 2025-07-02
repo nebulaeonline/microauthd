@@ -59,22 +59,45 @@ public static class AuthRoutes
         .WithTags("Security");
 
         // user info endpoint***********************************************************************
-        group.MapGet("/userinfo", (ClaimsPrincipal user, AppConfig config) =>
+        group.MapGet("/userinfo", (HttpContext context, ClaimsPrincipal user, AppConfig config) =>
         {
+            var accessToken = context.Request.Headers.Authorization.FirstOrDefault()?.Split(" ").Last();
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                context.Response.Headers.WWWAuthenticate = @"Bearer error=""invalid_token"", error_description=""Missing access token""";
+                return Results.Unauthorized();
+            }
+
             var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
                    ?? user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
             if (string.IsNullOrWhiteSpace(sub) || !Guid.TryParse(sub, out _))
-                return Results.Unauthorized(); // must be a valid user token
+            {
+                context.Response.Headers.WWWAuthenticate = @"Bearer error=""invalid_token"", error_description=""Invalid or missing 'sub' claim""";
+                return Results.Unauthorized();
+            }
 
             var scope = user.FindFirst("scope")?.Value;
             if (string.IsNullOrWhiteSpace(scope) || !scope.Split(' ').Contains("openid"))
-                return Results.Forbid(); // requires openid scope
+            {
+                context.Response.Headers.WWWAuthenticate = @"Bearer error=""insufficient_scope"", error_description=""Missing 'openid' scope""";
+                return Results.Forbid();
+            }
 
+            var tokenUse = user.FindFirst("token_use")?.Value;
+            if (tokenUse != null && tokenUse != "access")
+            {
+                context.Response.Headers.WWWAuthenticate = @"Bearer error=""invalid_token"", error_description=""Token must be of type 'access'""";
+                return Results.Forbid();
+            }
+
+            // Optional claims
             var email = user.FindFirst(ClaimTypes.Email)?.Value;
             var name = user.FindFirst("name")?.Value
                      ?? user.FindFirst("preferred_username")?.Value
                      ?? user.FindFirst(ClaimTypes.Name)?.Value;
+
+            var username = user.FindFirst("username")?.Value;
 
             var claims = new Dictionary<string, object>
             {
@@ -92,6 +115,9 @@ public static class AuthRoutes
             if (!string.IsNullOrWhiteSpace(name))
                 claims["name"] = name;
 
+            if (!string.IsNullOrWhiteSpace(username))
+                claims["preferred_username"] = username;
+
             var emailVerified = user.FindFirst("email_verified")?.Value;
             if (emailVerified != null)
                 claims["email_verified"] = bool.TryParse(emailVerified, out var v) && v;
@@ -102,6 +128,7 @@ public static class AuthRoutes
         .WithName("UserInfo")
         .WithTags("OIDC")
         .WithOpenApi();
+
 
         // me endpoint******************************************************************************
         group.MapGet("/me", (ClaimsPrincipal user) =>

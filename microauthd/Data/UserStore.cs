@@ -19,6 +19,7 @@ public class RefreshToken
     public DateTime ExpiresAt { get; init; }
     public bool IsRevoked { get; init; }
     public string ClientIdentifier { get; init; } = string.Empty;
+    public bool IsOpenIdToken { get; init; } = false;
 }
 
 public static class UserStore
@@ -533,7 +534,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, session_id, expires_at, is_revoked, client_identifier
+                SELECT id, user_id, session_id, expires_at, is_revoked, client_identifier, is_openid_token
                 FROM refresh_tokens
                 WHERE refresh_token_sha256 = $sha256;
             """;
@@ -552,7 +553,8 @@ public static class UserStore
                     System.Globalization.DateTimeStyles.AssumeUniversal |
                         System.Globalization.DateTimeStyles.AdjustToUniversal),
                 IsRevoked = reader.GetInt64(4) == 1,
-                ClientIdentifier = reader.GetString(5)
+                ClientIdentifier = reader.GetString(5),
+                IsOpenIdToken = reader.GetInt64(6) == 1
             };
         });
 
@@ -584,6 +586,7 @@ public static class UserStore
                     rt.issued_at,
                     rt.expires_at,
                     rt.is_revoked
+                    rt.is_open_id_token
                 FROM refresh_tokens rt
                 JOIN users u ON rt.user_id = u.id
                 ORDER BY rt.issued_at DESC
@@ -606,7 +609,8 @@ public static class UserStore
                     ClientIdentifier = reader.GetString(4),
                     IssuedAt = reader.GetDateTime(5).ToUniversalTime(),
                     ExpiresAt = reader.GetDateTime(6).ToUniversalTime(),
-                    IsRevoked = reader.GetBoolean(7)
+                    IsRevoked = reader.GetBoolean(7),
+                    IsOpenIdToken = reader.GetInt64(8) == 1
                 });
             }
 
@@ -930,7 +934,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, session_id, issued_at, expires_at, is_revoked
+                SELECT id, user_id, session_id, issued_at, expires_at, is_revoked, is_openid_token
                 FROM refresh_tokens
                 WHERE user_id = $uid
                 ORDER BY issued_at DESC;
@@ -955,7 +959,8 @@ public static class UserStore
                         CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.AssumeUniversal |
                             System.Globalization.DateTimeStyles.AdjustToUniversal),
-                    IsRevoked = reader.GetInt64(5) == 1
+                    IsRevoked = reader.GetInt64(5) == 1,
+                    IsOpenIdToken = reader.GetInt64(6) == 1
                 });
             }
 
@@ -1148,7 +1153,7 @@ public static class UserStore
     /// <param name="hash">The hashed value of the refresh token for secure storage.</param>
     /// <param name="sha256Hash">The SHA-256 hash of the refresh token for additional security.</param>
     /// <param name="expires">The expiration date and time of the refresh token in UTC.</param>
-    public static void StoreRefreshToken(string id, string userId, string sessionId, string clientIdent, string sha256Hash, DateTime expires)
+    public static void StoreRefreshToken(string id, string userId, string sessionId, string clientIdent, string sha256Hash, DateTime expires, bool isOpenIdToken)
     {
         Db.WithConnection(conn =>
         {
@@ -1156,9 +1161,9 @@ public static class UserStore
             cmd.CommandText = """
                     INSERT INTO refresh_tokens (
                         id, user_id, session_id, client_identifier,
-                        refresh_token_sha256, issued_at, expires_at, is_revoked
+                        refresh_token_sha256, issued_at, expires_at, is_revoked, is_openid_token
                     )
-                    VALUES ($id, $userId, $sessionId, $cid, $sha256, $issuedAt, $expiresAt, 0);
+                    VALUES ($id, $userId, $sessionId, $cid, $sha256, $issuedAt, $expiresAt, 0, $openId);
                 """;
             cmd.Parameters.AddWithValue("$id", id);
             cmd.Parameters.AddWithValue("$userId", userId);
@@ -1167,6 +1172,7 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$sha256", sha256Hash);
             cmd.Parameters.AddWithValue("$issuedAt", DateTime.UtcNow.ToString("o"));
             cmd.Parameters.AddWithValue("$expiresAt", expires.ToString("o"));
+            cmd.Parameters.AddWithValue("$openId", isOpenIdToken ? 1 : 0);
             cmd.ExecuteNonQuery();
         });
     }
@@ -1185,7 +1191,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    SELECT id, user_id, session_id, issued_at, expires_at, is_revoked
+                    SELECT id, user_id, session_id, issued_at, expires_at, is_revoked, is_openid_token
                     FROM refresh_tokens
                     ORDER BY issued_at DESC;
                 """;
@@ -1208,7 +1214,8 @@ public static class UserStore
                         CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.AssumeUniversal |
                             System.Globalization.DateTimeStyles.AdjustToUniversal),
-                    IsRevoked = reader.GetInt64(5) == 1
+                    IsRevoked = reader.GetInt64(5) == 1,
+                    IsOpenIdToken = reader.GetInt64(6) == 1
                 });
             }
 
@@ -1233,7 +1240,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, session_id, issued_at, expires_at, is_revoked
+                SELECT id, user_id, session_id, issued_at, expires_at, is_revoked, is_openid_token
                 FROM refresh_tokens
                 WHERE id = $id;
             """;
@@ -1256,7 +1263,8 @@ public static class UserStore
                         CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.AssumeUniversal |
                             System.Globalization.DateTimeStyles.AdjustToUniversal),
-                IsRevoked = reader.GetInt64(5) == 1
+                IsRevoked = reader.GetInt64(5) == 1,
+                IsOpenIdToken = reader.GetInt64(6) == 1
             };
         });
     }

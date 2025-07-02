@@ -967,7 +967,8 @@ public static class UserService
         AppConfig config,
         string userId,
         string sessionId,
-        string clientIdent)
+        string clientIdent,
+        bool isOpenIdToken)
     {
         var raw = Utils.GenerateBase64EncodedRandomBytes(32);
         var expires = DateTime.UtcNow.AddSeconds(config.RefreshTokenExpiration);
@@ -983,7 +984,8 @@ public static class UserService
             sessionId: sessionId,
             clientIdent: clientIdent,
             sha256Hash: sha256,
-            expires: expires
+            expires: expires,
+            isOpenIdToken: isOpenIdToken
         );
 
         return raw; // return the un-hashed token to send to client

@@ -20,4 +20,6 @@ public sealed class RefreshTokenResponse
     public DateTime ExpiresAt { get; init; }
     [JsonPropertyName("is_revoked")]
     public bool IsRevoked { get; init; }
+    [JsonPropertyName("is_openid_token")]
+    public bool IsOpenIdToken { get; init; } = false;
 }
