@@ -51,6 +51,8 @@ I will keep the last 5 days of updates here; older updates can be found in the [
 
 **2025-07-02**
 
+TOTP is working again, and we added an --otp-issuer option so that you can control how your entry will appear in authentication apps like Google Authenticator; it was previously hardcoded to microauthd, but we didn't like that look.
+
 The march continues for bringing our tokens and our token issuance into compliance with OAuth2 and OIDC. Fixed a bug where Id Tokens were not being issued in the case of refresh, even if the original token had an openid scope. Also updated /userinfo to bring it into compliance with OAuth2 specifications.
 
 **2025-07-01**
