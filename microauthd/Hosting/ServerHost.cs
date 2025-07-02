@@ -178,6 +178,12 @@ public static class ServerHost
 
                 // Set up our scheduled task service
                 builder.Services.AddHostedService<ScheduledTaskService>();
+
+                // Set up our anti-forgery token service
+                builder.Services.AddAntiforgery(options =>
+                {
+                    options.HeaderName = "X-CSRF-TOKEN";
+                });
             },
             app =>
             {
@@ -234,6 +240,8 @@ public static class ServerHost
                         FileProvider = fileProvider,
                         RequestPath = ""
                     });
+
+                    app.UseAntiforgery();
                 }
             },
             config

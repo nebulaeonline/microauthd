@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 6;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -140,6 +140,12 @@ public static class DbMigrations
             case (3, 4):
                 Migrate_3_to_4();
                 break;
+            case (4, 5):
+                Migrate_4_to_5();
+                break;
+            case (5, 6):
+                Migrate_5_to_6();
+                break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
         }
@@ -198,6 +204,42 @@ public static class DbMigrations
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = "ALTER TABLE sessions ADD COLUMN mad_use TEXT DEFAULT '';";
+                cmd.ExecuteNonQuery();
+            });
+        }
+    }
+
+    // Migration: v4 to v5
+    // Add AuthSession table
+    private static void Migrate_4_to_5()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS auth_sessions (
+                    jti TEXT PRIMARY KEY,
+                    query_string TEXT NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    expires_at DATETIME NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_auth_session_expiration 
+                    ON auth_sessions (expires_at);
+            """;
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    // Migration: v5 to v6
+    // Add `scope` column to `pkce_codes` table
+    private static void Migrate_5_to_6()
+    {
+        if (!ColumnExists("pkce_codes", "scope"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE pkce_codes ADD COLUMN scope TEXT;";
                 cmd.ExecuteNonQuery();
             });
         }

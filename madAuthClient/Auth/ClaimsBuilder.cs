@@ -37,12 +37,7 @@ public static class ClaimsBuilder
             foreach (var scope in userInfo.Scopes)
                 claims.Add(new Claim("scope", scope));
         }
-
-        // Raw tokens (for later refresh/revoke)
-        claims.Add(new Claim("access_token", token.AccessToken));
-        if (!string.IsNullOrWhiteSpace(token.RefreshToken))
-            claims.Add(new Claim("refresh_token", token.RefreshToken));
-
+                
         return claims;
     }
 }

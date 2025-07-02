@@ -23,6 +23,10 @@ public static class TokenToCookieBridge
             ExpiresUtc = expiresUtc
         };
 
+        authProps.Items["access_token"] = token.AccessToken;
+        if (!string.IsNullOrWhiteSpace(token.RefreshToken))
+            authProps.Items["refresh_token"] = token.RefreshToken;
+        
         await httpContext.SignInAsync(scheme, principal, authProps);
     }
 

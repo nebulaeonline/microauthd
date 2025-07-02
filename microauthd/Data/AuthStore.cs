@@ -18,9 +18,9 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     INSERT INTO pkce_codes 
-                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti, nonce)
+                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti, nonce, scope)
                     VALUES
-                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti, $nonce);
+                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti, $nonce, $scope);
                 """;
 
                 cmd.Parameters.AddWithValue("$code", pkce.Code);
@@ -33,6 +33,7 @@ namespace microauthd.Data
                 cmd.Parameters.AddWithValue("$user_id", pkce.UserId);
                 cmd.Parameters.AddWithValue("$jti", (object?)pkce.Jti ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$nonce", (object?)pkce.Nonce ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$scope", pkce.Scope);
 
                 cmd.ExecuteNonQuery();
             });
@@ -55,7 +56,7 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     SELECT code, client_identifier, redirect_uri, code_challenge, code_challenge_method,
-                           expires_at, is_used, user_id, jti, nonce
+                           expires_at, is_used, user_id, jti, nonce, scope
                     FROM pkce_codes
                     WHERE code = $code
                     LIMIT 1;
@@ -80,7 +81,8 @@ namespace microauthd.Data
                     IsUsed = reader.GetBoolean(6),
                     UserId = reader.GetString(7),
                     Jti = reader.IsDBNull(8) ? null : reader.GetString(8),
-                    Nonce = reader.IsDBNull(9) ? null : reader.GetString(9)
+                    Nonce = reader.IsDBNull(9) ? null : reader.GetString(9),
+                    Scope = reader.IsDBNull(10) ? null : reader.GetString(10)
                 };
             });
         }

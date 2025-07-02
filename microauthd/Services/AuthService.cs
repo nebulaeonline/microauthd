@@ -7,7 +7,9 @@ using microauthd.Config;
 using microauthd.Data;
 using microauthd.Tokens;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using OtpNet;
@@ -359,7 +361,8 @@ public static class AuthService
             CodeChallengeMethod = codeChallengeMethod,
             ExpiresAt = DateTime.UtcNow.AddSeconds(config.PkceCodeLifetime),
             IsUsed = false,
-            Nonce = nonce
+            Nonce = nonce,
+            Scope = scope
         };
 
         // Store the PKCE code in the auth store
@@ -482,19 +485,17 @@ public static class AuthService
             claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
         // If this is an OIDC request, check for nonce re-use
-        var issueIdToken = scopeValues.Contains("openid");
+        var issueIdToken = (pkce.Scope is null) ? false : pkce.Scope.Contains("openid");
 
         if (issueIdToken)
         {
             if (!string.IsNullOrWhiteSpace(pkce.Nonce))
             {
-                if (AuthStore.DoesNonceExistForUserAndClient(user.Id, actualClientId, pkce.Nonce))
+                if (!AuthStore.InsertNonce(user.Id, actualClientId, pkce.Nonce))
                 {
-                    Log.Warning("PKCE exchange failed: nonce was re-used for this user={UserId}, client={ClientId}, Nonce={Nonce}.", user.Id, actualClientId, pkce.Nonce);
+                    Log.Warning("PKCE exchange failed: nonce was reused (replay attack) for user={UserId}, client={ClientId}, Nonce={Nonce}.", user.Id, actualClientId, pkce.Nonce);
                     return OidcErrors.InvalidGrant<TokenResponse>();
                 }
-
-                AuthStore.InsertNonce(user.Id, actualClientId, pkce.Nonce);
             }
             else
             {
@@ -601,6 +602,85 @@ public static class AuthService
         return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Login successful"));
     }
 
+    /// <summary>
+    /// Handles the login process for a user through a UI form and generates an authorization code for the client
+    /// application.
+    /// </summary>
+    /// <remarks>This method validates the provided login credentials and session identifier, ensures the
+    /// redirect URI is valid,  and generates an authorization code for the client application. The authorization code
+    /// is included in the query  string of the redirect URI. If any validation fails, an appropriate error response is
+    /// returned.</remarks>
+    /// <param name="form">The form collection containing the login credentials and session identifier. Must include "username",
+    /// "password", and "jti".</param>
+    /// <param name="config">The application configuration used for authentication and other settings.</param>
+    /// <param name="ctx">The current HTTP context, used for managing the request and response lifecycle.</param>
+    /// <returns>An <see cref="IResult"/> representing the outcome of the login process.  Returns a redirect to the client
+    /// application's <c>redirect_uri</c> with an authorization code on success.  Returns a <c>400 Bad Request</c>
+    /// result if any required fields are missing, the session is invalid or expired,  the redirect URI is invalid, or
+    /// the credentials are incorrect.</returns>
+    public static IResult HandleUiLogin(IFormCollection form, AppConfig config, HttpContext ctx)
+    {
+        var username = form["username"];
+        var password = form["password"];
+        var jti = form["jti"];
+
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(jti))
+            return Results.BadRequest("Missing required fields.");
+
+        var session = AuthSessionStore.Consume(jti);
+        if (session is null)
+            return Results.BadRequest("Invalid or expired session.");
+
+        var parsed = QueryHelpers.ParseQuery(session.QueryString);
+
+        string clientId = parsed["client_id"];
+        string redirectUri = parsed["redirect_uri"];
+        string codeChallenge = parsed["code_challenge"];
+        string codeMethod = parsed["code_challenge_method"];
+        string scope = parsed["scope"];
+        string state = parsed.ContainsKey("state") ? parsed["state"] : "";
+        string nonce = parsed.ContainsKey("nonce") ? parsed["nonce"] : "";
+
+        if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
+            return Results.BadRequest("Invalid redirect_uri.");
+
+        var authResult = AuthenticateUser(username, password, config);
+        if (authResult is null || !authResult.Value.Success)
+            return Results.BadRequest("Invalid credentials.");
+
+        if (scope is not null && scope.Contains("openid") && string.IsNullOrWhiteSpace(nonce))
+            return Results.BadRequest("Missing nonce for openid scope");
+
+        var user = authResult.Value;
+
+        var code = Utils.GenerateBase64EncodedRandomBytes(32);
+
+        AuthStore.StorePkceCode(new PkceCode
+        {
+            Code = code,
+            ClientIdentifier = clientId,
+            RedirectUri = redirectUri,
+            CodeChallenge = codeChallenge,
+            CodeChallengeMethod = codeMethod,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            IsUsed = false,
+            UserId = user.UserId,
+            Jti = jti, 
+            Nonce = string.IsNullOrWhiteSpace(nonce) ? null : nonce,
+            Scope = scope
+        });
+
+        var redirect = new UriBuilder(redirectUri);
+        var q = QueryHelpers.ParseQuery(redirect.Query);
+        q["code"] = code;
+        if (!string.IsNullOrEmpty(state))
+            q["state"] = state;
+
+        var finalQuery = new QueryBuilder(q.SelectMany(kvp => kvp.Value.Select(v => new KeyValuePair<string, string>(kvp.Key, v))));
+        redirect.Query = finalQuery.ToQueryString().Value;
+
+        return Results.Redirect(redirect.ToString());
+    }
 
     /// <summary>
     /// Issues an administrative access token for a user with valid credentials and the required admin role.
@@ -805,6 +885,9 @@ public static class AuthService
     /// result if the refresh token is invalid, expired, or revoked.</returns>
     public static ApiResult<TokenResponse> RefreshAccessToken(IFormCollection form, AppConfig config)
     {
+        if (!config.EnableTokenRefresh)
+            return ApiResult<TokenResponse>.Fail("Invalid request", 400);
+
         try
         {
             var raw = form["refresh_token"].ToString();
@@ -1110,6 +1193,7 @@ public static class AuthService
             ScopesSupported = new[] { "openid", "email", "profile" },
             ClaimsSupported = new[] { "sub", "email", "jti", "iat", "exp", "aud", "iss", "token_use", "mad" },
             UserInfoEndpoint = $"{baseUrl}/userinfo",
+            AuthorizationUIEndpoint = $"{baseUrl}/authorize-ui"
         };
 
         return ApiResult<OidcDiscoveryResponse>.Ok(discovery);

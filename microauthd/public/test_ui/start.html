@@ -1,0 +1,34 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Login UI Demo - Start</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="pkce.js"></script>
+</head>
+<body>
+    <h2>Login UI Demo</h2>
+    <p>Click the button to begin the form-based PKCE login flow.</p>
+    <button onclick="beginFlow()">Begin Flow</button>
+
+    <script>
+    async function beginFlow() {
+      const verifier = generateRandomCodeVerifier();
+      const challenge = await sha256Challenge(verifier);
+      sessionStorage.setItem("code_verifier", verifier);
+
+      const params = new URLSearchParams({
+        client_id: "demo",
+        redirect_uri: location.origin + "/test_ui/consume.html",
+        scope: "openid",
+        response_type: "code", // not used, just for spec alignment
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+        state: "ui_test_123",
+        nonce: "abc123"
+      });
+
+      window.location.href = "/authorize-ui?" + params.toString();
+    }
+    </script>
+</body>
+</html>

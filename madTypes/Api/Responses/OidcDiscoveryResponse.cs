@@ -22,4 +22,6 @@ public sealed class OidcDiscoveryResponse
     public required string[] ClaimsSupported { get; init; }
     [JsonPropertyName("userinfo_endpoint")]
     public required string UserInfoEndpoint { get; init; }
+    [JsonPropertyName("authorization_ui_endpoint")]
+    public required string AuthorizationUIEndpoint { get; init; }
 }

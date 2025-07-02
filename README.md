@@ -51,6 +51,8 @@ Big changes in bringing several of the API responses into RFC compliance with OA
 
 The next big project in preparation for an alpha release is to solidify API responses and make them uniform. What I am specifically going to focus on is returning 404 errors where appropriate rather than blanket 400 errors. It'll be a big project, but it will bring clarity to consumers of the JSON/HTTP APIs.
 
+Made a lot of progress today with implementing standard login flows expected by OAuth2 and OIDC clients. This lays the groundwork for acting as a client rather than a server for 3rd party logins and federated IAM/IdP systems. Demos for both flows are in the /public directory.
+
 **2025-06-30**
 
 The testsuite is rounding into shape. Normally I would have been writing tests as I went, but this one is a bit trickier than most. We have the end-to-end testing via the Python suite, which hits the CRUD on every endpoint including token issuance, renewal and invalidation testing. But there's a lot of standalone and database functions that don't get e2e testing via Python, and so I'm filling in the blanks. It's about 90% of the way done. I hope to have close to 100% coverage within the next week or so, so you can rest assured that microauthd is being worked out from a testing perspective.

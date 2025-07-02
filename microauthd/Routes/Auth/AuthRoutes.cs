@@ -7,7 +7,9 @@ using microauthd.Config;
 using microauthd.Data;
 using microauthd.Services;
 using microauthd.Tokens;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.IdentityModel.Tokens;
 using nebulae.dotArgon2;
@@ -44,6 +46,17 @@ public static class AuthRoutes
         .AllowAnonymous()
         .WithTags("Info")
         .WithOpenApi();
+
+        // anti-forgery endpoint********************************************************************
+        group.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext ctx) =>
+        {
+            var tokens = antiforgery.GetAndStoreTokens(ctx);
+            ctx.Response.Headers["X-CSRF-TOKEN"] = tokens.RequestToken!;
+            return Results.Text(tokens.RequestToken!);
+        })
+        .AllowAnonymous()
+        .WithName("GetAntiforgeryToken")
+        .WithTags("Security");
 
         // user info endpoint***********************************************************************
         group.MapGet("/userinfo", (ClaimsPrincipal user, AppConfig config) =>
@@ -167,11 +180,71 @@ public static class AuthRoutes
             .Produces<Dictionary<string, object>>(StatusCodes.Status200OK);
         }
 
+        // authorize for pkce with prompt endpoint**************************************************
+        if (config.EnablePkce)
+        {
+            group.MapGet("/authorize-ui", (HttpRequest request, HttpContext ctx, AppConfig config) =>
+            {
+                var clientId = request.Query["client_id"].ToString();
+                var redirectUri = request.Query["redirect_uri"].ToString();
+
+                if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
+                    return Results.BadRequest("Invalid flow");
+
+                var jti = Utils.GenerateBase64EncodedRandomBytes(16);
+                var qs = request.QueryString.HasValue ? request.QueryString.Value : "";
+
+                AuthSessionStore.Insert(new AuthSessionDto
+                {
+                    Jti = jti,
+                    QueryString = qs!,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    ExpiresAtUtc = DateTime.UtcNow + TimeSpan.FromMinutes(5)
+                });
+
+                return Results.Redirect($"/login.html?jti={Uri.EscapeDataString(jti)}");
+            })
+            .WithName("AuthorizeUI")
+            .WithTags("oidc")
+            .Produces<Dictionary<string, object>>(StatusCodes.Status200OK);
+        }
+
+        // handle ui based pkce login endpoint******************************************************
+        if (config.EnablePkce)
+        {
+            group.MapPost("/login-ui", (HttpContext ctx, AppConfig config, IFormCollection form) =>
+
+                AuthService.HandleUiLogin(form, config, ctx)
+
+            )
+            .WithName("LoginUI")
+            .WithTags("Oidc");
+        }
+
+        // get auth session endpoint****************************************************************
+        if (config.EnablePkce)
+        {
+            group.MapGet("/auth_session/{jti}", (string jti) =>
+            {
+                var session = AuthSessionStore.Get(jti);
+
+                return session is null
+                    ? Results.NotFound()
+                    : Results.Json(session, MicroauthdJsonContext.Default.AuthSessionDto);
+            })
+            .WithName("GetAuthSession")
+            .WithTags("oidc");
+        }
+
         // login for pkce endpoint******************************************************************
         if (config.EnablePkce)
         {
-            group.MapPost("/login", async (HttpContext ctx, AppConfig config) =>
+            group.MapPost("/login", async (HttpContext ctx, IAntiforgery antiforgery, AppConfig config) =>
             {
+                var valid = await antiforgery.IsRequestValidAsync(ctx);
+                if (!valid)
+                    return Results.StatusCode(StatusCodes.Status400BadRequest);
+
                 if (!ctx.Request.HasFormContentType)
                     return Results.BadRequest(new ErrorResponse(false, "Invalid content type"));
 
@@ -180,6 +253,8 @@ public static class AuthRoutes
                 var password = form["password"].ToString();
                 var code = form["code"].ToString();
                 var redirectUri = form["redirect_uri"].ToString();
+                var scope = form["scope"];
+                var nonce = form["nonce"];
 
                 var result = AuthService.HandleUserLoginWithCode(username, password, code, redirectUri, config);
                 return result.ToHttpResult();
@@ -187,6 +262,7 @@ public static class AuthRoutes
             .AllowAnonymous()
             .WithName("HandleUserLogin")
             .Produces<MessageResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
             .WithTags("Auth")
             .WithOpenApi();

@@ -81,6 +81,12 @@ namespace microauthd.Common
                 var t when t == typeof(List<AuditLogResponse>) =>
                     MicroauthdJsonContext.Default.ListAuditLogResponse,
 
+                var t when t == typeof(AuthSessionDto) =>
+                    MicroauthdJsonContext.Default.AuthSessionDto,
+
+                var t when t == typeof(List<AuthSessionDto>) =>
+                    MicroauthdJsonContext.Default.ListAuthSessionDto,
+
                 var t when t == typeof(ClientObject) =>
                     MicroauthdJsonContext.Default.ClientObject,
 

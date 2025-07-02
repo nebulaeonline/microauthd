@@ -1,84 +1,72 @@
-<!DOCTYPE html>
-<html>
+﻿<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>microauthd Login</title>
-    <link rel="stylesheet" href="style.css" />
-    <script src="pkce.js"></script>
-</head>
-<body>
-    <h2>Login</h2>
-    <form id="loginForm">
-        <input type="text" id="username" placeholder="Username" required />
-        <input type="password" id="password" placeholder="Password" required />
-        <input type="text" id="client_id" placeholder="Client ID" value="demo" required />
-        <button type="submit">Log In</button>
-    </form>
-    <pre id="output"></pre>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/style.css">
+    <script defer>
+    // Parse query params into hidden inputs
+    async function setQueryParams() {
+        const jti = new URLSearchParams(window.location.search).get("jti");
+        if (!jti) return;
 
-    <script>
-    const form = document.getElementById("loginForm");
-    const output = document.getElementById("output");
+        try {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = "jti";
+            input.value = jti;
+            document.getElementById("loginForm").appendChild(input);
 
-    form.onsubmit = async (e) => {
-      e.preventDefault();
+            const res = await fetch(`/auth_session/${jti}`);
+            if (!res.ok) throw new Error("Unable to load session");
 
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
-      const client_id = document.getElementById("client_id").value;
-      const code = new URLSearchParams(location.search).get("code");
-      const redirect_uri = "http://localhost:9040/login.html";
-      const code_verifier = sessionStorage.getItem("pkce_verifier");
+            const data = await res.json();
+            const qs = new URLSearchParams(data.query_string);
 
-      if (!code || !code_verifier) {
-        output.textContent = "Missing code or code_verifier.";
-        return;
-      }
+            for (const name of ['client_id', 'redirect_uri', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'scope']) {
+                const val = qs.get(name);
+                if (val) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = val;
+                    document.getElementById('loginForm').appendChild(input);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch session data:", err);
+        }
+    }
 
-      const formData = new URLSearchParams({
-        username,
-        password,
-        client_id,
-        code,
-        redirect_uri,
-        code_verifier
-      });
+    // Handle CSRF token
+    async function fetchCsrfToken() {
+      const res = await fetch('/antiforgery', { credentials: 'include' });
+      const token = await res.text();
+      document.getElementById('csrf').value = token;
+    }
 
-      try {
-        const res = await fetch("/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: formData
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || "Login failed");
-
-        const tokenRes = await fetch("/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            client_id,
-            code,
-            redirect_uri,
-            code_verifier
-          })
-        });
-
-        const token = await tokenRes.json();
-        if (!token.access_token) throw new Error("Token exchange failed");
-
-        output.textContent = JSON.stringify(token, null, 2);
-
-        const me = await fetch("/me", {
-          headers: { Authorization: "Bearer " + token.access_token }
-        }).then(r => r.json());
-
-        output.textContent += "\n\n" + JSON.stringify(me, null, 2);
-      } catch (err) {
-        output.textContent = err.message;
-      }
-    };
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchCsrfToken();
+    });
     </script>
+</head>
+<body onload="setQueryParams()">
+    <div class="login-container">
+        <h2>Login</h2>
+        <form id="loginForm" method="post" action="/login-ui">
+            <input type="hidden" name="__RequestVerificationToken" id="csrf" value="">
+            <label>
+                Username:
+                <input type="text" name="username" required autofocus>
+            </label>
+            <label>
+                Password:
+                <input type="password" name="password" required>
+            </label>
+            <button type="submit">Sign In</button>
+        </form>
+        <p id="error" style="color: red;"></p>
+    </div>
 </body>
 </html>

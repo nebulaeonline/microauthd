@@ -82,4 +82,23 @@ public class MadAuthClient
 
         return await response.Content.ReadFromJsonAsync<MeResponse>(cancellationToken: cancellationToken);
     }
+
+    public async Task<TokenResponse?> ExchangeAuthorizationCodeAsync(string code, string redirectUri, string codeVerifier, CancellationToken ct = default)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["client_id"] = _options.ClientId,
+            ["client_secret"] = _options.ClientSecret,
+            ["code"] = code,
+            ["redirect_uri"] = redirectUri,
+            ["code_verifier"] = codeVerifier
+        };
+
+        var response = await _http.PostAsync("/token", new FormUrlEncodedContent(form), ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken: ct);
+    }
 }

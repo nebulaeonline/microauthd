@@ -8,7 +8,7 @@
 <body>
     <h2>microauthd PKCE Demo</h2>
     <p>This page starts the PKCE flow by redirecting to /authorize.</p>
-    <p>Make sure you have a matching client_id and that that client has http://localhost:9040/login.html set as a valid redirect uri</p>
+    <p>Make sure you have a matching client_id and that that client has http://localhost:9040/pkce_demo/login.html set as a valid redirect uri</p>
     <button onclick="startLogin()">Login with Demo</button>
 
     <script>
@@ -20,9 +20,11 @@
         const url = new URL("/authorize", location.origin);
         url.searchParams.set("response_type", "code");
         url.searchParams.set("client_id", "demo");
-        url.searchParams.set("redirect_uri", "http://localhost:9040/login.html");
+        url.searchParams.set("redirect_uri", "http://localhost:9040/pkce_demo/login.html");
         url.searchParams.set("code_challenge", challenge);
         url.searchParams.set("code_challenge_method", "S256");
+        url.searchParams.set("scope", "openid");
+        url.searchParams.set("nonce", crypto.randomUUID().replace(/-/g, ""));
 
         location.href = url.toString();
     }
