@@ -201,7 +201,7 @@ internal static class OobePrompts
 
         if (state.EnableOtp)
         {
-            state.OtpIssuer = Prompt("Enter the OTP issuer name (e.g., your app name)", state.Config.OtpAuthIssuer);
+            state.OtpIssuer = Prompt("Enter the OTP issuer name (e.g., your app name)", state.Config.OtpIssuer);
         }
     }
 
