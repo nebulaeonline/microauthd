@@ -45,6 +45,10 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 I will keep the last 5 days of updates here; older updates can be found in the [CHANGELOG](CHANGELOG.md) file.
 
+**2025-07-02**
+
+The march continues for bringing our tokens and our token issuance into compliance with OAuth2 and OIDC. Fixed a bug where Id Tokens were not being issued in the case of refresh, even if the original token had an openid scope. Also updated /userinfo to bring it into compliance with OAuth2 specifications.
+
 **2025-07-01**
 
 Big changes in bringing several of the API responses into RFC compliance with OAuth2 & OIDC. This included a new error object and the expansion of our ApiResponse to include the new object. Testing has gone well, but things may be screwy here or there until the dust settles.
@@ -68,18 +72,6 @@ I am working on packaging this up for Windows, Linux, and MacOS. The Linux build
 On the usability front, I just wanted to say I'm happy about finally versioning our database schema for migrations, and now no longer requiring `mad` users to enter --admin-url on the CLI. We are slowly getting to a usability point that I think can drive adoption of microauthd. Additionally, if you are experimenting with the package, we would like to hear from you. Pain points, missing features, whatever. As we seek to move to a true v1.0 release, it will be important to get feedback so we can get things in order. Don't be shy. Thanks!
 
 If you don't feel comfortable reaching out via GitHub issues, you can always email me at nebulae at nebulae dot online.
-
-**2025-06-27**
-
-Today we introduced Id Token issuance in compliance with OpenID Connect. This allows microauthd to issue ID tokens alongside access tokens, providing a standardized way to convey user identity and authentication information. The ID token is a JWT that contains claims about the authenticated user, such as their unique identifier, email, and other profile information.
-
-On performance, changing the hashing strategy for refresh tokens to use SHA-256 only instead of Argon2id and SHA-256 brought another 50% speedup, bringing us to around 60rps with bursts to 1500 rps.
-
-We now cache password hashes (if enabled); the feature and duration are configurable via --enable-pass-cache and --pass-cache-duration (default is 5 minutes). We are now seeing throughput of over 600 rps, with burst at 3,000 rps. This means microauthd is now performing on par or better than its peers.
-
-We have implemented db schema versioning, which will allow us to upgrade painlessly in the future. If you have started with a version prior to the last few days, you should be fine. Users on much older versions may have to do some surgery. Let us know if you need assistance.
-
-Big change with `mad` CLI tool: it now uses a persistent admin url that is set the first time you run `mad session login`. For commands issued after that, you can omit the --admin-url cli option and it will just work. Thank goodness- that was my least favorite part of mad.
 
 ---
 
