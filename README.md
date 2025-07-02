@@ -4,6 +4,10 @@ microauthd is a self-hosted, embedded-friendly identity provider designed for in
 
 microauthd uses a dual-port architecture with separate admin and auth endpoints, including separate signing keys for admin and auth tokens and completely separate API surfaces.
 
+**Release Cadence**
+
+Once we go live with an alpha release, which will be part of the 0.9.x series, we are committing to a monthly binary release cadence. That's not to say there won't be out of band or more frequent releases, as security related releases will be issued asap. Also, there will be no further database breakage, which stopped with builds published beginning on June 28th with the new db migrations feature. If you are experimenting with microauthd, we'd love to hear from you either here on Github or via email at nebulae at nebulae dot online.
+
 **A Note on Standards**
 
 microauthd is a lightweight, security-first OAuth 2.0 authorization server with OpenID Connect support. It supports standard flows such as password, client_credentials, refresh_token, and PKCE, and includes ID token issuance and discovery endpoints for OIDC compatibility. It is suitable for integrating with OIDC clients, SDKs, and libraries that conform to the OpenID Connect specification.
