@@ -292,7 +292,10 @@ namespace microauthd.Data
 
                 // Preferred username
                 if (!string.IsNullOrEmpty(user.Username))
+                {
                     claims.Add(new Claim("preferred_username", user.Username));
+                    claims.Add(new Claim("username", user.Username));
+                }
 
                 // User Id
                 claims.Add(new Claim(JwtRegisteredClaimNames.Sub, user.Id));

@@ -123,7 +123,6 @@ public static class TokenIssuer
         {
             new(JwtRegisteredClaimNames.Sub, sub),
             new(JwtRegisteredClaimNames.Iss, config.OidcIssuer),
-            new(JwtRegisteredClaimNames.Aud, clientId),
             new(JwtRegisteredClaimNames.Iat, ((DateTimeOffset)now).ToUnixTimeSeconds().ToString()),
             new(JwtRegisteredClaimNames.Exp, ((DateTimeOffset)expires).ToUnixTimeSeconds().ToString()),
             new("token_use", "id"),

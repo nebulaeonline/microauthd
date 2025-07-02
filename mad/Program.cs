@@ -18,6 +18,7 @@ internal class Program
         root.AddCommand(ClientCommands.Build());
         root.AddCommand(ScopeCommands.Build());
         root.AddCommand(AuditLogCommands.Build());
+        root.AddCommand(TokenCommand.Build());
         return await root.InvokeAsync(args);
     }
 }

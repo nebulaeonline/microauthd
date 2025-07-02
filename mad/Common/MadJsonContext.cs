@@ -1,8 +1,9 @@
-﻿using System.Text.Json.Serialization;
-
-using madTypes.Api.Responses;
-using madTypes.Api.Requests;
+﻿using madJwtInspector;
 using madTypes.Api.Common;
+using madTypes.Api.Requests;
+using madTypes.Api.Responses;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace mad.Common;
 
@@ -57,4 +58,6 @@ namespace mad.Common;
 [JsonSerializable(typeof(SetUserLockoutRequest))]
 [JsonSerializable(typeof(ChangeClientSecretRequest))]
 [JsonSerializable(typeof(ResetPasswordRequest))]
+[JsonSerializable(typeof(JwtIntrospectionResult))]
+[JsonSerializable(typeof(Dictionary<string, JsonElement>))]
 public partial class MadJsonContext : JsonSerializerContext { }

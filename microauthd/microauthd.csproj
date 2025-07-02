@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-      <Version>0.8.4.6</Version>
+      <Version>0.8.4.7</Version>
       <UseIIS>false</UseIIS>
       <InvariantGlobalization>true</InvariantGlobalization>
       <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
@@ -66,6 +66,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\madJwtInspector\madJwtInspector.csproj" />
       <ProjectReference Include="..\madTypes\madTypes.csproj" />
     </ItemGroup>
 

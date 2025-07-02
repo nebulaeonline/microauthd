@@ -1,0 +1,7 @@
+﻿.navbar-nav .nav-link {
+    white-space: nowrap;    
+}
+
+.navbar-nav .nav-item {
+    flex-shrink: 0;
+}

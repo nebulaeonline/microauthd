@@ -1,0 +1,40 @@
+﻿@page
+@using System.Text.Json;
+@model microauthd.Pages.Tools.TokenViewerModel
+@{
+    ViewData["Title"] = "Token Inspector";
+    Layout = "_Layout";
+}
+
+<div class="container mt-4">
+    <h2 class="mb-3">JWT Token Inspector</h2>
+
+    <form method="post">
+        <div class="mb-3">
+            <label for="JwtInput" class="form-label">Paste JWT Token</label>
+            <textarea name="JwtInput" id="JwtInput" class="form-control" rows="5" required>@Model.JwtInput</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Decode</button>
+    </form>
+
+    @if (Model.Result != null)
+    {
+        if (Model.Result.IsValidFormat)
+        {
+            <div class="mt-4">
+                <h5>Header</h5>
+                <pre class="bg-light p-2">@JsonSerializer.Serialize(Model.Result.Header, new JsonSerializerOptions { WriteIndented = true })</pre>
+
+                <h5>Payload</h5>
+                <pre class="bg-light p-2">@JsonSerializer.Serialize(Model.Result.Payload, new JsonSerializerOptions { WriteIndented = true })</pre>
+
+                <h5>Signature</h5>
+                <pre class="bg-light p-2">@Model.Result.Signature</pre>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-danger mt-4">@Model.Result.ErrorMessage</div>
+        }
+    }
+</div>

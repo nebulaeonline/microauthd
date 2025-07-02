@@ -26,6 +26,7 @@ Currently, microauthd can not act as an OIDC client, but support is planned prio
 - `madOobe` is the out-of-the-box experience (OOBE) tool that sets up microauthd for the first time, including initial admin user creation and database initialization. The OOBE is also usable directly from `microauthd`, unless the "--docker" command line option is specified, due to the way Docker handles stdin/stdout.
 - `microauthd` is the main project that contains the identity server implementation, including the ADMIN and AUTH endpoints, token issuance, user management, role management, and the web-based GUI.
 - `madTests` is an Xunit test project that contains tests for microauthd's functionality. End-to-end tests are written in Python and use the `mad` CLI tool to interact with the JSON/HTTP ADMIN endpoints that microauthd exposes for managing the system.
+- `madJwtInspector` is a library shared between `mad` cli and the ADMIN web gui for deocding raw tokens and displaying the information contained therein; basically a local (and safe) substitute for having to visit a site like jwt.io (which has been valuable in this endeavour). We just think we should be able to do it ourselves within microauthd.
 - `docs` is not a Visual Studio project, but a directory that contains documentation for microauthd (getting stronger every day). It includes explanations of the architecture, addresses the concepts of Users, Permissions, and Scopes, contains code examples, details the TOTP flow, and talks about the OOBE and the various configuration options available.
 
 **Recent Features Include:**
@@ -52,6 +53,8 @@ I will keep the last 5 days of updates here; older updates can be found in the [
 **2025-07-02**
 
 TOTP is working again, and we added an --otp-issuer option so that you can control how your entry will appear in authentication apps like Google Authenticator; it was previously hardcoded to microauthd, but we didn't like that look.
+
+Added a new token inspector for both `mad` cli and for the ADMIN web gui. Now you can paste raw tokens in and have them decoded locally. I've wanted this functionality since the outset, so I'm glad it's finally done.
 
 The march continues for bringing our tokens and our token issuance into compliance with OAuth2 and OIDC. Fixed a bug where Id Tokens were not being issued in the case of refresh, even if the original token had an openid scope. Also updated /userinfo to bring it into compliance with OAuth2 specifications.
 
