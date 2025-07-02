@@ -65,8 +65,8 @@ public static class UserStore
                 return new UserObject
                 {
                     Id = reader.GetString(0),
-                    Username = reader.GetString(1).ToLowerInvariant(),
-                    Email = reader.GetString(2).ToLowerInvariant(),
+                    Username = reader.GetString(1).ToLowerInvariant().Trim(),
+                    Email = reader.GetString(2).ToLowerInvariant().Trim(),
                     CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                     IsActive = reader.GetInt64(4) == 1
                 };
@@ -111,7 +111,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT COUNT(*) FROM users WHERE username = $username;";
-            cmd.Parameters.AddWithValue("$username", username.ToLowerInvariant());
+            cmd.Parameters.AddWithValue("$username", username.ToLowerInvariant().Trim());
             return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
         });
     }
@@ -129,7 +129,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT COUNT(*) FROM users WHERE email = $email;";
-            cmd.Parameters.AddWithValue("$email", email.ToLowerInvariant());
+            cmd.Parameters.AddWithValue("$email", email.ToLowerInvariant().Trim());
             return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
         });
     }
@@ -147,7 +147,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT id FROM users WHERE username = $username LIMIT 1;";
-            cmd.Parameters.AddWithValue("$username", username.ToLowerInvariant());
+            cmd.Parameters.AddWithValue("$username", username.ToLowerInvariant().Trim());
 
             var result = cmd.ExecuteScalar();
             return result == null ? null : Convert.ToString(result);
@@ -192,8 +192,8 @@ public static class UserStore
                 SELECT COUNT(*) FROM users
                 WHERE (username = $u OR email = $e) AND id != $id;
             """;
-            cmd.Parameters.AddWithValue("$u", username.ToLowerInvariant());
-            cmd.Parameters.AddWithValue("$e", email.ToLowerInvariant());
+            cmd.Parameters.AddWithValue("$u", username.ToLowerInvariant().Trim());
+            cmd.Parameters.AddWithValue("$e", email.ToLowerInvariant().Trim());
             cmd.Parameters.AddWithValue("$id", userId);
             return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
         });
@@ -222,8 +222,8 @@ public static class UserStore
                     email_verified = $ev
                 WHERE id = $id;
             """;
-            cmd.Parameters.AddWithValue("$u", updated.Username.ToLowerInvariant());
-            cmd.Parameters.AddWithValue("$e", updated.Email.ToLowerInvariant());
+            cmd.Parameters.AddWithValue("$u", updated.Username.ToLowerInvariant().Trim());
+            cmd.Parameters.AddWithValue("$e", updated.Email.ToLowerInvariant().Trim());
             cmd.Parameters.AddWithValue("$a", updated.IsActive ? 1 : 0);
             cmd.Parameters.AddWithValue("$l", updated.LockoutUntil.HasValue ? updated.LockoutUntil.Value.ToString("o") : DBNull.Value);
             cmd.Parameters.AddWithValue("$id", updated.Id);
@@ -257,8 +257,8 @@ public static class UserStore
             return new UserObject
             {
                 Id = reader.GetString(0),
-                Username = reader.GetString(1).ToLowerInvariant(),
-                Email = reader.GetString(2).ToLowerInvariant(),
+                Username = reader.GetString(1).ToLowerInvariant().Trim(),
+                Email = reader.GetString(2).ToLowerInvariant().Trim(),
                 CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                 IsActive = reader.GetBoolean(4),
                 LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5).ToUniversalTime(),
@@ -353,8 +353,8 @@ public static class UserStore
             return new UserObject
             {
                 Id = reader.GetString(0),
-                Username = reader.GetString(1).ToLowerInvariant(),
-                Email = reader.GetString(2).ToLowerInvariant(),
+                Username = reader.GetString(1).ToLowerInvariant().Trim(),
+                Email = reader.GetString(2).ToLowerInvariant().Trim(),
                 CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                 IsActive = reader.GetBoolean(4),
                 LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5).ToUniversalTime()
@@ -391,8 +391,8 @@ public static class UserStore
                 results.Add(new UserObject
                 {
                     Id = reader.GetGuid(0).ToString(),
-                    Username = reader.GetString(1).ToLowerInvariant(),
-                    Email = reader.GetString(2).ToLowerInvariant(),
+                    Username = reader.GetString(1).ToLowerInvariant().Trim(),
+                    Email = reader.GetString(2).ToLowerInvariant().Trim(),
                     IsActive = reader.GetBoolean(3),
                     CreatedAt = reader.GetDateTime(4).ToUniversalTime(),
                     LockoutUntil = reader.IsDBNull(5) ? null : reader.GetDateTime(5).ToUniversalTime()
@@ -435,8 +435,8 @@ public static class UserStore
                 results.Add(new UserObject
                 {
                     Id = reader.GetGuid(0).ToString(),
-                    Username = reader.GetString(1).ToLowerInvariant(),
-                    Email = reader.GetString(2).ToLowerInvariant(),
+                    Username = reader.GetString(1).ToLowerInvariant().Trim(),
+                    Email = reader.GetString(2).ToLowerInvariant().Trim(),
                     IsActive = reader.GetBoolean(3),
                     CreatedAt = reader.GetDateTime(4).ToUniversalTime()
                 });
@@ -604,7 +604,7 @@ public static class UserStore
                 {
                     Id = reader.GetString(0),
                     UserId = reader.GetString(1),
-                    Username = reader.GetString(2).ToLowerInvariant(),
+                    Username = reader.GetString(2).ToLowerInvariant().Trim(),
                     SessionId = reader.GetString(3),
                     ClientIdentifier = reader.GetString(4),
                     IssuedAt = reader.GetDateTime(5).ToUniversalTime(),
@@ -809,7 +809,7 @@ public static class UserStore
                 {
                     Id = reader.GetString(0),
                     UserId = reader.GetString(1),
-                    Username = reader.GetString(2),
+                    Username = reader.GetString(2).ToLowerInvariant().Trim(),
                     ClientIdentifier = reader.GetString(3),
                     IssuedAt = reader.GetDateTime(4).ToUniversalTime(),
                     ExpiresAt = reader.GetDateTime(5).ToUniversalTime(),
@@ -1333,7 +1333,7 @@ public static class UserStore
             if (!reader.Read())
                 return null;
 
-            return reader.GetString(0); // username
+            return reader.GetString(0).ToLowerInvariant().Trim(); // username
         });
     }
 

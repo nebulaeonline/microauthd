@@ -30,7 +30,7 @@ public static class PermissionStore
                 VALUES ($id, $name, datetime('now'), 1);
             """;
             cmd.Parameters.AddWithValue("$id", permissionId);
-            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$name", name.Trim());
             try
             {
                 return cmd.ExecuteNonQuery() == 1;
@@ -59,7 +59,7 @@ public static class PermissionStore
             return new PermissionObject
             {
                 Id = reader.GetString(0),
-                Name = reader.GetString(1)
+                Name = reader.GetString(1).Trim()
             };
         });
     }
@@ -84,7 +84,7 @@ public static class PermissionStore
                     modified_at = datetime('now')
                 WHERE id = $id;
             """;
-            cmd.Parameters.AddWithValue("$name", updated.Name);
+            cmd.Parameters.AddWithValue("$name", updated.Name.Trim());
             cmd.Parameters.AddWithValue("$id", permissionId);
             return cmd.ExecuteNonQuery() == 1;
         });
@@ -116,7 +116,7 @@ public static class PermissionStore
                 SELECT COUNT(*) FROM permissions WHERE id != $id AND name = $name;
             """;
             cmd.Parameters.AddWithValue("$id", permissionId);
-            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$name", name.Trim());
             var result = cmd.ExecuteScalar();
             return Convert.ToInt32(result) > 0;
         });
@@ -142,7 +142,7 @@ public static class PermissionStore
                 results.Add(new PermissionObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1),
+                    Name = reader.GetString(1).Trim(),
                 });
             }
             return results;
@@ -180,7 +180,7 @@ public static class PermissionStore
                 results.Add(new PermissionObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1),
+                    Name = reader.GetString(1).Trim(),
                 });
             }
             return results;
@@ -213,7 +213,7 @@ public static class PermissionStore
                 return new PermissionObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1)
+                    Name = reader.GetString(1).Trim()
                 };
             }
             return null;
@@ -234,10 +234,10 @@ public static class PermissionStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT id FROM permissions WHERE name = $name LIMIT 1;";
-            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$name", name.Trim());
 
             var result = cmd.ExecuteScalar();
-            return result == null ? null : Convert.ToString(result);
+            return result == null ? null : Convert.ToString(result)?.Trim();
         });
     }
 
@@ -269,7 +269,7 @@ public static class PermissionStore
                 permissions.Add(new PermissionDto
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1)
+                    Name = reader.GetString(1).Trim()
                 });
             }
             return permissions;
@@ -297,7 +297,7 @@ public static class PermissionStore
                 permissions.Add(new PermissionDto
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1)
+                    Name = reader.GetString(1).Trim()
                 });
             }
             return permissions;
@@ -459,7 +459,7 @@ public static class PermissionStore
                 results.Add(new PermissionObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1)
+                    Name = reader.GetString(1).Trim()
                 });
             }
 
@@ -526,7 +526,7 @@ public static class PermissionStore
                 results.Add(new PermissionObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1)
+                    Name = reader.GetString(1).Trim()
                 });
             }
 

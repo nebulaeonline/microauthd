@@ -25,16 +25,16 @@ namespace microauthd.Data
                 """;
 
                 cmd.Parameters.AddWithValue("$code", pkce.Code);
-                cmd.Parameters.AddWithValue("$client_identifier", pkce.ClientIdentifier);
-                cmd.Parameters.AddWithValue("$redirect_uri", pkce.RedirectUri);
-                cmd.Parameters.AddWithValue("$challenge", pkce.CodeChallenge);
-                cmd.Parameters.AddWithValue("$method", pkce.CodeChallengeMethod);
+                cmd.Parameters.AddWithValue("$client_identifier", pkce.ClientIdentifier.Trim());
+                cmd.Parameters.AddWithValue("$redirect_uri", pkce.RedirectUri.Trim());
+                cmd.Parameters.AddWithValue("$challenge", pkce.CodeChallenge.Trim());
+                cmd.Parameters.AddWithValue("$method", pkce.CodeChallengeMethod.Trim());
                 cmd.Parameters.AddWithValue("$expires", pkce.ExpiresAt.ToString("o")); // ISO 8601
                 cmd.Parameters.AddWithValue("$used", pkce.IsUsed ? 1 : 0);
-                cmd.Parameters.AddWithValue("$user_id", pkce.UserId);
-                cmd.Parameters.AddWithValue("$jti", (object?)pkce.Jti ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("$nonce", (object?)pkce.Nonce ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("$scope", pkce.Scope);
+                cmd.Parameters.AddWithValue("$user_id", pkce.UserId.Trim());
+                cmd.Parameters.AddWithValue("$jti", (object?)pkce.Jti?.Trim() ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$nonce", (object?)pkce.Nonce?.Trim() ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$scope", pkce.Scope?.Trim());
 
                 cmd.ExecuteNonQuery();
             });
@@ -69,21 +69,21 @@ namespace microauthd.Data
 
                 return new PkceCode
                 {
-                    Code = reader.GetString(0),
-                    ClientIdentifier = reader.GetString(1),
-                    RedirectUri = reader.GetString(2),
-                    CodeChallenge = reader.GetString(3),
-                    CodeChallengeMethod = reader.GetString(4),
+                    Code = reader.GetString(0).Trim(),
+                    ClientIdentifier = reader.GetString(1).Trim(),
+                    RedirectUri = reader.GetString(2).Trim(),
+                    CodeChallenge = reader.GetString(3).Trim(),
+                    CodeChallengeMethod = reader.GetString(4).Trim(),
                     ExpiresAt = DateTime.Parse(
                         reader.GetString(5), 
                         CultureInfo.InvariantCulture, 
                         System.Globalization.DateTimeStyles.AssumeUniversal | 
                             System.Globalization.DateTimeStyles.AdjustToUniversal), // ISO 8601
                     IsUsed = reader.GetBoolean(6),
-                    UserId = reader.GetString(7),
-                    Jti = reader.IsDBNull(8) ? null : reader.GetString(8),
-                    Nonce = reader.IsDBNull(9) ? null : reader.GetString(9),
-                    Scope = reader.IsDBNull(10) ? null : reader.GetString(10)
+                    UserId = reader.GetString(7).Trim(),
+                    Jti = reader.IsDBNull(8) ? null : reader.GetString(8).Trim(),
+                    Nonce = reader.IsDBNull(9) ? null : reader.GetString(9).Trim(),
+                    Scope = reader.IsDBNull(10) ? null : reader.GetString(10).Trim()
                 };
             });
         }
@@ -105,8 +105,8 @@ namespace microauthd.Data
                     SET user_id = $userId
                     WHERE code = $code AND is_used = 0;
                 """;
-                cmd.Parameters.AddWithValue("$code", code);
-                cmd.Parameters.AddWithValue("$userId", userId);
+                cmd.Parameters.AddWithValue("$code", code.Trim());
+                cmd.Parameters.AddWithValue("$userId", userId.Trim());
                 cmd.ExecuteNonQuery();
             });
         }
@@ -131,8 +131,8 @@ namespace microauthd.Data
                     SET jti = $jti
                     WHERE code = $code AND is_used = 0;
                 """;
-                cmd.Parameters.AddWithValue("$code", code);
-                cmd.Parameters.AddWithValue("$jti", jti);
+                cmd.Parameters.AddWithValue("$code", code.Trim());
+                cmd.Parameters.AddWithValue("$jti", jti.Trim());
                 cmd.ExecuteNonQuery();
             });
         }
@@ -151,7 +151,7 @@ namespace microauthd.Data
                 cmd.CommandText = """
                     UPDATE pkce_codes SET is_used = 1 WHERE code = $code;
                 """;
-                cmd.Parameters.AddWithValue("$code", code);
+                cmd.Parameters.AddWithValue("$code", code.Trim());
                 cmd.ExecuteNonQuery();
             });
         }
@@ -179,8 +179,8 @@ namespace microauthd.Data
                     )
                     LIMIT 1;
                 """;
-                cmd.Parameters.AddWithValue("$uri", redirectUri);
-                cmd.Parameters.AddWithValue("$clientId", clientIdentifier);
+                cmd.Parameters.AddWithValue("$uri", redirectUri.Trim());
+                cmd.Parameters.AddWithValue("$clientId", clientIdentifier.Trim());
 
                 using var reader = cmd.ExecuteReader();
                 return reader.Read(); // true if found
@@ -210,9 +210,9 @@ namespace microauthd.Data
                     ($id, $uid, $cid, $nonce);
                 """;
                 cmd.Parameters.AddWithValue("$id", id);
-                cmd.Parameters.AddWithValue("$uid", userId);
-                cmd.Parameters.AddWithValue("$cid", clientId);
-                cmd.Parameters.AddWithValue("$nonce", nonce);
+                cmd.Parameters.AddWithValue("$uid", userId.Trim());
+                cmd.Parameters.AddWithValue("$cid", clientId.Trim());
+                cmd.Parameters.AddWithValue("$nonce", nonce.Trim());
 
                 var result = cmd.ExecuteNonQuery();
                 return result > 0; // Returns true if the insert was successful
@@ -240,9 +240,9 @@ namespace microauthd.Data
                     WHERE user_id = $uid AND client_id = $cid AND nonce = $nonce
                     LIMIT 1;
                 """;
-                cmd.Parameters.AddWithValue("$uid", userId);
-                cmd.Parameters.AddWithValue("$cid", clientId);
-                cmd.Parameters.AddWithValue("$nonce", nonce);
+                cmd.Parameters.AddWithValue("$uid", userId.Trim());
+                cmd.Parameters.AddWithValue("$cid", clientId.Trim());
+                cmd.Parameters.AddWithValue("$nonce", nonce.Trim());
                 using var reader = cmd.ExecuteReader();
                 return reader.Read(); // true if found
             });

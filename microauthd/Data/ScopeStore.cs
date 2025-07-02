@@ -28,8 +28,8 @@ namespace microauthd.Data
                     VALUES ($id, $name, $desc, datetime('now'), 1);
                 """;
                 cmd.Parameters.AddWithValue("$id", scopeId);
-                cmd.Parameters.AddWithValue("$name", req.Name);
-                cmd.Parameters.AddWithValue("$desc", req.Description ?? "");
+                cmd.Parameters.AddWithValue("$name", req.Name.Trim());
+                cmd.Parameters.AddWithValue("$desc", req.Description.Trim() ?? "");
 
                 try
                 {
@@ -67,7 +67,7 @@ namespace microauthd.Data
                     SELECT COUNT(*) FROM scopes
                     WHERE name = $name AND id != $id;
                 """;
-                cmd.Parameters.AddWithValue("$name", name);
+                cmd.Parameters.AddWithValue("$name", name.Trim());
                 cmd.Parameters.AddWithValue("$id", scopeId);
                 return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
             });
@@ -95,8 +95,8 @@ namespace microauthd.Data
                         modified_at = datetime('now')
                     WHERE id = $id;
                 """;
-                cmd.Parameters.AddWithValue("$name", updated.Name);
-                cmd.Parameters.AddWithValue("$desc", updated.Description ?? "");
+                cmd.Parameters.AddWithValue("$name", updated.Name.Trim());
+                cmd.Parameters.AddWithValue("$desc", updated.Description?.Trim() ?? "");
                 cmd.Parameters.AddWithValue("$id", scopeId);
                 return cmd.ExecuteNonQuery() == 1;
             });
@@ -134,8 +134,8 @@ namespace microauthd.Data
                     list.Add(new ScopeObject
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1),
-                        Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        Name = reader.GetString(1).Trim(),
+                        Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                         CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                         IsActive = reader.GetInt64(4) == 1
                     });
@@ -169,7 +169,7 @@ namespace microauthd.Data
                 cmd.Parameters.AddWithValue("$uid", userId);
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
-                    scopes.Add(reader.GetString(0));
+                    scopes.Add(reader.GetString(0).Trim());
                 return scopes;
             });
         }
@@ -204,8 +204,8 @@ namespace microauthd.Data
                     list.Add(new ScopeObject
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1),
-                        Description = reader.IsDBNull(2) ? "" : reader.GetString(2)
+                        Name = reader.GetString(1).Trim(),
+                        Description = reader.IsDBNull(2) ? "" : reader.GetString(2).Trim()
                     });
                 }
 
@@ -325,8 +325,8 @@ namespace microauthd.Data
                     list.Add(new ScopeObject
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1),
-                        Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        Name = reader.GetString(1).Trim(),
+                        Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                         CreatedAt = reader.GetDateTime(3).ToUniversalTime(),
                         IsActive = reader.GetInt64(4) == 1
                     });
@@ -364,7 +364,7 @@ namespace microauthd.Data
                     scopes.Add(new ScopeDto
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1)
+                        Name = reader.GetString(1).Trim()
                     });
                 }
                 return scopes;
@@ -398,7 +398,7 @@ namespace microauthd.Data
                     scopes.Add(new ScopeDto
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1)
+                        Name = reader.GetString(1).Trim()
                     });
                 }
                 return scopes;
@@ -426,7 +426,7 @@ namespace microauthd.Data
                     scopes.Add(new ScopeDto
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1)
+                        Name = reader.GetString(1).Trim()
                     });
                 }
                 return scopes;
@@ -464,8 +464,8 @@ namespace microauthd.Data
                     results.Add(new ScopeObject
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1),
-                        Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        Name = reader.GetString(1).Trim(),
+                        Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                         IsProtected = reader.GetBoolean(3),
                         CreatedAt = reader.GetDateTime(4).ToUniversalTime()
                     });
@@ -504,8 +504,8 @@ namespace microauthd.Data
                     return new ScopeObject
                     {
                         Id = reader.GetString(0),
-                        Name = reader.GetString(1),
-                        Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        Name = reader.GetString(1).Trim(),
+                        Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                         IsProtected = reader.GetBoolean(3),
                         CreatedAt = reader.GetDateTime(4).ToUniversalTime()
                     };
@@ -528,7 +528,7 @@ namespace microauthd.Data
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = "SELECT id FROM scopes WHERE name = $name LIMIT 1;";
-                cmd.Parameters.AddWithValue("$name", name);
+                cmd.Parameters.AddWithValue("$name", name.Trim());
 
                 var result = cmd.ExecuteScalar();
                 return result == null ? null : Convert.ToString(result);

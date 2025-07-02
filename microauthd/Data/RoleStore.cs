@@ -33,8 +33,8 @@ public static class RoleStore
                 VALUES ($id, $name, $desc, datetime('now'), datetime('now'), 1);
             """;
             cmd.Parameters.AddWithValue("$id", roleId);
-            cmd.Parameters.AddWithValue("$name", name);
-            cmd.Parameters.AddWithValue("$desc", description ?? "");
+            cmd.Parameters.AddWithValue("$name", name.Trim());
+            cmd.Parameters.AddWithValue("$desc", description.Trim() ?? "");
 
             try
             {
@@ -61,8 +61,8 @@ public static class RoleStore
                 return new RoleObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Name = reader.GetString(1).Trim(),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                     IsProtected = reader.GetInt32(3) == 1
                 };
             }
@@ -94,8 +94,8 @@ public static class RoleStore
                     modified_at = datetime('now')
                 WHERE id = $id AND is_protected = 0;
             """;
-            cmd.Parameters.AddWithValue("$name", updated.Name ?? "");
-            cmd.Parameters.AddWithValue("$desc", (object?)updated.Description ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$name", updated.Name.Trim() ?? "");
+            cmd.Parameters.AddWithValue("$desc", (object?)updated.Description?.Trim() ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$id", roleId);
             return cmd.ExecuteNonQuery() == 1;
         });
@@ -125,7 +125,7 @@ public static class RoleStore
                     SELECT COUNT(*) FROM roles
                     WHERE name = $name AND id != $id;
                 """;
-            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$name", name.Trim());
             cmd.Parameters.AddWithValue("$id", searcherId);
             return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
         });
@@ -155,8 +155,8 @@ public static class RoleStore
                 roles.Add(new RoleObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Name = reader.GetString(1).Trim(),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                     IsProtected = reader.GetBoolean(3),
                     IsActive = reader.GetBoolean(4)
                 });
@@ -193,8 +193,8 @@ public static class RoleStore
                 roles.Add(new RoleObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Name = reader.GetString(1).Trim(),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                     IsProtected = reader.GetBoolean(3),
                     IsActive = reader.GetBoolean(4)
                 });
@@ -232,8 +232,8 @@ public static class RoleStore
                 return new RoleObject
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1),
-                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Name = reader.GetString(1).Trim(),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2).Trim(),
                     IsProtected = reader.GetBoolean(3),
                     IsActive = reader.GetBoolean(4)
                 };
@@ -256,7 +256,7 @@ public static class RoleStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT id FROM roles WHERE name = $name LIMIT 1;";
-            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$name", name.Trim());
 
             var result = cmd.ExecuteScalar();
             return result == null ? null : Convert.ToString(result);
@@ -287,7 +287,7 @@ public static class RoleStore
             cmd.Parameters.AddWithValue("$uid", userId);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
-                roles.Add(reader.GetString(0));
+                roles.Add(reader.GetString(0).Trim());
             return roles;
         });
     }
@@ -448,7 +448,7 @@ public static class RoleStore
                 roles.Add(new RoleDto
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1)
+                    Name = reader.GetString(1).Trim()
                 });
             }
             return roles;
@@ -486,7 +486,7 @@ public static class RoleStore
                 roles.Add(new RoleDto
                 {
                     Id = reader.GetString(0),
-                    Name = reader.GetString(1)
+                    Name = reader.GetString(1).Trim()
                 });
             }
             return roles;

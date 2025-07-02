@@ -47,10 +47,10 @@ public static class ClientStore
                 VALUES ($id, $cid, $hash, $name, $aud, datetime('now'), datetime('now'), 1);
             """;
             cmd.Parameters.AddWithValue("$id", id);
-            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.Parameters.AddWithValue("$cid", clientIdent.Trim());
             cmd.Parameters.AddWithValue("$hash", secretHash);
-            cmd.Parameters.AddWithValue("$name", displayName ?? "");
-            cmd.Parameters.AddWithValue("$aud", audience);
+            cmd.Parameters.AddWithValue("$name", displayName.Trim() ?? "");
+            cmd.Parameters.AddWithValue("$aud", audience.Trim());
 
             try
             {
@@ -80,9 +80,9 @@ public static class ClientStore
             return new ClientObject
             {
                 Id = reader.GetString(0),
-                ClientId = reader.GetString(1),
-                DisplayName = reader.GetString(2),
-                Audience = reader.GetString(3),
+                ClientId = reader.GetString(1).Trim(),
+                DisplayName = reader.GetString(2).Trim(),
+                Audience = reader.GetString(3).Trim(),
                 CreatedAt = reader.GetDateTime(4).ToUniversalTime(),
                 IsActive = reader.GetBoolean(5)
             };
@@ -117,9 +117,9 @@ public static class ClientStore
             return new Client
             {
                 Id = reader.GetString(0),
-                ClientId = reader.GetString(1),
-                DisplayName = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                Audience = reader.GetString(3),
+                ClientId = reader.GetString(1).Trim(),
+                DisplayName = reader.IsDBNull(2) ? "" : reader.GetString(2).Trim(),
+                Audience = reader.GetString(3).Trim(),
                 ClientSecretHash = reader.GetString(4),
                 IsActive = reader.GetBoolean(5)
             };
@@ -151,9 +151,9 @@ public static class ClientStore
                     modified_at = datetime('now')
                 WHERE id = $id;
             """;
-            cmd.Parameters.AddWithValue("$cid", updated.ClientId);
-            cmd.Parameters.AddWithValue("$name", updated.DisplayName ?? "");
-            cmd.Parameters.AddWithValue("$aud", updated.Audience);
+            cmd.Parameters.AddWithValue("$cid", updated.ClientId.Trim());
+            cmd.Parameters.AddWithValue("$name", updated.DisplayName.Trim() ?? "");
+            cmd.Parameters.AddWithValue("$aud", updated.Audience.Trim());
             cmd.Parameters.AddWithValue("$id", id);
             return cmd.ExecuteNonQuery() == 1;
         });
@@ -175,7 +175,7 @@ public static class ClientStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT COUNT(*) FROM clients WHERE id != $id AND client_identifier = $cid;";
             cmd.Parameters.AddWithValue("$id", id);
-            cmd.Parameters.AddWithValue("$cid", clientId);
+            cmd.Parameters.AddWithValue("$cid", clientId.Trim());
             var result = cmd.ExecuteScalar();
             return result != null && Convert.ToInt32(result) > 0;
         });
@@ -208,9 +208,9 @@ public static class ClientStore
             return new ClientObject
             {
                 Id = reader.GetString(0),
-                ClientId = reader.GetString(1),
-                DisplayName = reader.GetString(2),
-                Audience = reader.GetString(3),
+                ClientId = reader.GetString(1).Trim(),
+                DisplayName = reader.GetString(2).Trim(),
+                Audience = reader.GetString(3).Trim(),
                 IsActive = reader.GetBoolean(4),
                 CreatedAt = reader.GetDateTime(5).ToUniversalTime()
             };
@@ -246,9 +246,9 @@ public static class ClientStore
             return new Client
             {
                 Id = reader.GetString(0),
-                ClientId = reader.GetString(1),
-                DisplayName = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                Audience = reader.GetString(3),
+                ClientId = reader.GetString(1).Trim(),
+                DisplayName = reader.IsDBNull(2) ? "" : reader.GetString(2).Trim(),
+                Audience = reader.GetString(3).Trim(),
                 ClientSecretHash = reader.GetString(4),
                 IsActive = reader.GetBoolean(5)
             };
@@ -297,7 +297,7 @@ public static class ClientStore
 
             if (!reader.Read())
                 return null;
-            return reader.GetString(0);
+            return reader.GetString(0).Trim();
         });
     }
 
@@ -321,7 +321,7 @@ public static class ClientStore
             """;
             cmd.Parameters.AddWithValue("$cid", clientIdentifier);
             using var reader = cmd.ExecuteReader();
-            return reader.Read() ? reader.GetString(0) : null;
+            return reader.Read() ? reader.GetString(0).Trim() : null;
 
         });
 
@@ -374,7 +374,7 @@ public static class ClientStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$hash", newHash);
-            cmd.Parameters.AddWithValue("$id", clientId);
+            cmd.Parameters.AddWithValue("$id", clientId.Trim());
             return cmd.ExecuteNonQuery() == 1;
         });
     }
@@ -400,7 +400,7 @@ public static class ClientStore
                 JOIN clients c ON cs.client_id = c.id
                 WHERE c.client_identifier = $cid AND cs.is_active = 1 AND s.is_active = 1 AND c.is_active = 1;
             """;
-            cmd.Parameters.AddWithValue("$cid", clientIdentifier);
+            cmd.Parameters.AddWithValue("$cid", clientIdentifier.Trim());
 
             using var reader = cmd.ExecuteReader();
             var list = new List<string>();
@@ -438,9 +438,9 @@ public static class ClientStore
                 results.Add(new ClientObject
                 {
                     Id = reader.GetString(0),
-                    ClientId = reader.GetString(1),
-                    DisplayName = reader.GetString(2),
-                    Audience = reader.GetString(3),
+                    ClientId = reader.GetString(1).Trim(),
+                    DisplayName = reader.GetString(2).Trim(),
+                    Audience = reader.GetString(3).Trim(),
                     IsActive = reader.GetBoolean(4),
                     CreatedAt = reader.GetDateTime(5).ToUniversalTime()
                 });
@@ -482,9 +482,9 @@ public static class ClientStore
                 results.Add(new ClientObject
                 {
                     Id = reader.GetString(0),
-                    ClientId = reader.GetString(1),
-                    DisplayName = reader.GetString(2),
-                    Audience = reader.GetString(3),
+                    ClientId = reader.GetString(1).Trim(),
+                    DisplayName = reader.GetString(2).Trim(),
+                    Audience = reader.GetString(3).Trim(),
                     IsActive = reader.GetBoolean(4),
                     CreatedAt = reader.GetDateTime(5).ToUniversalTime()
 
@@ -511,7 +511,7 @@ public static class ClientStore
                 SET is_revoked = 1
                 WHERE client_identifier = $cid;
             """;
-            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.Parameters.AddWithValue("$cid", clientIdent.Trim());
             cmd.ExecuteNonQuery();
         });
     }
@@ -533,7 +533,7 @@ public static class ClientStore
                 SET is_revoked = 1
                 WHERE client_identifier = $cid;
             """;
-            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.Parameters.AddWithValue("$cid", clientIdent.Trim());
             cmd.ExecuteNonQuery();
         });
     }
@@ -554,7 +554,7 @@ public static class ClientStore
                 DELETE FROM client_scopes
                 WHERE client_id = (SELECT id FROM clients WHERE client_identifier = $cid);
             """;
-            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.Parameters.AddWithValue("$cid", clientIdent.Trim());
             cmd.ExecuteNonQuery();
         });
     }
@@ -584,15 +584,15 @@ public static class ClientStore
     /// </summary>
     /// <remarks>This method executes a SQL DELETE operation to remove the client record associated with the
     /// given identifier. Ensure that the database connection is properly configured and accessible.</remarks>
-    /// <param name="clientId">The unique identifier of the client to be deleted. This value must not be <see langword="null"/> or empty.</param>
+    /// <param name="clientIdent">The unique identifier of the client to be deleted. This value must not be <see langword="null"/> or empty.</param>
     /// <returns><see langword="true"/> if the client record was successfully deleted; otherwise, <see langword="false"/>.</returns>
-    public static bool DeleteClientByClientIdentifier(string clientId)
+    public static bool DeleteClientByClientIdentifier(string clientIdent)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "DELETE FROM clients WHERE client_identifier = $cid;";
-            cmd.Parameters.AddWithValue("$cid", clientId);
+            cmd.Parameters.AddWithValue("$cid", clientIdent.Trim());
             return cmd.ExecuteNonQuery() > 0;
         });
     }
@@ -627,7 +627,7 @@ public static class ClientStore
                 """;
                 cmd.Parameters.AddWithValue("$id", id);
                 cmd.Parameters.AddWithValue("$client_id", clientId);
-                cmd.Parameters.AddWithValue("$uri", uri);
+                cmd.Parameters.AddWithValue("$uri", uri.Trim());
                 cmd.ExecuteNonQuery();
             });
 
@@ -635,7 +635,7 @@ public static class ClientStore
             {
                 Id = id,
                 ClientId = clientId,
-                RedirectUri = uri
+                RedirectUri = uri.Trim()
             };
         }
         catch (Exception ex)
@@ -676,7 +676,7 @@ public static class ClientStore
                 {
                     Id = reader.GetString(0),
                     ClientId = reader.GetString(1),
-                    RedirectUri = reader.GetString(2)
+                    RedirectUri = reader.GetString(2).Trim()
                 });
             }
         });
