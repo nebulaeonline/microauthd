@@ -782,7 +782,7 @@ public static class AuthService
                 return OidcErrors.InvalidGrant<TokenResponse>();
             }
 
-            var requiresTotp = UserStore.IsTotpEnabledForUserId(r.UserId!);
+            var requiresTotp = (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(r.UserId!));
             if (requiresTotp)
             {
                 var totpCode = form["totp_code"].ToString();
@@ -1613,7 +1613,7 @@ public static class AuthService
         if (result is not { Success: true } r)
             return ApiResult<VerifyPasswordResponse>.Forbidden("Invalid credentials");
 
-        var totpRequired = UserStore.IsTotpEnabledForUserId(r.UserId!);
+        var totpRequired = (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(r.UserId!));
 
         return ApiResult<VerifyPasswordResponse>.Ok(new VerifyPasswordResponse
         {

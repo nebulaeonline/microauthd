@@ -52,6 +52,7 @@ internal class OobeState
     public int RefreshTokenExpiration = 0;
     public int RefreshTokenPurgeDays = 0;
     public bool EnableOtp = false;
+    public string OtpIssuer = string.Empty;
 
     public int MaxLoginFailures = 0;
     public int SecondsToResetLoginFailures = 0;

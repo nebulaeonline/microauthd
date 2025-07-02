@@ -198,6 +198,11 @@ internal static class OobePrompts
             state.RefreshTokenPurgeDays = PromptInt("Days to keep refresh tokens after expiration (0 = forever)", 7, 0, 365);
         }
         state.EnableOtp = PromptYesNo("Enable OTP auth?");
+
+        if (state.EnableOtp)
+        {
+            state.OtpIssuer = Prompt("Enter the OTP issuer name (e.g., your app name)", state.Config.OtpAuthIssuer);
+        }
     }
 
     public static void PromptLoginSecurity(OobeState state)
@@ -354,6 +359,7 @@ internal static class OobePrompts
             envLines.Add($"{state.EnvVarPrefix}ENABLE_PKCE={state.EnablePkce.ToString().ToLower()}");
             envLines.Add($"{state.EnvVarPrefix}PKCE_CODE_LIFETIME={state.PkceCodeLifetime}");
             envLines.Add($"{state.EnvVarPrefix}ENABLE_OTP_AUTH={state.EnableOtp.ToString().ToLower()}");
+            envLines.Add($"{state.EnvVarPrefix}OTP_ISSUER=\"{state.OtpIssuer}\"");
             envLines.Add($"{state.EnvVarPrefix}MAX_LOGIN_FAILURES={state.MaxLoginFailures}");
             envLines.Add($"{state.EnvVarPrefix}SECONDS_TO_RESET_LOGIN_FAILURES={state.SecondsToResetLoginFailures}");
             envLines.Add($"{state.EnvVarPrefix}FAILED_PASSWORD_LOCKOUT_DURATION={state.FailedPasswordLockoutDuration}");
@@ -447,6 +453,7 @@ internal static class OobePrompts
 
                 "# Miscellaneous config",
                 $"enable-otp-auth = {state.EnableOtp.ToString().ToLower()}",
+                $"otp-issuer = \"{state.OtpIssuer}\"",
                 $"max-login-failures = {state.MaxLoginFailures}",
                 $"seconds-to-reset-login-failures = {state.SecondsToResetLoginFailures}",
                 $"failed-password-lockout-duration = {state.FailedPasswordLockoutDuration}",

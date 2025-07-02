@@ -1351,7 +1351,7 @@ public static class UserStore
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
                 UPDATE users
-                SET otp_secret = $secret
+                SET totp_secret = $secret
                 WHERE id = $id AND is_active = 1;
             """;
             cmd.Parameters.AddWithValue("$secret", otpSecret);
@@ -1373,7 +1373,7 @@ public static class UserStore
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT otp_secret FROM users WHERE id = $id AND is_active = 1";
+            cmd.CommandText = "SELECT totp_secret FROM users WHERE id = $id AND is_active = 1";
             cmd.Parameters.AddWithValue("$id", userId);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? reader.GetString(0) : null;

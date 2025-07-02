@@ -1250,33 +1250,39 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // generate TOTP QR code endpoint***********************************************************
-        group.MapPost("/users/{id}/totp/generate", (
-            string id,
-            [FromBody] TotpQrRequest req,
-            AppConfig config) =>
+        if (config.EnableOtpAuth)
         {
-            return UserService.GenerateTotpForUser(id, req.QrOutputPath, config).ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithTags("Users")
-        .Produces<TotpQrResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-        .WithName("GenerateTotpQr");
+            group.MapPost("/users/{id}/totp/generate", (
+                string id,
+                [FromBody] TotpQrRequest req,
+                AppConfig config) =>
+            {
+                return UserService.GenerateTotpForUser(id, req.QrOutputPath, config).ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithTags("Users")
+            .Produces<TotpQrResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+            .WithName("GenerateTotpQr");
+        }
 
         // verify TOTP code endpoint****************************************************************
-        group.MapPost("/users/totp/verify", (
-            [FromBody] VerifyTotpRequest req,
-            AppConfig config) =>
+        if (config.EnableOtpAuth)
         {
-            return UserService.VerifyTotpCode(req.UserId, req.Code, config).ToHttpResult();
-        })
-        .RequireAuthorization()
-        .WithTags("Users")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-        .WithName("VerifyTotpCode");
+            group.MapPost("/users/totp/verify", (
+                [FromBody] VerifyTotpRequest req,
+                AppConfig config) =>
+            {
+                return UserService.VerifyTotpCode(req.UserId, req.Code, config).ToHttpResult();
+            })
+            .RequireAuthorization()
+            .WithTags("Users")
+            .Produces<MessageResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+            .WithName("VerifyTotpCode");
+        }
 
         // verify username/password combo endpoint**************************************************
         group.MapPost("/users/verify-password", (
@@ -1293,18 +1299,21 @@ public static class AdminRoutes
         .WithName("VerifyPasswordOnly");
 
         // disable TOTP for user endpoint***********************************************************
-        group.MapPost("/users/{userId}/disable-totp",
-            (string userId, AppConfig config) =>
-                UserService.DisableTotpForUser(userId, config).ToHttpResult())
-        
-        .RequireAuthorization()
-        .WithName("DisableTotpForUser")
-        .WithTags("TOTP")
-        .Produces<MessageResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-        .WithOpenApi();
+        if (config.EnableOtpAuth)
+        {
+            group.MapPost("/users/{userId}/disable-totp",
+                (string userId, AppConfig config) =>
+                    UserService.DisableTotpForUser(userId, config).ToHttpResult())
+
+            .RequireAuthorization()
+            .WithName("DisableTotpForUser")
+            .WithTags("TOTP")
+            .Produces<MessageResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+            .WithOpenApi();
+        }
 
         return group;
     }

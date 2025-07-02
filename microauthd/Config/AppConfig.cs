@@ -45,6 +45,7 @@ public class AppConfig
     public int RefreshTokenExpiration { get; set; } = 0;
     public int RefreshTokenPurgeDays { get; set; } = 0;
     public bool EnableOtpAuth { get; set; } = false;
+    public string OtpIssuer { get; set; } = string.Empty;
 
     public bool PrintEffectiveConfig { get; set; } = false;
 

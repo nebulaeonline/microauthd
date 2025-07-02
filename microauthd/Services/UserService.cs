@@ -1149,7 +1149,7 @@ public static class UserService
 
             // Generate new TOTP secret
             var secret = Utils.GenerateBase32Secret();
-            var uri = $"otpauth://totp/microauthd:{Uri.EscapeDataString(user)}?secret={secret}&issuer=microauthd&digits=6&period=30&algorithm=SHA1";
+            var uri = $"otpauth://totp/{config.OtpIssuer}:{Uri.EscapeDataString(user)}?secret={secret}&issuer={config.OtpIssuer}&digits=6&period=30&algorithm=SHA1";
 
             // Generate filename
             var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
