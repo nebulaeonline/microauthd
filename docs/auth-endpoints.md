@@ -12,27 +12,42 @@ The OAuth 2.0 Authorization Framework, generally referred to as **OAuth2** herei
 
 ### Miscellaneous Endpoints
 
-[Ping](#ping)  
-[Version](#version)  
-[Antiforgery](#antiforgery)  
-[User Info](#user-info)  
-[Me](#me)  
-[Me Sessions](#me-sessions)  
-[Me Refresh Tokens](#me-refresh-tokens)  
-[Who Am I?](#who-am-i)  
+[Ping Endpoint](#ping)  
+[Version Endpoint](#version)  
+[Antiforgery Endpoint](#antiforgery)  
+[User Info Endpoint](#user-info)  
+[Me Endpoint](#me)  
+[Me Sessions Endpoint](#me-sessions)  
+[Me Refresh Tokens Endpoint](#me-refresh-tokens)  
+[Who Am I? Endpoint](#who-am-i)  
 
 ### PKCE Endpoints
 
-[PKCE Introduction](#pkce-introduction)  
-[PKCE Authorize](#pkce-authorize)  
-[PKCE Authorize UI](#pkce-authorize-ui)  
-[PKCE Handle UI Login](#pkce-handle-ui-login)  
-[PKCE Login](#pkce-login)  
+[PKCE Introduction Endpoint](#pkce-introduction)  
+[PKCE Authorize Endpoint](#pkce-authorize)  
+[PKCE Authorize UI Endpoint](#pkce-authorize-ui)  
+[PKCE Handle UI Login Endpoint](#pkce-handle-ui-login)  
+[PKCE Login Endpoint](#pkce-login)  
 
 ### Logout Endpoints
 
-[Logout](#logout)  
-[Logout All](#logout-all)  
+[Logout Endpoint](#logout)  
+[Logout All Endpoint](#logout-all)  
+
+### OIDC Client Token Endpoint
+
+[Issue OIDC Token Endpoint](#oidc-client-tokens)  
+
+### Scoped Endpoints
+
+[Create User Endpoint](#scoped-create-user)  
+[Reset User Password Endpoint](#scoped-reset-user-password)  
+[Deactivate User Endpoint](#scoped-deactivate-user)  
+[List Users Endpoint](#scoped-list-users)  
+
+### Utility Endpoints
+[Introspect Endpoint ](#introspect)  
+[Revoke Endpoint](#revoke)  
 
 ---
 
@@ -416,5 +431,24 @@ The Scoped List Users Endpoint is one of the delegated ADMIN functions that can 
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|POST /user/{id}/deactivate    |None   | List<UserObject> or ErrorResponse |
+|GET /users    |None   | List<UserObject> or ErrorResponse |
 
+---
+
+#### Introspect
+
+The introspect function will take the supplied bearer token and return a dictionary of the claims contained therein.
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /introspect    |None   | Dictionary<string, object> or ErrorResponse |
+
+---
+
+#### Revoke
+
+The revoke endpoint will revoke the current user's session along with any refresh token that is associated with that session. This is a destructive endpoint.
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /revoke    |None   | MessageResponse or ErrorResponse |
