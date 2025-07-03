@@ -23,7 +23,7 @@ The OAuth 2.0 Authorization Framework, generally referred to as **OAuth2** herei
 
 ### PKCE Endpoints
 
-[PKCE Introduction Endpoint](#pkce-introduction)  
+[PKCE Introduction](#pkce-introduction)  
 [PKCE Authorize Endpoint](#pkce-authorize)  
 [PKCE Authorize UI Endpoint](#pkce-authorize-ui)  
 [PKCE Handle UI Login Endpoint](#pkce-handle-ui-login)  
