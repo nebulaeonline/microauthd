@@ -309,6 +309,7 @@ The /login endpoint is used in the headless PKCE flow as the actual authenticati
 |              | nonce       | |
 
 MessageResponse:
+
 {  
 &nbsp;&nbsp;&nbsp;&nbsp;"success" : "true",  
 &nbsp;&nbsp;&nbsp;&nbsp;"message" : "what action was successful"  
