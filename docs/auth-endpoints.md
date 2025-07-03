@@ -12,22 +12,22 @@ The OAuth 2.0 Authorization Framework, generally referred to as **OAuth2** herei
 
 ### Miscellaneous Endpoints
 
-[Ping](#ping)
-[Version](#version)
-[Antiforgery](#antiforgery)
-[User Info](#user-info)
-[Me](#me)
-[Me Sessions](#me-sessions)
-[Me Refresh Tokens](#me-refresh-tokens)
-[Who Am I?](#who-am-i)
+[Ping](#ping)  
+[Version](#version)  
+[Antiforgery](#antiforgery)  
+[User Info](#user-info)  
+[Me](#me)  
+[Me Sessions](#me-sessions)  
+[Me Refresh Tokens](#me-refresh-tokens)  
+[Who Am I?](#who-am-i)  
 
 ### PKCE Endpoints
 
-[PKCE Introduction](#pkce-introduction)
-[Authorize](#pkce-authorize)
-[Authorize UI](#pkce-authorize-ui)
-[Handle UI Login](#pkce-handle-ui-login)
-[PKCE Login](#pkce-login)
+[PKCE Introduction](#pkce-introduction)  
+[Authorize](#pkce-authorize)  
+[Authorize UI](#pkce-authorize-ui)  
+[Handle UI Login](#pkce-handle-ui-login)  
+[PKCE Login](#pkce-login)  
 
 ---
 
