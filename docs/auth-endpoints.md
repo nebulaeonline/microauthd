@@ -63,9 +63,9 @@ The Ping endpoint is for clients to verify connectivity to the microauthd AUTH s
 
 PingResponse:
 
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"message": "pong from auth"
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"message": "pong from auth"  
+}  
 
 ---
 
