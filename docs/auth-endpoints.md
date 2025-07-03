@@ -21,9 +21,11 @@ The OAuth 2.0 Authorization Framework, generally referred to as **OAuth2** herei
 [Who Am I?](#who-am-i)
 
 ### PKCE Endpoints
-[Authorize](pkce-authorize)
-[Authorize UI](pkce-authorize-ui)
-[Handle UI Login](pkce-handle-ui-login)
+[PKCE Introduction](#pkce-introduction)
+[Authorize](#pkce-authorize)
+[Authorize UI](#pkce-authorize-ui)
+[Handle UI Login](#pkce-handle-ui-login)
+[PKCE Login](#pkce-login)
 
 ---
 
@@ -181,19 +183,41 @@ The Who Am I endpoint is just a simple endpoint that returns "Hello, {user GUID}
 
 ---
 
+#### PKCE Introduction
+
+microauthd supports two complete PKCE flows for secure login without requiring clients to store a secret. These flows are designed for slightly different use cases, but both conform to the OAuth2 and OpenID Connect standards. The first is a headless flow initiated via /authorize, intended for CLI apps or services. The second is a login-UI flow built on top of /authorize-ui, which introduces an interactive login experience.
+
+**Flow 1: Headless PKCE (CLI / Services)**
+
+In the headless flow, the client initiates authentication by making a call to /authorize, supplying a client identifier, redirect URI, response_type=code, a code challenge, and a code challenge method (usually S256). The client may also include optional state and nonce parameters, as specified by OCC1 Section 3.1.2.1.
+
+Once microauthd validates that the redirect URI matches what is registered to the client, it responds with a redirect to that URI, embedding the authorization code, and optionally, the state and nonce.
+
+At this point, the client presents a login interface of its own choosing. It prompts the user for a username, password, and optionally a TOTP code. Then, using the original code, the client sends a POST request to /login, along with the code_verifier (matching the challenge), username, password, and client credentials. If everything checks out, the authorization code becomes bound to the user account, and a final request to /token completes the flow—returning an access token and (if openid was requested) an ID token.
+
+This flow is powerful for clients that are fully decoupled from the user interface and cannot safely store secrets, such as CLI tools, native desktop apps, or embedded systems.
+
+**Flow 2: UI-Based PKCE (Login Page)**
+
+The second flow follows the same standards, but with a built-in UI experience.
+
+Here, the client initiates the flow by redirecting the user to /authorize-ui, passing the same set of parameters as before: client_id, redirect_uri, response_type=code, a code_challenge, and the method. Rather than immediately responding with a redirect, microauthd stores the query in a short-lived session (via auth_sessions) and redirects the user to a login page: /login.html?jti=....
+
+On this page, the JavaScript frontend loads the session via the JTI and reconstructs the original request. It displays a standard login form, and when submitted, sends a POST request to /login-ui along with the code, code verifier, and user credentials.
+
+If successful, the backend binds the authorization code to the authenticated user and redirects the user to the original redirect_uri, just as in the headless flow. The client completes the flow by exchanging the code for tokens via the /token endpoint.
+
+This flow is ideal for SPAs or other frontend-driven apps where the authentication is expected to occur in-browser with a clean, polished login interface—without requiring the application to maintain its own auth form.
+
+PKCE endpoints are only enabled if PKCE is enabled.
+
+---
+
 #### PKCE Authorize
 
 The Authorize endpoint is PUBLIC.
 
-The PKCE Authorize endpoint is the first step in a PKCE login flow that requires no login ui, so is useful for CLI clients or services. 
-
-In this flow, the client sends a client id, a redirect uri, a response_type of "code", plus a code challenge and a code challenge method; the client can also choose to send an optional state parameter, as well as a nonce too. 
-
-If the client id is valid and the redirect uri is registered to that client, microauthd will respond with a redirect and the code and the state & nonce (if supplied), along with an authorization code tied to the challenge. The user then authenticates using username & password (and optionally TOTP), while providing the code, the code verifier, and the authorization code.
-
-At this point microauthd will mark that the authorization code belongs to the user that authenticated, and the user may, at that point, present the authentication code to the /token endpoint to receive an access token.
-
-Generally PKCE flow is used for clients that cannot, for technical reasons or other, safely store a client secret to use the traditional login flow.
+The PKCE Authorize endpoint is the first step in the headless PKCE login flow. 
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
@@ -212,15 +236,11 @@ Generally PKCE flow is used for clients that cannot, for technical reasons or ot
 
 The PKCE Authorize UI endpoint is PUBLIC.
 
-The PKCE Authorize UI endpoint is the first step in a PKCE login flow that uses a login ui, so is useful for webpages and mobile applications.
-
-In this flow, the client sends a client_id and a redirect_uri, and if the redirect uri is valid for the specified client, microauthd will store the values from the query string and generate a jti for the login session. It will then send a redirect to the redirect uri where the client will need to authenticate while providing the jti.
-
-Once authenticated, an authorization code is issued which the client can exchange for a valid token at the /token endpoint.
+The PKCE Authorize UI endpoint is the first step in the UI-based PKCE login flow.
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/authorize-ui    | client_id   | Redirect + code & state |
+|/authorize-ui    | client_id   | jti |
 |              | redirect_uri    | |
 
 ---
@@ -239,12 +259,14 @@ The /login-ui endpoint is step two of the UI-based login procedure. The client p
 
 #### PKCE Auth Session
 
-This endpoint is used between steps 1 and 2 of the login ui process; its purpose is to retrieve the query string that was associated with a jti in step 1 (it is essentially hydrating step 2). 
+This endpoint is used during step 2 of the UI-based login procedure; its purpose is to retrieve the query string that was associated with the jti in step 1 (it is essentially hydrating the page in preparation for the next step). 
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/auth_session    | jri   | the session object |
+|/auth_session    | jti   | the session object |
 
 ---
 
-#### 
+#### PKCE Login
+
+The /login endpoint is used in the headless PKCE flow as the actual authentication mechanism. The client must supply a username, password, code, redirect uri, scope and nonce. 
