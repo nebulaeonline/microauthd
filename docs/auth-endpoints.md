@@ -24,10 +24,15 @@ The OAuth 2.0 Authorization Framework, generally referred to as **OAuth2** herei
 ### PKCE Endpoints
 
 [PKCE Introduction](#pkce-introduction)  
-[Authorize](#pkce-authorize)  
-[Authorize UI](#pkce-authorize-ui)  
-[Handle UI Login](#pkce-handle-ui-login)  
+[PKCE Authorize](#pkce-authorize)  
+[PKCE Authorize UI](#pkce-authorize-ui)  
+[PKCE Handle UI Login](#pkce-handle-ui-login)  
 [PKCE Login](#pkce-login)  
+
+### Logout Endpoints
+
+[Logout](#logout)  
+[Logout All](#logout-all)  
 
 ---
 
@@ -39,7 +44,7 @@ The Ping endpoint is for clients to verify connectivity to the microauthd AUTH s
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/ping    | None   | PingResponse |
+|GET /ping    | None   | PingResponse |
 
 PingResponse:
 
@@ -57,7 +62,7 @@ The Version endpoint is for clients to ascertain the current version of microaut
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/version    | None   | VersionResponse |
+|GET /version    | None   | VersionResponse |
 
 VersionResponse:
 
@@ -76,7 +81,7 @@ The antiforgery endpoint uses .NET Core's built-in machinery to issue CSRF token
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/antiforgery    | None   | CSRF Token |
+|GET /antiforgery    | None   | CSRF Token |
 
 ---
 
@@ -97,7 +102,7 @@ The User Info endpoint is required by OCC1 Section 5.3.2, and is considered a Pr
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/userinfo    | None   | Certain Standard claims |
+|GET /userinfo    | None   | Certain Standard claims |
 
 ---
 
@@ -114,7 +119,7 @@ The Me endpoint is non-standard vestige from microauthd's earlier days. It is re
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/me    | None   | MeResponse |
+|GET /me    | None   | MeResponse |
 
 MeResponse:
 
@@ -131,7 +136,7 @@ The Me Sessions endpoint is used to return a list of the current user's sessions
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/me/sessions    | None   | List&lt;SessionResponse&gt; |
+|GET /me/sessions    | None   | List&lt;SessionResponse&gt; |
 
 SessionResponse:
 
@@ -155,7 +160,7 @@ The Me Refresh Tokens endpoint is used to return a list of the current user's re
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/me/refresh-tokens    | None   | List&lt;RefreshTokenResponse&gt; |
+|GET /me/refresh-tokens    | None   | List&lt;RefreshTokenResponse&gt; |
 
 RefreshTokenResponse:
 
@@ -181,7 +186,7 @@ The Who Am I endpoint is just a simple endpoint that returns "Hello, {user GUID}
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/me/whoami    | None   | "Hello, {User GUID}" |
+|GET /me/whoami    | None   | "Hello, {User GUID}" |
 
 ---
 
@@ -223,7 +228,7 @@ The PKCE Authorize endpoint is the first step in the headless PKCE login flow.
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/authorize    | response_type   | Redirect + code & state |
+|GET /authorize    | response_type   | Redirect + code & state |
 |              | client_id       | |
 |              | redirect_uri    | |
 |              | scope           | |
@@ -242,18 +247,20 @@ The PKCE Authorize UI endpoint is the first step in the UI-based PKCE login flow
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/authorize-ui    | client_id   | jti |
+|GET /authorize-ui    | client_id   | jti |
 |              | redirect_uri    | |
 
 ---
 
 #### PKCE Handle UI Login
 
+The Handle UI Login Endpoint is PUBLIC.
+
 The /login-ui endpoint is step two of the UI-based login procedure. The client provides their username & password along with the jti from /authorize-ui. If the credentials match, a code will be provided that can then be redeemed for a token.
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/login-ui    | username   | Redirect + code & state |
+|POST /login-ui    | username   | Redirect + code & state |
 |              | password    | |
 |              | jti    | |
 
@@ -261,14 +268,153 @@ The /login-ui endpoint is step two of the UI-based login procedure. The client p
 
 #### PKCE Auth Session
 
+The PKCE Auth Session Endpoint is PUBLIC.
+
 This endpoint is used during step 2 of the UI-based login procedure; its purpose is to retrieve the query string that was associated with the jti in step 1 (it is essentially hydrating the page in preparation for the next step). 
 
 |Endpoint | Inputs | Outputs |
 |---------|--------|---------|
-|/auth_session    | jti   | the session object |
+|GET /auth_session    | jti   | the session object |
 
 ---
 
 #### PKCE Login
 
-The /login endpoint is used in the headless PKCE flow as the actual authentication mechanism. The client must supply a username, password, code, redirect uri, scope and nonce. 
+The PKCE Login Endpoint is PUBLIC.
+
+The /login endpoint is used in the headless PKCE flow as the actual authentication mechanism. The client must supply a username, password, code, redirect uri, scope and nonce. If everything checks out, the user it attached to the PKCE code, and can then exchange their code for a token at the /token endpoint.
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /login    | response_type   | MessageResponse |
+|              | client_id       | ErrorResponse   |
+|              | redirect_uri    | |
+|              | scope           | |
+|              | code  | |
+|              | nonce       | |
+
+MessageResponse:
+{
+&nbsp;&nbsp;&nbsp;&nbsp;"success" : "true",
+&nbsp;&nbsp;&nbsp;&nbsp;"message" : "what action was successful"
+}
+
+ErrorResponse:
+
+{
+&nbsp;&nbsp;&nbsp;&nbsp;"success" : "false",
+&nbsp;&nbsp;&nbsp;&nbsp;"message" : "info about the request that failed"
+}
+
+---
+
+#### Token
+
+The Token Endpoint is Public
+
+The token endpoint supports three types of grants, and the information required to be passed varies based on whether you are doing a password grant, a refresh grant, or a code grant.
+
+For a password grant, the client must send a username, a password, a client identifier and the client secret. If everything checks out, a bearer token is returned, optionally with an id token if the calling scope contained "openid".
+
+In the refresh token grant, the client must send the refresh token, a client identifier and the client secret. If everything checks out, a bearer token is returned, again, optionally with an id token if the calling scope contained "openid".
+
+In the code grant, the client must send the code, the client id, the code verifier and a redirect url. If everything checks out (i.e. the code & challenge are valid, the code is valid and attached to that user, and the redirect uri is registered to the supplied client id), a bearer token is returned, again, optionally with an id token if the calling scope contained "openid".
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /token    | various   | Token |
+
+---
+
+#### Logout
+
+The logout endpoint does not require a subject body. This will log the user out of the existing session only. Refresh tokens remain valid.
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /logout    | none   | none |
+
+---
+
+#### Logout All
+
+The logout-all endpoint does not require a subject body. This will log the user out of every session, and will also invalidate any current refresh tokens that may have been issued.
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /logout-all    | none   | none |
+
+---
+
+#### Issue OIDC Token
+
+The OIDC Token Endpoint is PUBLIC.
+
+This endpoint supports a "grant_type" of "client_credentials" and is used to log in as a client rather than a user. The client_id (nee Identifier) and client_secret must be passed along with the grant_type. If the credentials are valid, and OIDC client token will be issued.
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /oidc-token    | grant_type   | Token |
+|               | client_identifier |  |
+|               | client_secret     |  |
+
+---
+
+#### Scoped Create User
+
+The Scoped Create User Endpoint is one of the delegated ADMIN functions that can be performed from the AUTH side if the user is properly credentialed- i.e. has the Scope_ProvisionUsers (d0955db1-67f7-4a7b-a9bb-ffbef4f0d2bd).
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /user    | CreateUserRequest   | UserObject |
+
+CreateUserRequest:
+
+{
+&nbsp;&nbsp;&nbsp;&nbsp;"username" : "username",
+&nbsp;&nbsp;&nbsp;&nbsp;"email"    : "email",
+&nbsp;&nbsp;&nbsp;&nbsp;"password" : "password"
+}
+
+UserObject:
+
+{
+&nbsp;&nbsp;&nbsp;&nbsp;"id"        : "user GUID",
+&nbsp;&nbsp;&nbsp;&nbsp;"username"  : "username",
+&nbsp;&nbsp;&nbsp;&nbsp;"email"     : "email",
+&nbsp;&nbsp;&nbsp;&nbsp;"created_at": "created at",
+&nbsp;&nbsp;&nbsp;&nbsp;"lockout_until" : "locked out until",
+&nbsp;&nbsp;&nbsp;&nbsp;"is_active" : "is the user active?",
+&nbsp;&nbsp;&nbsp;&nbsp;"email_verified" : "is the user's email verified?"
+}
+
+---
+
+#### Scoped Reset User Password
+
+The Scoped Reset User Password Endpoint is one of the delegated ADMIN functions that can be performed from the AUTH side if the user is properly credentialed- i.e. has the Scope_ResetPasswords (2192998b-c3d3-4274-9a25-4a4195ba2ec7).
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /user/{id}/reset    | ResetPasswordRequest   | MessageResponse or ErrorResponse |
+
+---
+
+#### Scoped Deactivate User
+
+The Scoped Deactivate User Endpoint is one of the delegated ADMIN functions that can be performed from the AUTH side if the user is properly credentialed- i.e. has the Scope_DeactivateUsers (31c00aae-4136-4a8c-92a6-d2bbf4be2d35).
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /user/{id}/deactivate    |None   | MessageResponse or ErrorResponse |
+
+---
+
+#### Scoped List Users
+
+The Scoped List Users Endpoint is one of the delegated ADMIN functions that can be performed from the AUTH side if the user is properly credentialed- i.e. has the Scope_ListUsers (b6348575-83ec-4288-801b-e0d2da20569c).
+
+|Endpoint | Inputs | Outputs |
+|---------|--------|---------|
+|POST /user/{id}/deactivate    |None   | List<UserObject> or ErrorResponse |
+
