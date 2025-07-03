@@ -41,6 +41,7 @@ Currently, microauthd can not act as an OIDC client, but support is planned prio
 8.  A web-based management GUI using Razor Pages for managing users, roles, permissions, scopes, clients, sessions & refresh tokens.
 9.  Aot-safe JSON serialization across all DTOs for better performance and reduced memory footprint.
 10. Robust testing suite using Xunit for internal functions and end-to-end testing via Pytest and the `mad` CLI tool. Approximately 90% coverage for services, and around the same 90% for API coverage.
+11. A token inspector for both the `mad` CLI tool and the ADMIN web GUI, allowing you to decode raw tokens locally without relying on external services.
 
 ---
 
