@@ -11,6 +11,7 @@ The OAuth 2.0 Authorization Framework, generally referred to as **OAuth2** herei
 ## Table of Contents
 
 ### Miscellaneous Endpoints
+
 [Ping](#ping)
 [Version](#version)
 [Antiforgery](#antiforgery)
@@ -21,6 +22,7 @@ The OAuth 2.0 Authorization Framework, generally referred to as **OAuth2** herei
 [Who Am I?](#who-am-i)
 
 ### PKCE Endpoints
+
 [PKCE Introduction](#pkce-introduction)
 [Authorize](#pkce-authorize)
 [Authorize UI](#pkce-authorize-ui)
