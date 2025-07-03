@@ -17,4 +17,6 @@ public class UserObject
     public bool IsActive { get; set; }
     [JsonPropertyName("email_verified")]
     public bool EmailVerified { get; set; }
+    [JsonPropertyName("totp_enabled")]
+    public bool TotpEnabled { get; set; }
 }

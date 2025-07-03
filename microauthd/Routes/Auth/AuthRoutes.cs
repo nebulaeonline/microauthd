@@ -282,8 +282,9 @@ public static class AuthRoutes
                 var redirectUri = form["redirect_uri"].ToString();
                 var scope = form["scope"];
                 var nonce = form["nonce"];
+                var totpCode = form["totp_code"].ToString().Trim();
 
-                var result = AuthService.HandleUserLoginWithCode(username, password, code, redirectUri, config);
+                var result = AuthService.HandleUserLoginWithCode(username, password, code, redirectUri, totpCode, config);
                 return result.ToHttpResult();
             })
             .AllowAnonymous()

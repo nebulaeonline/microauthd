@@ -63,6 +63,10 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 I will keep the last 5 days of updates here; older updates can be found in the [CHANGELOG](CHANGELOG.md) file.
 
+**2025-07-03**
+
+This is just a heads up that the PKCE flow is going to change. The current implementation is just too busy code-wise, and makes implementing it on the front end challenging. The new flow will be more modular, with examples in the /public folder that are easier to work with and reason about. I hope to push these changes out today.
+
 **2025-07-02**
 
 TOTP is working again, and we added an --otp-issuer option so that you can control how your entry will appear in authentication apps like Google Authenticator; it was previously hardcoded to microauthd, but we didn't like that look.
@@ -88,12 +92,6 @@ The testsuite is rounding into shape. Normally I would have been writing tests a
 The OOBE tool has been separated into a standalone project called `madOobe`. It will still run as part of microauthd, but is accessible as a standalone tool for those who need it (Docker users primarily). You can start microauthd with --docker to prevent the OOBE tool from running as part of the first run.
 
 I am working on packaging this up for Windows, Linux, and MacOS. The Linux build will also include a Docker image that can optionally be used to run microauthd in a container.
-
-**2025-06-28**
-
-On the usability front, I just wanted to say I'm happy about finally versioning our database schema for migrations, and now no longer requiring `mad` users to enter --admin-url on the CLI. We are slowly getting to a usability point that I think can drive adoption of microauthd. Additionally, if you are experimenting with the package, we would like to hear from you. Pain points, missing features, whatever. As we seek to move to a true v1.0 release, it will be important to get feedback so we can get things in order. Don't be shy. Thanks!
-
-If you don't feel comfortable reaching out via GitHub issues, you can always email me at nebulae at nebulae dot online.
 
 ---
 

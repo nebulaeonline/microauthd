@@ -541,6 +541,7 @@ public static class AuthService
         string password,
         string code,
         string redirectUri,
+        string totpCode,
         AppConfig config)
     {
         // Get the form fields and validate that we have all required fields
@@ -573,6 +574,24 @@ public static class AuthService
         {
             Log.Warning("Failed login attempt for {Username}", username);
             return OidcErrors.InvalidGrant<MessageResponse>();
+        }
+
+        // See if we need totp for this user
+        var userId = UserStore.GetUserIdByUsername(username);
+        if (userId is null)
+        {
+            Log.Warning("Rejected login: user {Username} does not exist", username);
+            return OidcErrors.InvalidGrant<MessageResponse>();
+        }
+
+        if (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(userId!))
+        {
+            if (string.IsNullOrWhiteSpace(totpCode))
+                return OidcErrors.InvalidGrant<MessageResponse>();
+
+            var verifyResult = UserService.VerifyTotpCode(userId, totpCode, config);
+            if (!verifyResult.Success)
+                return OidcErrors.InvalidGrant<MessageResponse>();
         }
 
         // Attach the user id to the PKCE code
@@ -632,6 +651,20 @@ public static class AuthService
             return Results.BadRequest("Missing nonce for openid scope");
 
         var user = authResult.Value;
+        if (string.IsNullOrWhiteSpace(user.UserId))
+            return Results.BadRequest("Invalid credentials.");
+
+        if (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(user.UserId!))
+        {
+            var totpCode = form["totp_code"].ToString();
+
+            if (string.IsNullOrWhiteSpace(totpCode))
+                return Results.BadRequest("Invalid credentials.");
+
+            var verifyResult = UserService.VerifyTotpCode(user.UserId, totpCode, config);
+            if (!verifyResult.Success)
+                return Results.BadRequest("Invalid credentials.");
+        }
 
         var code = Utils.GenerateBase64EncodedRandomBytes(32);
 
