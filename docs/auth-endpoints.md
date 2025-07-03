@@ -81,10 +81,10 @@ The Version endpoint is for clients to ascertain the current version of microaut
 
 VersionResponse:
 
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"name"    : "microauthd",
-&nbsp;&nbsp;&nbsp;&nbsp;"version" : "current version number string"
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"name"    : "microauthd",  
+&nbsp;&nbsp;&nbsp;&nbsp;"version" : "current version number string"  
+}  
 
 ---
 
@@ -138,12 +138,12 @@ The Me endpoint is non-standard vestige from microauthd's earlier days. It is re
 
 MeResponse:
 
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"sub"    : "user GUID",
-&nbsp;&nbsp;&nbsp;&nbsp;"email"  : "user email",
-&nbsp;&nbsp;&nbsp;&nbsp;"roles"  : [ "role1", "role2", ... ],
-&nbsp;&nbsp;&nbsp;&nbsp;"scopes" : [ "scope1", "scope2", ... ],
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"sub"    : "user GUID",  
+&nbsp;&nbsp;&nbsp;&nbsp;"email"  : "user email",  
+&nbsp;&nbsp;&nbsp;&nbsp;"roles"  : [ "role1", "role2", ... ],  
+&nbsp;&nbsp;&nbsp;&nbsp;"scopes" : [ "scope1", "scope2", ... ],  
+}  
 
 #### Me Sessions
 
@@ -155,17 +155,17 @@ The Me Sessions endpoint is used to return a list of the current user's sessions
 
 SessionResponse:
 
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"id"         : "session GUID",
-&nbsp;&nbsp;&nbsp;&nbsp;"user_id"    : "user GUID",
-&nbsp;&nbsp;&nbsp;&nbsp;"username"   : "username",
-&nbsp;&nbsp;&nbsp;&nbsp;"client_id"  : "client identifier (note: NOT GUID),
-&nbsp;&nbsp;&nbsp;&nbsp;"issued_at"  : "when the session was started",
-&nbsp;&nbsp;&nbsp;&nbsp;"expires_at" : "when the session expires / expired",
-&nbsp;&nbsp;&nbsp;&nbsp;"is_revoked" : "whether the session is revoked or not",
-&nbsp;&nbsp;&nbsp;&nbsp;"token_use"  : "access or id",
-&nbsp;&nbsp;&nbsp;&nbsp;"mad_use"    : "admin or auth"
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"id"         : "session GUID",  
+&nbsp;&nbsp;&nbsp;&nbsp;"user_id"    : "user GUID",  
+&nbsp;&nbsp;&nbsp;&nbsp;"username"   : "username",  
+&nbsp;&nbsp;&nbsp;&nbsp;"client_id"  : "client identifier (note: NOT GUID),  
+&nbsp;&nbsp;&nbsp;&nbsp;"issued_at"  : "when the session was started",  
+&nbsp;&nbsp;&nbsp;&nbsp;"expires_at" : "when the session expires / expired",  
+&nbsp;&nbsp;&nbsp;&nbsp;"is_revoked" : "whether the session is revoked or not",  
+&nbsp;&nbsp;&nbsp;&nbsp;"token_use"  : "access or id",  
+&nbsp;&nbsp;&nbsp;&nbsp;"mad_use"    : "admin or auth"  
+}  
 
 ---
 
@@ -179,19 +179,19 @@ The Me Refresh Tokens endpoint is used to return a list of the current user's re
 
 RefreshTokenResponse:
 
-{
-&nbsp;&nbsp;[
-&nbsp;&nbsp;&nbsp;&nbsp;"id"         : "session GUID",
-&nbsp;&nbsp;&nbsp;&nbsp;"user_id"    : "user GUID",
-&nbsp;&nbsp;&nbsp;&nbsp;"username"   : "username",
-&nbsp;&nbsp;&nbsp;&nbsp;"session_id" : "session GUID it belongs to"
-&nbsp;&nbsp;&nbsp;&nbsp;"client_id"  : "client identifier (note: NOT GUID),
-&nbsp;&nbsp;&nbsp;&nbsp;"issued_at"  : "when the session was started",
-&nbsp;&nbsp;&nbsp;&nbsp;"expires_at" : "when the session expires / expired",
-&nbsp;&nbsp;&nbsp;&nbsp;"is_revoked" : "whether the session is revoked or not",
-&nbsp;&nbsp;&nbsp;&nbsp;"is_openid_token" : "whether this was issued as part of an OIDC request"
-&nbsp;&nbsp;]
-}
+{  
+&nbsp;&nbsp;[  
+&nbsp;&nbsp;&nbsp;&nbsp;"id"         : "session GUID",  
+&nbsp;&nbsp;&nbsp;&nbsp;"user_id"    : "user GUID",  
+&nbsp;&nbsp;&nbsp;&nbsp;"username"   : "username",  
+&nbsp;&nbsp;&nbsp;&nbsp;"session_id" : "session GUID it belongs to"  
+&nbsp;&nbsp;&nbsp;&nbsp;"client_id"  : "client identifier (note: NOT GUID)",  
+&nbsp;&nbsp;&nbsp;&nbsp;"issued_at"  : "when the session was started",  
+&nbsp;&nbsp;&nbsp;&nbsp;"expires_at" : "when the session expires / expired",  
+&nbsp;&nbsp;&nbsp;&nbsp;"is_revoked" : "whether the session is revoked or not",  
+&nbsp;&nbsp;&nbsp;&nbsp;"is_openid_token" : "whether this was issued as part of an OIDC request"  
+&nbsp;&nbsp;]  
+}  
 
 ---
 
@@ -309,17 +309,17 @@ The /login endpoint is used in the headless PKCE flow as the actual authenticati
 |              | nonce       | |
 
 MessageResponse:
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"success" : "true",
-&nbsp;&nbsp;&nbsp;&nbsp;"message" : "what action was successful"
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"success" : "true",  
+&nbsp;&nbsp;&nbsp;&nbsp;"message" : "what action was successful"  
+}  
 
 ErrorResponse:
 
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"success" : "false",
-&nbsp;&nbsp;&nbsp;&nbsp;"message" : "info about the request that failed"
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"success" : "false",  
+&nbsp;&nbsp;&nbsp;&nbsp;"message" : "info about the request that failed"  
+}  
 
 ---
 
@@ -385,23 +385,23 @@ The Scoped Create User Endpoint is one of the delegated ADMIN functions that can
 
 CreateUserRequest:
 
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"username" : "username",
-&nbsp;&nbsp;&nbsp;&nbsp;"email"    : "email",
-&nbsp;&nbsp;&nbsp;&nbsp;"password" : "password"
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"username" : "username",  
+&nbsp;&nbsp;&nbsp;&nbsp;"email"    : "email",  
+&nbsp;&nbsp;&nbsp;&nbsp;"password" : "password"  
+}  
 
 UserObject:
 
-{
-&nbsp;&nbsp;&nbsp;&nbsp;"id"        : "user GUID",
-&nbsp;&nbsp;&nbsp;&nbsp;"username"  : "username",
-&nbsp;&nbsp;&nbsp;&nbsp;"email"     : "email",
-&nbsp;&nbsp;&nbsp;&nbsp;"created_at": "created at",
-&nbsp;&nbsp;&nbsp;&nbsp;"lockout_until" : "locked out until",
-&nbsp;&nbsp;&nbsp;&nbsp;"is_active" : "is the user active?",
-&nbsp;&nbsp;&nbsp;&nbsp;"email_verified" : "is the user's email verified?"
-}
+{  
+&nbsp;&nbsp;&nbsp;&nbsp;"id"        : "user GUID",  
+&nbsp;&nbsp;&nbsp;&nbsp;"username"  : "username",  
+&nbsp;&nbsp;&nbsp;&nbsp;"email"     : "email",  
+&nbsp;&nbsp;&nbsp;&nbsp;"created_at": "created at",  
+&nbsp;&nbsp;&nbsp;&nbsp;"lockout_until" : "locked out until",  
+&nbsp;&nbsp;&nbsp;&nbsp;"is_active" : "is the user active?",  
+&nbsp;&nbsp;&nbsp;&nbsp;"email_verified" : "is the user's email verified?"  
+}  
 
 ---
 
