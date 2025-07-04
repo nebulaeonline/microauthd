@@ -701,21 +701,21 @@ public static class UserService
     }
 
     /// <summary>
-    /// Writes a session record to the database using the provided token information.
+    /// Writes the session information to the database.
     /// </summary>
-    /// <remarks>This method inserts a new session record into the database. The session is marked as
-    /// active (not revoked) upon creation. Ensure that the database connection is properly configured in the
-    /// application settings before calling this method.</remarks>
-    /// <param name="token">The <see cref="TokenInfo"/> object containing details about the session, including the token ID, user ID,
-    /// token value, issue time, and expiration time. All properties must be populated.</param>
-    /// <param name="config">The <see cref="AppConfig"/> object containing application-specific configuration settings. This parameter is
-    /// required to establish a database connection.</param>
-    /// Sessions are tested via Python e2e integration tests with mad CLI, purges are tested via Admin GUI.
-    public static void WriteSessionToDb(TokenInfo token, AppConfig config, string clientIdent)
+    /// <remarks>This method attempts to write session information to the database using the provided token,
+    /// client identifier, and login method. If an error occurs during the operation, the exception is logged and
+    /// re-thrown for the caller to handle.</remarks>
+    /// <param name="token">The token containing session details, including the user's ID and session identifier.</param>
+    /// <param name="config">The application configuration settings. This parameter is not directly used in this method but may be required
+    /// for related operations.</param>
+    /// <param name="clientIdent">A string identifying the client associated with the session.</param>
+    /// <param name="loginMethod">The method used for logging in, such as "password" or "OAuth".</param>
+    public static void WriteSessionToDb(TokenInfo token, AppConfig config, string clientIdent, string loginMethod)
     {
         try
         {
-            UserStore.WriteSessionToDb(token, clientIdent);
+            UserStore.WriteSessionToDb(token, clientIdent, loginMethod);
         }
         catch (Exception ex)
         {

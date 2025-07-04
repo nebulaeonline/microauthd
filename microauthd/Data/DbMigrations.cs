@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 11;
+    private const int CurrentSchemaVersion = 12;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -160,6 +160,9 @@ public static class DbMigrations
                 break;
             case (10, 11):
                 Migrate_10_to_11();
+                break;
+            case (11, 12):
+                Migrate_11_to_12();
                 break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
@@ -384,5 +387,30 @@ public static class DbMigrations
             """;
             cmd.ExecuteNonQuery();
         });
+    }
+
+    // Migration: v11 to v12
+    // Add `login_method` column to `sessions` table
+    private static void Migrate_11_to_12()
+    {
+        if (!ColumnExists("pkce_codes", "login_method"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE pkce_codes ADD COLUMN login_method TEXT;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        if (!ColumnExists("auth_sessions", "login_method"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE auth_sessions ADD COLUMN login_method TEXT;";
+                cmd.ExecuteNonQuery();
+            });
+        }
     }
 }

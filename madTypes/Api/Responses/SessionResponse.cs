@@ -22,4 +22,6 @@ public sealed class SessionResponse
     public string TokenUse { get; init; } = string.Empty;
     [JsonPropertyName("mad_use")]
     public string MadUse { get; init; } = string.Empty;
+    [JsonPropertyName("login_method")]
+    public string LoginMethod { get; init; } = string.Empty;
 }

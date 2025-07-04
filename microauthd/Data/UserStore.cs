@@ -699,14 +699,14 @@ public static class UserStore
     /// time.</param>
     /// <param name="config">The application configuration used to establish the database connection.</param>
     /// <param name="clientIdent">A unique identifier for the client associated with the session.</param>
-    public static void WriteSessionToDb(TokenInfo token, string clientIdent)
+    public static void WriteSessionToDb(TokenInfo token, string clientIdent, string loginMethod)
     {
         Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, token_use, mad_use)
-                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $tok_use, $mad_use);
+                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, token_use, mad_use, login_method)
+                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $tok_use, $mad_use, $login_method);
                 """;
             cmd.Parameters.AddWithValue("$id", token.Jti);
             cmd.Parameters.AddWithValue("$uid", token.UserId);
@@ -716,6 +716,7 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$exp", token.ExpiresAt.ToString("o"));
             cmd.Parameters.AddWithValue("$tok_use", token.TokenUse);
             cmd.Parameters.AddWithValue("$mad_use", token.MadUse);
+            cmd.Parameters.AddWithValue("$login_method", loginMethod);
             cmd.ExecuteNonQuery();
         });
     }
@@ -735,7 +736,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use
+                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use, mad_use, login_method
                     FROM sessions
                     ORDER BY issued_at DESC;
                 """;
@@ -758,7 +759,9 @@ public static class UserStore
                         System.Globalization.DateTimeStyles.AssumeUniversal |
                             System.Globalization.DateTimeStyles.AdjustToUniversal),
                     IsRevoked = reader.GetInt64(4) == 1,
-                    TokenUse = reader.GetString(5)
+                    TokenUse = reader.GetString(5),
+                    MadUse = reader.GetString(6),
+                    LoginMethod = reader.GetString(7)
                 });
             }
 
@@ -791,7 +794,9 @@ public static class UserStore
                     s.issued_at,
                     s.expires_at,
                     s.is_revoked,
-                    s.token_use
+                    s.token_use,
+                    s.mad_use,
+                    s.login_method
                 FROM sessions s
                 LEFT JOIN users u ON s.user_id = u.id
                 ORDER BY s.issued_at DESC
@@ -814,7 +819,9 @@ public static class UserStore
                     IssuedAt = reader.GetDateTime(4).ToUniversalTime(),
                     ExpiresAt = reader.GetDateTime(5).ToUniversalTime(),
                     IsRevoked = reader.GetBoolean(6),
-                    TokenUse = reader.GetString(7)
+                    TokenUse = reader.GetString(7),
+                    MadUse = reader.GetString(8),
+                    LoginMethod = reader.GetString(9)
                 });
             }
 
@@ -835,7 +842,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use
+                SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use, mad_use, login_method
                 FROM sessions
                 WHERE id = $jti;
             """;
@@ -859,7 +866,9 @@ public static class UserStore
                     System.Globalization.DateTimeStyles.AssumeUniversal |
                         System.Globalization.DateTimeStyles.AdjustToUniversal),
                 IsRevoked = reader.GetInt64(5) == 1,
-                TokenUse = reader.GetString(6)
+                TokenUse = reader.GetString(6),
+                MadUse = reader.GetString(7),
+                LoginMethod = reader.GetString(8)
             };
         });
 
@@ -882,7 +891,7 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use
+                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use, mad_use, login_method
                     FROM sessions
                     WHERE user_id = $uid
                     ORDER BY issued_at DESC;
@@ -907,7 +916,9 @@ public static class UserStore
                         System.Globalization.DateTimeStyles.AssumeUniversal |
                             System.Globalization.DateTimeStyles.AdjustToUniversal),
                     IsRevoked = reader.GetInt64(4) == 1,
-                    TokenUse = reader.GetString(5)
+                    TokenUse = reader.GetString(5),
+                    MadUse = reader.GetString(6),
+                    LoginMethod = reader.GetString(7)
                 });
             }
 

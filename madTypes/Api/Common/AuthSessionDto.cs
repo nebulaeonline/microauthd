@@ -34,4 +34,6 @@ public class AuthSessionDto
 
     [JsonPropertyName("expires_at_utc")]
     public DateTime ExpiresAtUtc { get; set; }
+    [JsonPropertyName("login_method")]
+    public string? LoginMethod { get; set; }
 }

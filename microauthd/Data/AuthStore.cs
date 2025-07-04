@@ -19,9 +19,9 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     INSERT INTO pkce_codes 
-                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti, nonce, scope)
+                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti, nonce, scope, login_method)
                     VALUES
-                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti, $nonce, $scope);
+                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti, $nonce, $scope, $login_method);
                 """;
 
                 cmd.Parameters.AddWithValue("$code", pkce.Code);
@@ -35,7 +35,7 @@ namespace microauthd.Data
                 cmd.Parameters.AddWithValue("$jti", (object?)pkce.Jti?.Trim() ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$nonce", (object?)pkce.Nonce?.Trim() ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$scope", pkce.Scope?.Trim());
-
+                cmd.Parameters.AddWithValue("$login_method", pkce.LoginMethod);
                 cmd.ExecuteNonQuery();
             });
         }
@@ -57,7 +57,7 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     SELECT code, client_identifier, redirect_uri, code_challenge, code_challenge_method,
-                           expires_at, is_used, user_id, jti, nonce, scope
+                           expires_at, is_used, user_id, jti, nonce, scope, login_method
                     FROM pkce_codes
                     WHERE code = $code
                     LIMIT 1;
@@ -75,15 +75,16 @@ namespace microauthd.Data
                     CodeChallenge = reader.GetString(3).Trim(),
                     CodeChallengeMethod = reader.GetString(4).Trim(),
                     ExpiresAt = DateTime.Parse(
-                        reader.GetString(5), 
-                        CultureInfo.InvariantCulture, 
-                        System.Globalization.DateTimeStyles.AssumeUniversal | 
+                        reader.GetString(5),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
                             System.Globalization.DateTimeStyles.AdjustToUniversal), // ISO 8601
                     IsUsed = reader.GetBoolean(6),
                     UserId = reader.GetString(7).Trim(),
                     Jti = reader.IsDBNull(8) ? null : reader.GetString(8).Trim(),
                     Nonce = reader.IsDBNull(9) ? null : reader.GetString(9).Trim(),
-                    Scope = reader.IsDBNull(10) ? null : reader.GetString(10).Trim()
+                    Scope = reader.IsDBNull(10) ? null : reader.GetString(10).Trim(),
+                    LoginMethod = reader.GetString(11).Trim()
                 };
             });
         }

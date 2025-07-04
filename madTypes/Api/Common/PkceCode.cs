@@ -26,4 +26,6 @@ public class PkceCode
     public string? Nonce { get; set; }
     [JsonPropertyName("scope")]
     public string? Scope { get; set; }
+    [JsonPropertyName("login_method")]
+    public string? LoginMethod { get; set; }
 }

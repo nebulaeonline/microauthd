@@ -22,8 +22,8 @@ public static class AuthSessionStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO auth_sessions (jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at)
-                VALUES ($jti, $client_id, $user_id, $redirect_uri, $totp_required, $nonce, $scope, $state, $code_challenge, $code_challenge_method, $created, $expires);
+                INSERT INTO auth_sessions (jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method)
+                VALUES ($jti, $client_id, $user_id, $redirect_uri, $totp_required, $nonce, $scope, $state, $code_challenge, $code_challenge_method, $created, $expires, $login_method);
             """;
             cmd.Parameters.AddWithValue("$jti", session.Jti);
             cmd.Parameters.AddWithValue("$client_id", session.ClientId);
@@ -37,6 +37,7 @@ public static class AuthSessionStore
             cmd.Parameters.AddWithValue("$code_challenge_method", session.CodeChallengeMethod);
             cmd.Parameters.AddWithValue("$created", session.CreatedAtUtc);
             cmd.Parameters.AddWithValue("$expires", session.ExpiresAtUtc);
+            cmd.Parameters.AddWithValue("$login_method", (object?)session.LoginMethod ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         });
     }
@@ -58,7 +59,7 @@ public static class AuthSessionStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at
+                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method
                 FROM auth_sessions
                 WHERE jti = $jti;
             """;
@@ -80,8 +81,32 @@ public static class AuthSessionStore
                 CodeChallenge = reader.GetString(8),
                 CodeChallengeMethod = reader.GetString(9),
                 CreatedAtUtc = reader.GetDateTime(10).ToUniversalTime(),
-                ExpiresAtUtc = reader.GetDateTime(11).ToUniversalTime()
+                ExpiresAtUtc = reader.GetDateTime(11).ToUniversalTime(),
+                LoginMethod = reader.IsDBNull(12) ? null : reader.GetString(12)
             };
+        });
+    }
+
+    /// <summary>
+    /// Associates a login method with an authentication session identified by the specified token.
+    /// </summary>
+    /// <remarks>This method updates the login method for an existing authentication session in the database.
+    /// Ensure that the <paramref name="jti"/> corresponds to a valid session before calling this method.</remarks>
+    /// <param name="jti">The unique identifier of the authentication session. This value cannot be null or empty.</param>
+    /// <param name="loginMethod">The login method to associate with the authentication session. This value cannot be null or empty.</param>
+    public static void AttachLoginMethod(string jti, string loginMethod)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE auth_sessions
+                SET login_method = $login_method
+                WHERE jti = $jti;
+            """;
+            cmd.Parameters.AddWithValue("$jti", jti);
+            cmd.Parameters.AddWithValue("$login_method", loginMethod);
+            cmd.ExecuteNonQuery();
         });
     }
 
@@ -132,7 +157,7 @@ public static class AuthSessionStore
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = """
-                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at
+                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method
                 FROM auth_sessions
                 WHERE jti = $jti;
             """;
@@ -158,7 +183,8 @@ public static class AuthSessionStore
                 CodeChallenge = reader.GetString(8),
                 CodeChallengeMethod = reader.GetString(9),
                 CreatedAtUtc = reader.GetDateTime(10).ToUniversalTime(),
-                ExpiresAtUtc = reader.GetDateTime(11).ToUniversalTime()
+                ExpiresAtUtc = reader.GetDateTime(11).ToUniversalTime(),
+                LoginMethod = reader.IsDBNull(12) ? null : reader.GetString(12)
             };
 
             reader.Close();

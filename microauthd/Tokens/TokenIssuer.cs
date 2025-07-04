@@ -105,7 +105,7 @@ public static class TokenIssuer
     /// <param name="clientId">The client identifier for which the token is issued. This is used as the audience of the token.</param>
     /// <returns>A string representation of the issued ID token in JWT format.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the application's private key is of an unsupported type.</exception>
-    public static string IssueIdToken(AppConfig config, IEnumerable<Claim> userClaims, string clientId, string? nonce = null)
+    public static string IssueIdToken(AppConfig config, IEnumerable<Claim> userClaims, string clientId, string? loginMethod, string? nonce = null)
     {
         var key = TokenKeyCache.GetPrivateKey(isAdmin: false);
         var signingCredentials = key switch
@@ -140,6 +140,10 @@ public static class TokenIssuer
         // add nonce if present
         if (!string.IsNullOrEmpty(nonce))
             claims.Add(new Claim("nonce", nonce));
+
+        // AMR (claims authentication methods reference)
+        if (loginMethod is not null && loginMethod != "refresh")
+            claims.Add(new Claim("amr", loginMethod));
 
         var header = new JwtHeader(signingCredentials);
         header["typ"] = "JWT";

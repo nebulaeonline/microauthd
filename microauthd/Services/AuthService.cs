@@ -343,7 +343,8 @@ public static class AuthService
                 CodeChallenge = codeChallenge,
                 CodeChallengeMethod = codeChallengeMethod,
                 CreatedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5)
+                ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
+                LoginMethod = null
             };
 
             AuthSessionStore.Insert(session);
@@ -442,6 +443,8 @@ public static class AuthService
             requiresTotp = true;
 
         AuthSessionStore.AttachUserIdAndTotpFlag(jti, userId, requiresTotp);
+        // persist login type for AMR claim
+        AuthSessionStore.AttachLoginMethod(jti, "pwd");
 
         return ApiResult<PkceAuthorizeResponse>.Ok(new PkceAuthorizeResponse(
             Jti: jti,
@@ -498,6 +501,9 @@ public static class AuthService
         if (!result.Success)
             return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
 
+        // persist login type for AMR claim
+        AuthSessionStore.AttachLoginMethod(session.Jti, "otp");
+
         return ApiResult<PkceAuthorizeResponse>.Ok(new PkceAuthorizeResponse(
             Jti: session.Jti,
             ClientId: clientIdentifier,
@@ -553,7 +559,8 @@ public static class AuthService
             UserId = session.UserId!,
             Jti = session.Jti,
             Nonce = session.Nonce,
-            Scope = session.Scope
+            Scope = session.Scope,
+            LoginMethod = session.LoginMethod
         });
 
         // build redirect_uri?code=...&state=...
@@ -680,7 +687,7 @@ public static class AuthService
 
         var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientIdentifier);
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience);
-        UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientIdentifier);
+        UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientIdentifier, pkce.LoginMethod!);
 
         string? refreshToken = null;
         if (config.EnableTokenRefresh)
@@ -692,7 +699,7 @@ public static class AuthService
         string? idToken = null;
         if (issueIdToken)
         {
-            idToken = TokenIssuer.IssueIdToken(config, claims, pkce.ClientIdentifier, pkce.Nonce);
+            idToken = TokenIssuer.IssueIdToken(config, claims, pkce.ClientIdentifier, pkce.LoginMethod, pkce.Nonce);
         }
 
         AuthStore.AttachJtiToPkceCode(code, tokenInfo.Jti);
@@ -761,7 +768,7 @@ public static class AuthService
 
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: true);
 
-        UserService.WriteSessionToDb(tokenInfo, config, req.ClientIdentifier ?? "admin");
+        UserService.WriteSessionToDb(tokenInfo, config, req.ClientIdentifier ?? "admin", "pwd");
 
         Log.Information("Admin Token issued for user {UserId}", r.UserId);
 
@@ -859,7 +866,7 @@ public static class AuthService
                 claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
             var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
-            UserService.WriteSessionToDb(tokenInfo, config, clientIdent);
+            UserService.WriteSessionToDb(tokenInfo, config, clientIdent, "pwd");
 
             var issueIdToken = scopeValues.Contains("openid");
 
@@ -873,7 +880,7 @@ public static class AuthService
             string? idToken = null;
             if (issueIdToken)
             {
-                idToken = TokenIssuer.IssueIdToken(config, claims, clientIdent);
+                idToken = TokenIssuer.IssueIdToken(config, claims, clientIdent, "pwd");
             }
 
             Log.Debug("Issued token for user {UserId} under client {ClientIdent}", r.UserId, clientIdent);
@@ -958,7 +965,7 @@ public static class AuthService
             var audience = ClientStore.GetClientAudienceByIdentifier(tokenRow.ClientIdentifier);
 
             var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
-            UserService.WriteSessionToDb(tokenInfo, config, tokenRow.ClientIdentifier);
+            UserService.WriteSessionToDb(tokenInfo, config, tokenRow.ClientIdentifier, "refresh");
 
             var newRefreshToken = UserService.GenerateAndStoreRefreshToken(
                 config,
@@ -979,7 +986,7 @@ public static class AuthService
             string? idToken = null;
             if (tokenRow.IsOpenIdToken)
             {
-                idToken = TokenIssuer.IssueIdToken(config, claims, tokenRow.ClientIdentifier);
+                idToken = TokenIssuer.IssueIdToken(config, claims, tokenRow.ClientIdentifier, "refresh");
             }
 
             return ApiResult<TokenResponse>.Ok(new TokenResponse
