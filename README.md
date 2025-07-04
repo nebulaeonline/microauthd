@@ -45,23 +45,15 @@ Currently, microauthd can not act as an OIDC client, but support is planned prio
 
 ---
 
-## ADMIN Web GUI Screenshots
-
-![Dashboard](docs/images/madgui2.png)
-
-![Users](docs/images/madgui3.png)
-
-![Roles](docs/images/madgui4.png)
-
-![Sessions](docs/images/madgui5.png)
-
----
-
 ## microauthd Status Updates
 
 Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-roll-your-own-auth), my follow up [Auth Rolled: Part Deux](https://purplekungfu.com/Post/10/auth-rolled-part-deux) and my dev.to post on [microauthd](https://dev.to/nebulae/i-rolled-my-own-auth-p8o).
 
 I will keep the last 5 days of updates here; older updates can be found in the [CHANGELOG](CHANGELOG.md) file.
+
+**2025-07-04**
+
+Today is the day I begin the migration toward a per-client feature flag model, including TOTP. The global TOTP flag will be going away and OOBE will be adjusted accordingly. 
 
 **2025-07-03**
 
@@ -91,11 +83,17 @@ Made a lot of progress today with implementing standard login flows expected by 
 
 The testsuite is rounding into shape. Normally I would have been writing tests as I went, but this one is a bit trickier than most. We have the end-to-end testing via the Python suite, which hits the CRUD on every endpoint including token issuance, renewal and invalidation testing. But there's a lot of standalone and database functions that don't get e2e testing via Python, and so I'm filling in the blanks. It's about 90% of the way done. I hope to have close to 100% coverage within the next week or so, so you can rest assured that microauthd is being worked out from a testing perspective.
 
-**2025-06-29**
+---
 
-The OOBE tool has been separated into a standalone project called `madOobe`. It will still run as part of microauthd, but is accessible as a standalone tool for those who need it (Docker users primarily). You can start microauthd with --docker to prevent the OOBE tool from running as part of the first run.
+## ADMIN Web GUI Screenshots
 
-I am working on packaging this up for Windows, Linux, and MacOS. The Linux build will also include a Docker image that can optionally be used to run microauthd in a container.
+![Dashboard](docs/images/madgui2.png)
+
+![Users](docs/images/madgui3.png)
+
+![Roles](docs/images/madgui4.png)
+
+![Sessions](docs/images/madgui5.png)
 
 ---
 
