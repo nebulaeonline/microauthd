@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 8;
+    private const int CurrentSchemaVersion = 9;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -152,6 +152,9 @@ public static class DbMigrations
             case (7, 8):
                 Migrate_7_to_8();
                 break;
+            case (8, 9):
+                Migrate_8_to_9();
+                break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
         }
@@ -279,5 +282,42 @@ public static class DbMigrations
                 cmd.ExecuteNonQuery();
             });
         }
+    }
+
+    // Migration: v8 to v9
+    // Add new fields to `auth_sessions` table to support new PKCE flow
+    private static void Migrate_8_to_9()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                DROP TABLE IF EXISTS auth_sessions;
+
+                CREATE TABLE IF NOT EXISTS auth_sessions (
+                    jti TEXT PRIMARY KEY,
+                    client_id TEXT NOT NULL,
+                    user_id TEXT,
+                    totp_required BOOLEAN NOT NULL DEFAULT 0,
+                    nonce TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    state TEXT,
+                    redirect_uri TEXT,
+                    code_challenge TEXT NOT NULL DEFAULT '',
+                    code_challenge_method TEXT NOT NULL DEFAULT '',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    expires_at DATETIME NOT NULL,
+                    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_auth_session_expiration 
+                    ON auth_sessions (expires_at);
+                CREATE INDEX IF NOT EXISTS idx_auth_session_client 
+                    ON auth_sessions (client_id);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_session_client_nonce 
+                    ON auth_sessions (client_id, nonce, jti);
+            """;
+            cmd.ExecuteNonQuery();
+        });
     }
 }

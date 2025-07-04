@@ -138,6 +138,9 @@ namespace microauthd.Common
                 var t when t == typeof(PingResponse) =>
                     MicroauthdJsonContext.Default.PingResponse,
 
+                var t when t == typeof(PkceAuthorizeResponse) =>
+                    MicroauthdJsonContext.Default.PkceAuthorizeResponse,
+
                 var t when t == typeof(RefreshTokenResponse) =>
                     MicroauthdJsonContext.Default.RefreshTokenResponse,
 

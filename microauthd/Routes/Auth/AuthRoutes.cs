@@ -198,103 +198,104 @@ public static class AuthRoutes
         // authorize for pkce endpoint**************************************************************
         if (config.EnablePkce)
         {
-            group.MapGet("/authorize", (HttpRequest request, HttpContext ctx, AppConfig config) =>
+            group.MapPost("/authorize", async (HttpContext ctx, AppConfig config) =>
             {
-                return AuthService.HandleAuthorizationRequest(request, config);
-            })
-            .WithName("Authorize")
-            .WithTags("oidc")
-            .Produces<Dictionary<string, object>>(StatusCodes.Status200OK);
-        }
-
-        // authorize for pkce with prompt endpoint**************************************************
-        if (config.EnablePkce)
-        {
-            group.MapGet("/authorize-ui", (HttpRequest request, HttpContext ctx, AppConfig config) =>
-            {
-                var clientId = request.Query["client_id"].ToString();
-                var redirectUri = request.Query["redirect_uri"].ToString();
-
-                if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
-                    return Results.BadRequest("Invalid flow");
-
-                var jti = Utils.GenerateBase64EncodedRandomBytes(16);
-                var qs = request.QueryString.HasValue ? request.QueryString.Value : "";
-
-                AuthSessionStore.Insert(new AuthSessionDto
+                if (!ctx.Request.HasFormContentType)
                 {
-                    Jti = jti,
-                    QueryString = qs!,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    ExpiresAtUtc = DateTime.UtcNow + TimeSpan.FromMinutes(5)
-                });
+                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid content type", 400).ToHttpResult();
+                }
 
-                return Results.Redirect($"/login.html?jti={Uri.EscapeDataString(jti)}");
+                // Read the form data
+                var form = await ctx.Request.ReadFormAsync();
+
+                // Call the service layer to handle the authorization logic
+                return AuthService.BeginPkceAuthorization(form, config).ToHttpResult();
             })
-            .WithName("AuthorizeUI")
-            .WithTags("oidc")
-            .Produces<Dictionary<string, object>>(StatusCodes.Status200OK);
+            .AllowAnonymous()
+            .WithName("BeginPkceAuthorization")
+            .WithTags("PKCE")
+            .Produces<ApiResult<PkceAuthorizeResponse>>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .WithOpenApi();
         }
 
-        // handle ui based pkce login endpoint******************************************************
+        // pkce password login endpoint*************************************************************
         if (config.EnablePkce)
         {
-            group.MapPost("/login-ui", (HttpContext ctx, AppConfig config, IFormCollection form) =>
+            group.MapPost("/login/password", (HttpContext ctx, AppConfig config) =>
+            {
+                if (!ctx.Request.HasFormContentType)
+                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid content type", 400).ToHttpResult();
 
-                AuthService.HandleUiLogin(form, config, ctx)
+                var form = ctx.Request.ReadFormAsync().Result;
+                return AuthService.HandlePkcePasswordLogin(form, config).ToHttpResult();
+            })
+            .AllowAnonymous()
+            .WithName("PkcePasswordLogin")
+            .WithTags("PKCE")
+            .Produces<ApiResult<PkceAuthorizeResponse>>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .WithOpenApi();
+        }
 
-            )
-            .WithName("LoginUI")
-            .WithTags("Oidc");
+        // handle totp pkce login endpoint**********************************************************
+        if (config.EnablePkce)
+        {
+            group.MapPost("/login/totp", (HttpContext ctx, AppConfig config) =>
+            {
+                if (!ctx.Request.HasFormContentType)
+                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid content type", 400).ToHttpResult();
+
+                var form = ctx.Request.ReadFormAsync().Result;
+                return AuthService.HandlePkceTotpLogin(form, config).ToHttpResult();
+            })
+            .AllowAnonymous()
+            .WithName("PkceTotpLogin")
+            .WithTags("PKCE")
+            .Produces<ApiResult<PkceAuthorizeResponse>>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .WithOpenApi();
         }
 
         // get auth session endpoint****************************************************************
         if (config.EnablePkce)
         {
-            group.MapGet("/auth_session/{jti}", (string jti) =>
+            group.MapGet("/auth-session/{jti}", (string jti) =>
             {
-                var session = AuthSessionStore.Get(jti);
-
-                return session is null
-                    ? Results.NotFound()
-                    : Results.Json(session, MicroauthdJsonContext.Default.AuthSessionDto);
-            })
-            .WithName("GetAuthSession")
-            .WithTags("oidc");
-        }
-
-        // login for pkce endpoint******************************************************************
-        if (config.EnablePkce)
-        {
-            group.MapPost("/login", async (HttpContext ctx, IAntiforgery antiforgery, AppConfig config) =>
-            {
-                var valid = await antiforgery.IsRequestValidAsync(ctx);
-                if (!valid)
-                    return Results.StatusCode(StatusCodes.Status400BadRequest);
-
-                if (!ctx.Request.HasFormContentType)
-                    return Results.BadRequest(new ErrorResponse(false, "Invalid content type"));
-
-                var form = await ctx.Request.ReadFormAsync();
-                var username = form["username"].ToString();
-                var password = form["password"].ToString();
-                var code = form["code"].ToString();
-                var redirectUri = form["redirect_uri"].ToString();
-                var scope = form["scope"];
-                var nonce = form["nonce"];
-                var totpCode = form["totp_code"].ToString().Trim();
-
-                var result = AuthService.HandleUserLoginWithCode(username, password, code, redirectUri, totpCode, config);
-                return result.ToHttpResult();
+                return AuthService.GetAuthSession(jti).ToHttpResult();
             })
             .AllowAnonymous()
-            .WithName("HandleUserLogin")
-            .Produces<MessageResponse>(StatusCodes.Status200OK)
+            .WithName("GetAuthSession")
+            .WithTags("PKCE")
+            .Produces<ApiResult<AuthSessionDto>>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-            .WithTags("Auth")
             .WithOpenApi();
         }
+
+        // finalize login for pkce endpoint*********************************************************
+        if (config.EnablePkce)
+        {
+            group.MapPost("/login/finalize", (HttpContext ctx, AppConfig config) =>
+            {
+                if (!ctx.Request.HasFormContentType)
+                    return ApiResult<ErrorResponse>.Fail("Invalid content type", 400).ToHttpResult();
+
+                var form = ctx.Request.ReadFormAsync().Result;
+                return AuthService.FinalizePkceLogin(form, config);
+            })
+            .AllowAnonymous()
+            .WithName("FinalizePkceLogin")
+            .WithTags("PKCE")
+            .Produces<IResult>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
+
+        }
+
         // token request endpoint*******************************************************************
         group.MapPost("/token", async (AppConfig config, HttpContext ctx) =>
         {

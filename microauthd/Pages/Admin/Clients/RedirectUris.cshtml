@@ -47,10 +47,13 @@ else
                 <tr>
                     <td>@uri.RedirectUri</td>
                     <td class="text-end">
-                        <form method="post" asp-page-handler="Delete" class="d-inline">
+                        <form method="post"
+                              asp-page="/Admin/Clients/RedirectUris"
+                              asp-page-handler="Delete"
+                              asp-route-id="@Model.Id"
+                              asp-route-uriId="@uri.Id"
+                              class="d-inline">
                             @Html.AntiForgeryToken()
-                            <input type="hidden" name="UriId" value="@uri.Id" />
-                            <input type="hidden" name="id" value="@Model.ClientId" />
                             <button class="btn btn-danger btn-sm" onclick="return confirm('Delete this URI?')">Delete</button>
                         </form>
                     </td>

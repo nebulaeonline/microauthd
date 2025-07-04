@@ -1,20 +1,25 @@
 body {
     font-family: sans-serif;
-    max-width: 400px;
-    margin: 2rem auto;
+    background: #f8f8f8;
+    padding: 2rem;
 }
 
-input, button {
-    width: 100%;
-    margin: 0.5rem 0;
+.container {
+    background: white;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    max-width: 500px;
+    margin: auto;
+    box-shadow: 0 0 6px rgba(0,0,0,0.1);
+}
+
+label {
+    display: block;
+    margin: 1rem 0;
 }
 
 pre {
-    white-space: pre-wrap;
-    background-color: #f4f4f4;
+    background: #eee;
     padding: 1rem;
-}
-
-.error {
-    color: red;
+    white-space: pre-wrap;
 }

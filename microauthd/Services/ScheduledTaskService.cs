@@ -59,6 +59,9 @@ public class ScheduledTaskService : BackgroundService
                 // Purge old nonces for OIDC PKCE logins after 2 days
                 AuthStore.PurgeNonces(DateTime.UtcNow.AddDays(-2));
 
+                // Purge expired auth sessions
+                AuthSessionStore.PurgeExpired();
+
                 // Run every hour
                 await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
             }

@@ -88,6 +88,7 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(OidcErrorResponse))]
 [JsonSerializable(typeof(AuthSessionDto))]
 [JsonSerializable(typeof(List<AuthSessionDto>))]
+[JsonSerializable(typeof(PkceAuthorizeResponse))]
 public partial class MicroauthdJsonContext : JsonSerializerContext
 {
 }

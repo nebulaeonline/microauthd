@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Token Received</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        h1 {
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            color: #333;
+        }
+
+        pre {
+            width: 100%;
+            max-width: 800px;
+            background: #f9f9f9;
+            border: 1px solid #ccc;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Token Retrieved</h1>
+    <pre id="token-display">Loading...</pre>
+
+    <script>
+        const AUTH_URL = "http://localhost:9040";
+
+        async function fetchToken() {
+            const code = new URLSearchParams(window.location.search).get("code");
+            const codeVerifier = localStorage.getItem("code_verifier");
+            const method = localStorage.getItem("code_challenge_method") || "S256";
+            const clientId = localStorage.getItem("client_id");
+            const redirectUri = localStorage.getItem("redirect_uri");
+
+            const tokenDisplay = document.getElementById("token-display");
+
+            if (!code || !codeVerifier || !clientId || !redirectUri) {
+                tokenDisplay.textContent = "Missing required parameters.";
+                return;
+            }
+
+            try {
+                const res = await fetch(`${AUTH_URL}/token`, {
+                    method: "POST",
+                    body: new URLSearchParams({
+                        grant_type: "authorization_code",
+                        code,
+                        code_verifier: codeVerifier,
+                        client_id: clientId,
+                        redirect_uri: redirectUri
+                    }),
+                });
+
+                const token = await res.json();
+
+                if (token.error || token.success === false) {
+                    tokenDisplay.textContent = `Token failed:\n\n${JSON.stringify(token, null, 2)}`;
+                } else {
+                    tokenDisplay.textContent = JSON.stringify(token, null, 2);
+                }
+            } catch (e) {
+                tokenDisplay.textContent = `Token retrieval error:\n\n${e}`;
+            }
+        }
+
+        fetchToken();
+    </script>
+</body>
+</html>

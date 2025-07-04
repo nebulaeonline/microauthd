@@ -65,6 +65,8 @@ I will keep the last 5 days of updates here; older updates can be found in the [
 
 **2025-07-03**
 
+Update: the pkce flow **has** changed and is now partially documented. An example is in /public/pkce_demo. Over the next week or so we are going to begin implementing WebAuthn (FIDO2) and MSAL's native broker. These should allow things like Apple's FaceId. I'm still digesting the specs, so this one will be a longer slog, but rest assured that we won't go to 0.9.x and an alpha without support for the features that modern developers and users alike demand.
+
 This is just a heads up that the PKCE flow is going to change. The current implementation is just too busy code-wise, and makes implementing it on the front end challenging. The new flow will be more modular, with examples in the /public folder that are easier to work with and reason about. I hope to push these changes out today.
 
 **2025-07-02**

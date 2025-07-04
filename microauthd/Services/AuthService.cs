@@ -283,111 +283,302 @@ public static class AuthService
     }
 
     /// <summary>
-    /// Handles an OAuth 2.0 authorization request and generates an authorization code.
+    /// Initiates the PKCE (Proof Key for Code Exchange) authorization process by validating the input parameters and
+    /// creating an authorization session.
     /// </summary>
-    /// <remarks>This method processes the query parameters of an incoming HTTP request to validate and handle
-    /// an authorization request in accordance with the OAuth 2.0 specification. It validates required parameters,
-    /// checks for supported values, and generates an authorization code if the request is valid. The generated code is
-    /// stored for later use in the authorization flow.</remarks>
-    /// <param name="req">The incoming HTTP request containing the authorization query parameters. The request must include the following
-    /// parameters: <list type="bullet"> <item><term>response_type</term>: Must be "code".</item>
-    /// <item><term>client_id</term>: The client identifier.</item> <item><term>redirect_uri</term>: The URI to redirect
-    /// the user after authorization.</item> <item><term>scope</term>: The requested scope of access (optional).</item>
-    /// <item><term>state</term>: A value used to maintain state between the request and callback (optional).</item>
-    /// <item><term>code_challenge</term>: The PKCE code challenge.</item> <item><term>code_challenge_method</term>: The
-    /// method used to transform the code challenge. Must be "S256" or "plain".</item> </list></param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a dictionary with the following keys: <list type="bullet">
-    /// <item><term>code</term>: The generated authorization code.</item> <item><term>state</term>: The state value
-    /// provided in the request, if any.</item> </list> If the request is invalid, the result contains an error message
-    /// and a corresponding HTTP status code.</returns>
-    public static IResult HandleAuthorizationRequest(HttpRequest req, AppConfig config)
+    /// <remarks>This method validates the provided PKCE authorization parameters, ensuring that required
+    /// fields such as  <c>client_id</c>, <c>redirect_uri</c>, <c>code_challenge</c>, and <c>code_challenge_method</c>
+    /// are not null or empty. It also checks the validity of the <c>redirect_uri</c> for the given <c>client_id</c>. If
+    /// the <c>scope</c> includes  "openid", the <c>nonce</c> parameter must also be provided.  Upon successful
+    /// validation, an authorization session is created and stored, and a response containing the session  details is
+    /// returned. If any validation fails or an exception occurs, an error result is returned.</remarks>
+    /// <param name="form">The form collection containing the authorization request parameters, such as <c>client_id</c>, 
+    /// <c>redirect_uri</c>, <c>code_challenge</c>, <c>code_challenge_method</c>, <c>scope</c>, <c>nonce</c>, and
+    /// <c>state</c>.</param>
+    /// <param name="config">The application configuration settings used to validate and process the authorization request.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="PkceAuthorizeResponse"/> object if the authorization
+    /// session  is successfully created, or an error result with an appropriate status code if the request is invalid
+    /// or fails.</returns>
+    public static ApiResult<PkceAuthorizeResponse> BeginPkceAuthorization(IFormCollection form, AppConfig config)
     {
-        // Get the query parameters from the request
-        var query = req.Query;
-
-        var responseType = query["response_type"].ToString();
-        var clientId = query["client_id"].ToString();
-        var redirectUri = query["redirect_uri"].ToString();
-        var scope = query["scope"].ToString();
-        var state = query["state"].ToString();
-        var codeChallenge = query["code_challenge"].ToString();
-        var codeChallengeMethod = query["code_challenge_method"].ToString();
-        var nonce = query["nonce"].ToString();
-
-        // Make sure we support the method of the pkce flow
-        if (string.IsNullOrWhiteSpace(responseType) || responseType != "code")
-            return OidcErrors.OidcRedirectError(redirectUri, "unsupported_response_type", "Only 'code' response type is supported", state);
-
-        // Make sure we have all required fields
-        if (string.IsNullOrWhiteSpace(clientId) ||
-            string.IsNullOrWhiteSpace(redirectUri) ||
-            string.IsNullOrWhiteSpace(codeChallenge) ||
-            string.IsNullOrWhiteSpace(codeChallengeMethod))
+        try
         {
-            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Missing required fields", state);
+            var clientId = form["client_id"].ToString();
+            var redirectUri = form["redirect_uri"].ToString();
+            var codeChallenge = form["code_challenge"].ToString();
+            var codeChallengeMethod = form["code_challenge_method"].ToString();
+            var scope = form["scope"].ToString();
+            var nonce = form["nonce"].ToString();
+            var state = form["state"].ToString();
+
+            if (string.IsNullOrWhiteSpace(clientId) ||
+                string.IsNullOrWhiteSpace(redirectUri) ||
+                string.IsNullOrWhiteSpace(codeChallenge) ||
+                string.IsNullOrWhiteSpace(codeChallengeMethod))
+            {
+                return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+            }
+
+            if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
+            {
+                return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+            }
+
+            if (!string.IsNullOrWhiteSpace(scope) && scope.Contains("openid") && string.IsNullOrWhiteSpace(nonce))
+            {
+                return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+            }
+
+            var jti = Utils.GenerateBase64EncodedRandomBytes(16);
+
+            var session = new AuthSessionDto
+            {
+                Jti = jti,
+                ClientId = ClientStore.GetClientIdByIdentifier(clientId)!,
+                RedirectUri = redirectUri,
+                Nonce = string.IsNullOrWhiteSpace(nonce) ? null : nonce,
+                Scope = string.IsNullOrWhiteSpace(scope) ? null : scope,
+                State = string.IsNullOrWhiteSpace(state) ? null : state,
+                TotpRequired = false, // determined after username/password verification
+                CodeChallenge = codeChallenge,
+                CodeChallengeMethod = codeChallengeMethod,
+                CreatedAtUtc = DateTime.UtcNow,
+                ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5)
+            };
+
+            AuthSessionStore.Insert(session);
+
+            var response = new PkceAuthorizeResponse(
+                Jti: session.Jti,
+                ClientId: clientId,
+                RedirectUri: session.RedirectUri,
+                RequiresTotp: session.TotpRequired
+            );
+
+            return ApiResult<PkceAuthorizeResponse>.Ok(response);
         }
-
-        // Make sure we support the code challenge method
-        if (codeChallengeMethod != "S256" && codeChallengeMethod != "plain")
+        catch (Exception ex)
         {
-            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Unsupported code_challenge_method", state);
+            Log.Error(ex, "Error during PKCE authorization");
+            return ApiResult<PkceAuthorizeResponse>.Fail("Internal server error", 500);
         }
-
-        // Check that the redirect URI is valid for the client
-        if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
-        {
-            Log.Warning("Authorization request rejected: invalid redirect_uri {RedirectUri} for client_id {ClientId}", redirectUri, clientId);
-            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Invalid redirect_uri for client", state);
-        }
-
-        // Reject if openid scope is requested but no nonce is provided
-        var openIdScope = scope.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("openid");
-        if (openIdScope && string.IsNullOrWhiteSpace(nonce))
-        {
-            Log.Warning("Authorization request rejected: openid scope requires nonce");
-            return OidcErrors.OidcRedirectError(redirectUri, "invalid_request", "Nonce required for openid scope", state);
-        }
-
-        // Success path
-        var code = Utils.GenerateBase64EncodedRandomBytes(32);
-
-        var pkceCode = new PkceCode
-        {
-            Code = code,
-            ClientIdentifier = clientId,
-            UserId = "",
-            RedirectUri = redirectUri,
-            CodeChallenge = codeChallenge,
-            CodeChallengeMethod = codeChallengeMethod,
-            ExpiresAt = DateTime.UtcNow.AddSeconds(config.PkceCodeLifetime),
-            IsUsed = false,
-            Nonce = nonce,
-            Scope = scope
-        };
-
-        // Store the PKCE code in the auth store
-        AuthStore.StorePkceCode(pkceCode);
-
-        var redirectUrl = $"{redirectUri}?code={WebUtility.UrlEncode(code)}&state={WebUtility.UrlEncode(state)}";
-        return Results.Redirect(redirectUrl);
     }
 
     /// <summary>
-    /// Exchanges a PKCE authorization code for a token response.
+    /// Retrieves an authentication session based on the provided JWT identifier (jti).
     /// </summary>
-    /// <remarks>This method validates the provided PKCE authorization code and associated parameters,
-    /// ensuring that the code has not expired or been used, and that the client ID, redirect URI, and code verifier
-    /// match the expected values. If validation succeeds, the method marks the authorization code as used and attempts
-    /// to issue a token response. Currently, the PKCE flow is not fully implemented to associate the authorization code
-    /// with a user session.</remarks>
-    /// <param name="form">A collection of form data containing the required parameters for the PKCE exchange. The following keys are
-    /// expected: <list type="bullet"> <item><term>code</term><description>The PKCE authorization
-    /// code.</description></item> <item><term>client_id</term><description>The client identifier associated with the
-    /// authorization code.</description></item> <item><term>code_verifier</term><description>The code verifier used to
-    /// validate the code challenge.</description></item> <item><term>redirect_uri</term><description>The redirect URI
-    /// used during the authorization request.</description></item> </list></param>
-    /// <returns>An <see cref="ApiResult{TokenResponse}"/> containing the token response if the exchange is successful. If
-    /// validation fails, the result contains an error message and an appropriate HTTP status code.</returns>
+    /// <remarks>This method checks the validity of the provided <paramref name="jti"/> and retrieves the
+    /// corresponding authentication session from the session store. If the session is expired or not found, an
+    /// appropriate result is returned.</remarks>
+    /// <param name="jti">The unique identifier of the JSON Web Token (JWT) associated with the authentication session. Must not be null,
+    /// empty, or consist solely of whitespace.</param>
+    /// <returns>An <see cref="ApiResult{AuthSessionDto}"/> containing the authentication session data if found and valid.
+    /// Returns a failure result if the <paramref name="jti"/> is invalid, or a "not found" result if the session does
+    /// not exist or has expired.</returns>
+    public static ApiResult<AuthSessionDto> GetAuthSession(string jti)
+    {
+        if (string.IsNullOrWhiteSpace(jti))
+            return ApiResult<AuthSessionDto>.Fail("Missing jti", 400);
+
+        var session = AuthSessionStore.Get(jti);
+        if (session is null || session.ExpiresAtUtc < DateTime.UtcNow)
+            return ApiResult<AuthSessionDto>.NotFound("Session not found or expired");
+
+        return ApiResult<AuthSessionDto>.Ok(session);
+    }
+
+    /// <summary>
+    /// Handles a PKCE-based password login request, verifying user credentials and session validity.
+    /// </summary>
+    /// <remarks>This method validates the provided form data, checks the session's validity, and
+    /// authenticates the user. If the login is successful, it attaches the user ID and TOTP requirement flag to the
+    /// session. The method returns a success or failure response based on the outcome of the login process.</remarks>
+    /// <param name="form">The form collection containing login data, including <c>username</c>, <c>password</c>, <c>jti</c>, and
+    /// <c>redirect_uri</c>.</param>
+    /// <param name="config">The application configuration settings, used to determine authentication behavior such as OTP requirements.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the success or failure
+    /// of the login. If successful, the response includes a message indicating whether TOTP is required. If
+    /// unsuccessful, the response includes an error message and an appropriate HTTP status code.</returns>
+    public static ApiResult<PkceAuthorizeResponse> HandlePkcePasswordLogin(IFormCollection form, AppConfig config)
+    {
+        var username = form["username"];
+        var password = form["password"];
+        var jti = form["jti"];
+        var redirectUri = form["redirect_uri"];
+
+        if (string.IsNullOrWhiteSpace(username) ||
+            string.IsNullOrWhiteSpace(password) ||
+            string.IsNullOrWhiteSpace(jti) ||
+            string.IsNullOrWhiteSpace(redirectUri))
+        {
+            return ApiResult<PkceAuthorizeResponse>.Fail("Missing required fields", 400);
+        }
+
+        var session = AuthSessionStore.Get(jti);
+        if (session is null || session.ExpiresAtUtc < DateTime.UtcNow)
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        var clientIdentifier = ClientStore.GetClientIdentifierById(session.ClientId);
+        if (clientIdentifier is null)
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        if (!AuthStore.IsRedirectUriValid(clientIdentifier!, redirectUri))
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        var auth = AuthenticateUser(username, password, config);
+        if (auth is not { Success: true })
+        {
+            Log.Warning("Failed login attempt for {Username}", username);
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+        }
+
+        var userId = auth.Value.UserId;
+        if (string.IsNullOrWhiteSpace(userId))
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        var requiresTotp = config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(userId);
+
+        AuthSessionStore.AttachUserIdAndTotpFlag(jti, userId, requiresTotp);
+
+        return ApiResult<PkceAuthorizeResponse>.Ok(new PkceAuthorizeResponse(
+            Jti: jti,
+            ClientId: clientIdentifier,
+            RedirectUri: session.RedirectUri ?? redirectUri,
+            RequiresTotp: requiresTotp
+        ));
+    }
+
+    /// <summary>
+    /// Handles the PKCE (Proof Key for Code Exchange) login process with TOTP (Time-based One-Time Password)
+    /// validation.
+    /// </summary>
+    /// <remarks>This method validates the provided form data, including the session identifier (jti), TOTP
+    /// code, and redirect URI. It ensures the session is valid, not expired, and properly configured for TOTP-based
+    /// authentication. If the validation succeeds, it returns an authorization response containing session
+    /// details.</remarks>
+    /// <param name="form">The form collection containing the required fields: <c>jti</c>, <c>totp_code</c>, and <c>redirect_uri</c>.</param>
+    /// <param name="config">The application configuration used for verifying the TOTP code.</param>
+    /// <returns>An <see cref="ApiResult{PkceAuthorizeResponse}"/> containing the authorization response if the login is
+    /// successful. If validation fails, the result contains an error message and the appropriate HTTP status code.</returns>
+    public static ApiResult<PkceAuthorizeResponse> HandlePkceTotpLogin(IFormCollection form, AppConfig config)
+    {
+        var jti = form["jti"];
+        var totp = form["totp_code"];
+        var redirectUri = form["redirect_uri"];
+
+        if (string.IsNullOrWhiteSpace(jti) ||
+            string.IsNullOrWhiteSpace(totp) ||
+            string.IsNullOrWhiteSpace(redirectUri))
+        {
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+        }
+
+        var session = AuthSessionStore.Get(jti);
+        if (session is null || session.ExpiresAtUtc < DateTime.UtcNow)
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        var clientIdentifier = ClientStore.GetClientIdentifierById(session.ClientId);
+        if (string.IsNullOrWhiteSpace(clientIdentifier))
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        if (!AuthStore.IsRedirectUriValid(clientIdentifier, redirectUri))
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        if (!session.TotpRequired)
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        if (string.IsNullOrWhiteSpace(session.UserId) ||
+            string.IsNullOrWhiteSpace(session.RedirectUri))
+            return ApiResult<PkceAuthorizeResponse>.Fail("Malformed session", 500);
+
+        var result = UserService.VerifyTotpCode(session.UserId, totp, config);
+        if (!result.Success)
+            return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
+
+        return ApiResult<PkceAuthorizeResponse>.Ok(new PkceAuthorizeResponse(
+            Jti: session.Jti,
+            ClientId: clientIdentifier,
+            RedirectUri: session.RedirectUri!,
+            RequiresTotp: false
+        ));
+    }
+
+
+    /// <summary>
+    /// Finalizes the PKCE login process by validating the session and generating a PKCE code.
+    /// </summary>
+    /// <remarks>This method validates the provided session ID (jti) and ensures that the session exists, is
+    /// not expired, and has an authenticated user. It also verifies the validity of the redirect URI associated with
+    /// the client. If all validations pass, a PKCE code is generated and stored for subsequent use in the authorization
+    /// flow.</remarks>
+    /// <param name="form">The form collection containing the session ID (jti) and other relevant data.</param>
+    /// <param name="config">The application configuration used for the operation.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> with the generated PKCE code if the
+    /// operation succeeds. If the operation fails, the result contains an error message and an HTTP status code.</returns>
+
+    public static IResult FinalizePkceLogin(IFormCollection form, AppConfig config)
+    {
+        var jti = form["jti"];
+        if (string.IsNullOrWhiteSpace(jti))
+            return Results.BadRequest("Invalid credentials");
+
+        // extract and validate jti, client_id, redirect_uri
+        var session = AuthSessionStore.Consume(jti);
+        if (session == null || session.ExpiresAtUtc < DateTime.UtcNow)
+            return Results.BadRequest("Invalid credentials");
+
+        var clientIdentifier = ClientStore.GetClientIdentifierById(session.ClientId);
+        if (clientIdentifier is null)
+            return Results.BadRequest("Invalid client");
+
+        if (!AuthStore.IsRedirectUriValid(clientIdentifier, session.RedirectUri))
+            return Results.BadRequest("Invalid credentials");
+
+        // generate code and store pkce code
+        var code = Utils.GenerateBase64EncodedRandomBytes(32);
+        var expiresAt = DateTime.UtcNow.AddSeconds(config.PkceCodeLifetime);
+
+        AuthStore.StorePkceCode(new PkceCode
+        {
+            Code = code,
+            ClientIdentifier = clientIdentifier,
+            RedirectUri = session.RedirectUri!,
+            CodeChallenge = session.CodeChallenge!,
+            CodeChallengeMethod = session.CodeChallengeMethod!,
+            ExpiresAt = expiresAt,
+            IsUsed = false,
+            UserId = session.UserId!,
+            Jti = session.Jti,
+            Nonce = session.Nonce,
+            Scope = session.Scope
+        });
+
+        // build redirect_uri?code=...&state=...
+        var uri = new UriBuilder(session.RedirectUri!);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        query["code"] = code;
+        if (!string.IsNullOrWhiteSpace(session.State))
+            query["state"] = session.State;
+
+        var rebuilt = new QueryBuilder(query.SelectMany(kvp => kvp.Value.Select(v => new KeyValuePair<string, string>(kvp.Key, v))));
+        uri.Query = rebuilt.ToQueryString().Value;
+
+        // final redirect
+        return Results.Redirect(uri.ToString());
+    }
+
+    /// <summary>
+    /// Exchanges a PKCE authorization code for an access token and optional ID token.
+    /// </summary>
+    /// <remarks>This method validates the provided PKCE authorization code, client identifier, code verifier,
+    /// and redirect URI. If the validation succeeds, it issues an access token and optionally an ID token based on the
+    /// requested scope. The method also supports generating a refresh token if token refresh is enabled in the
+    /// configuration.</remarks>
+    /// <param name="form">The form collection containing the PKCE exchange parameters, including <c>code</c>, <c>client_id</c>,
+    /// <c>code_verifier</c>, and <c>redirect_uri</c>.</param>
+    /// <param name="config">The application configuration settings, which determine PKCE and token refresh behavior.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> object with the issued tokens if the
+    /// exchange is successful. If the exchange fails, an error result is returned indicating the reason for failure.</returns>
     public static ApiResult<TokenResponse> ExchangePkceCode(IFormCollection form, AppConfig config)
     {
         if (!config.EnablePkce)
@@ -460,16 +651,12 @@ public static class AuthService
         var claims = AuthStore.GetUserClaims(pkce.UserId);
         claims.Add(new Claim("client_id", pkce.ClientIdentifier));
 
-        var scopeValues = claims
-            .Where(c => c.Type == "scope")
-            .Select(c => c.Value)
-            .Distinct()
-            .ToArray();
+        if (!string.IsNullOrWhiteSpace(pkce.Scope))
+        {
+            claims.Add(new Claim("scope", pkce.Scope));
+        }
 
-        if (scopeValues.Any())
-            claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
-
-        var issueIdToken = pkce.Scope is not null && pkce.Scope.Contains("openid");
+        var issueIdToken = pkce.Scope?.Contains("openid") == true;
 
         if (issueIdToken)
         {
@@ -522,179 +709,6 @@ public static class AuthService
     }
 
     /// <summary>
-    /// Handles user login using a PKCE code and validates the provided credentials.
-    /// </summary>
-    /// <remarks>This method validates the provided PKCE code, ensuring it is not expired, used, or mismatched
-    /// with the redirect URI. It also verifies the user's credentials against the application's authentication
-    /// settings. If the login is successful, the user's ID is attached to the PKCE code record.</remarks>
-    /// <param name="username">The username of the user attempting to log in. Cannot be null, empty, or whitespace.</param>
-    /// <param name="password">The password associated with the username. Cannot be null, empty, or whitespace.</param>
-    /// <param name="code">The PKCE code used for authentication. Cannot be null, empty, or whitespace.</param>
-    /// <param name="redirectUri">The redirect URI associated with the PKCE code. Must match the URI stored with the code. Cannot be null, empty,
-    /// or whitespace.</param>
-    /// <param name="config">The application configuration containing authentication settings. Cannot be null.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> indicating the result of the login
-    /// attempt. Returns <see langword="true"/> in the response if the login is successful; otherwise, <see
-    /// langword="false"/>.</returns>
-    public static ApiResult<MessageResponse> HandleUserLoginWithCode(
-        string username,
-        string password,
-        string code,
-        string redirectUri,
-        string totpCode,
-        AppConfig config)
-    {
-        // Get the form fields and validate that we have all required fields
-        if (string.IsNullOrWhiteSpace(username) ||
-            string.IsNullOrWhiteSpace(password) ||
-            string.IsNullOrWhiteSpace(code) ||
-            string.IsNullOrWhiteSpace(redirectUri))
-        {
-            return OidcErrors.InvalidRequest<MessageResponse>("Missing required fields");
-        }
-
-        // Validate the PKCE code
-        var pkce = AuthStore.GetPkceCode(code);
-        if (pkce is null || pkce.IsUsed || pkce.ExpiresAt < DateTime.UtcNow)
-        {
-            Log.Warning("Rejected login: code missing/expired/used");
-            return OidcErrors.InvalidGrant<MessageResponse>();
-        }
-
-        // Make sure the redirect uri matches the one stored with the PKCE code
-        if (!string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
-        {
-            Log.Warning("Rejected login: redirect_uri mismatch");
-            return OidcErrors.InvalidGrant<MessageResponse>();
-        }
-
-        // Authenticate the user with the provided credentials
-        var authResult = AuthenticateUser(username, password, config);
-        if (authResult is not { Success: true } r)
-        {
-            Log.Warning("Failed login attempt for {Username}", username);
-            return OidcErrors.InvalidGrant<MessageResponse>();
-        }
-
-        // See if we need totp for this user
-        var userId = UserStore.GetUserIdByUsername(username);
-        if (userId is null)
-        {
-            Log.Warning("Rejected login: user {Username} does not exist", username);
-            return OidcErrors.InvalidGrant<MessageResponse>();
-        }
-
-        if (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(userId!))
-        {
-            if (string.IsNullOrWhiteSpace(totpCode))
-                return OidcErrors.InvalidGrant<MessageResponse>();
-
-            var verifyResult = UserService.VerifyTotpCode(userId, totpCode, config);
-            if (!verifyResult.Success)
-                return OidcErrors.InvalidGrant<MessageResponse>();
-        }
-
-        // Attach the user id to the PKCE code
-        AuthStore.AttachUserIdToPkceCode(code, r.UserId!);
-        Log.Debug("Login successful for user {UserId} via PKCE", r.UserId);
-
-        return ApiResult<MessageResponse>.Ok(new MessageResponse(true, "Login successful"));
-    }
-
-    /// <summary>
-    /// Handles the login process for a user through a UI form and generates an authorization code for the client
-    /// application.
-    /// </summary>
-    /// <remarks>This method validates the provided login credentials and session identifier, ensures the
-    /// redirect URI is valid,  and generates an authorization code for the client application. The authorization code
-    /// is included in the query  string of the redirect URI. If any validation fails, an appropriate error response is
-    /// returned.</remarks>
-    /// <param name="form">The form collection containing the login credentials and session identifier. Must include "username",
-    /// "password", and "jti".</param>
-    /// <param name="config">The application configuration used for authentication and other settings.</param>
-    /// <param name="ctx">The current HTTP context, used for managing the request and response lifecycle.</param>
-    /// <returns>An <see cref="IResult"/> representing the outcome of the login process.  Returns a redirect to the client
-    /// application's <c>redirect_uri</c> with an authorization code on success.  Returns a <c>400 Bad Request</c>
-    /// result if any required fields are missing, the session is invalid or expired,  the redirect URI is invalid, or
-    /// the credentials are incorrect.</returns>
-    public static IResult HandleUiLogin(IFormCollection form, AppConfig config, HttpContext ctx)
-    {
-        var username = form["username"];
-        var password = form["password"];
-        var jti = form["jti"];
-
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(jti))
-            return Results.BadRequest("Missing required fields.");
-
-        var session = AuthSessionStore.Consume(jti);
-        if (session is null)
-            return Results.BadRequest("Invalid or expired session.");
-
-        var parsed = QueryHelpers.ParseQuery(session.QueryString);
-
-        string clientId = parsed["client_id"];
-        string redirectUri = parsed["redirect_uri"];
-        string codeChallenge = parsed["code_challenge"];
-        string codeMethod = parsed["code_challenge_method"];
-        string scope = parsed["scope"];
-        string state = parsed.ContainsKey("state") ? parsed["state"] : "";
-        string nonce = parsed.ContainsKey("nonce") ? parsed["nonce"] : "";
-
-        if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
-            return Results.BadRequest("Invalid redirect_uri.");
-
-        var authResult = AuthenticateUser(username, password, config);
-        if (authResult is null || !authResult.Value.Success)
-            return Results.BadRequest("Invalid credentials.");
-
-        if (scope is not null && scope.Contains("openid") && string.IsNullOrWhiteSpace(nonce))
-            return Results.BadRequest("Missing nonce for openid scope");
-
-        var user = authResult.Value;
-        if (string.IsNullOrWhiteSpace(user.UserId))
-            return Results.BadRequest("Invalid credentials.");
-
-        if (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(user.UserId!))
-        {
-            var totpCode = form["totp_code"].ToString();
-
-            if (string.IsNullOrWhiteSpace(totpCode))
-                return Results.BadRequest("Invalid credentials.");
-
-            var verifyResult = UserService.VerifyTotpCode(user.UserId, totpCode, config);
-            if (!verifyResult.Success)
-                return Results.BadRequest("Invalid credentials.");
-        }
-
-        var code = Utils.GenerateBase64EncodedRandomBytes(32);
-
-        AuthStore.StorePkceCode(new PkceCode
-        {
-            Code = code,
-            ClientIdentifier = clientId,
-            RedirectUri = redirectUri,
-            CodeChallenge = codeChallenge,
-            CodeChallengeMethod = codeMethod,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
-            IsUsed = false,
-            UserId = user.UserId,
-            Jti = jti, 
-            Nonce = string.IsNullOrWhiteSpace(nonce) ? null : nonce,
-            Scope = scope
-        });
-
-        var redirect = new UriBuilder(redirectUri);
-        var q = QueryHelpers.ParseQuery(redirect.Query);
-        q["code"] = code;
-        if (!string.IsNullOrEmpty(state))
-            q["state"] = state;
-
-        var finalQuery = new QueryBuilder(q.SelectMany(kvp => kvp.Value.Select(v => new KeyValuePair<string, string>(kvp.Key, v))));
-        redirect.Query = finalQuery.ToQueryString().Value;
-
-        return Results.Redirect(redirect.ToString());
-    }
-
     /// <summary>
     /// Issues an administrative access token for a user with valid credentials and the required admin role.
     /// </summary>

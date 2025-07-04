@@ -207,29 +207,21 @@ The Who Am I endpoint is just a simple endpoint that returns "Hello, {user GUID}
 
 #### PKCE Introduction
 
-microauthd supports two complete PKCE flows for secure login without requiring clients to store a secret. These flows are designed for slightly different use cases, but both conform to the OAuth2 and OpenID Connect standards. The first is a headless flow initiated via /authorize, intended for CLI apps or services. The second is a login-UI flow built on top of /authorize-ui, which introduces an interactive login experience.
+microauthd recently revamped its PKCE flow to be more intuitive for developers and to deliver the type of login experience users expect. There are no longer 2 separate flows, but rather a single flow that adapts to developer needs.
 
-**Flow 1: Headless PKCE (CLI / Services)**
+The new hybrid PKCE flow in microauthd is designed to be flexible, secure, and progressive—making it easy for both browser-based and mobile applications to integrate modern authentication workflows without sacrificing control or compatibility.
 
-In the headless flow, the client initiates authentication by making a call to /authorize, supplying a client identifier, redirect URI, response_type=code, a code challenge, and a code challenge method (usually S256). The client may also include optional state and nonce parameters, as specified by OCC1 Section 3.1.2.1.
+At a high level, the flow begins with the client initiating an authorization request to the /authorize endpoint. This step registers the client's intent to authenticate, provides details such as the code challenge (used for PKCE validation), the redirect URI, and optional OpenID Connect parameters like scope, state, and nonce. In response, the server generates an ephemeral authorization session (identified by a JTI), which is returned to the client. This session keeps track of the client, challenge, and any other parameters needed for the next steps.
 
-Once microauthd validates that the redirect URI matches what is registered to the client, it responds with a redirect to that URI, embedding the authorization code, and optionally, the state and nonce.
+Once the session is established, the client moves to user authentication. This is done progressively: first, it submits the username and password via /login/password. If TOTP (Time-based One-Time Password) is enabled globally and the user has TOTP configured, the server will respond indicating that a second step is required. The client can then prompt the user for their one-time code and complete this second step by calling /login/totp. This progression allows the client UI to cleanly separate the login process into intuitive phases, providing better UX and security transparency.
 
-At this point, the client presents a login interface of its own choosing. It prompts the user for a username, password, and optionally a TOTP code. Then, using the original code, the client sends a POST request to /login, along with the code_verifier (matching the challenge), username, password, and client credentials. If everything checks out, the authorization code becomes bound to the user account, and a final request to /token completes the flow—returning an access token and (if openid was requested) an ID token.
+After password (and optional TOTP) validation, the client completes authentication by calling /login/finalize. This step registers the successful login and generates a secure authorization code that is tightly bound to the client’s original PKCE parameters. The server then performs a 302 redirect to the client’s registered redirect_uri, including the authorization code and state in the URL parameters. This transition moves the control back to the client application.
 
-This flow is powerful for clients that are fully decoupled from the user interface and cannot safely store secrets, such as CLI tools, native desktop apps, or embedded systems.
+On the redirect URI page—typically something like /callback.html—the client retrieves the code from the URL and finalizes the flow by exchanging it at the /token endpoint. At this point, the client provides its code_verifier, completing the PKCE validation process. If successful, the server returns a signed access token, an ID token (if OpenID scope was requested), and optionally a refresh token.
 
-**Flow 2: UI-Based PKCE (Login Page)**
+This model supports both hosted and custom login UIs. Developers building SPAs or mobile apps can craft their own login forms, handle progressive authentication, and directly invoke these endpoints. Alternatively, they can choose to redirect to a hosted login UI that handles the process for them. Regardless of approach, the core flow ensures that sensitive steps like credential entry and token issuance are compartmentalized and validated rigorously.
 
-The second flow follows the same standards, but with a built-in UI experience.
-
-Here, the client initiates the flow by redirecting the user to /authorize-ui, passing the same set of parameters as before: client_id, redirect_uri, response_type=code, a code_challenge, and the method. Rather than immediately responding with a redirect, microauthd stores the query in a short-lived session (via auth_sessions) and redirects the user to a login page: /login.html?jti=....
-
-On this page, the JavaScript frontend loads the session via the JTI and reconstructs the original request. It displays a standard login form, and when submitted, sends a POST request to /login-ui along with the code, code verifier, and user credentials.
-
-If successful, the backend binds the authorization code to the authenticated user and redirects the user to the original redirect_uri, just as in the headless flow. The client completes the flow by exchanging the code for tokens via the /token endpoint.
-
-This flow is ideal for SPAs or other frontend-driven apps where the authentication is expected to occur in-browser with a clean, polished login interface—without requiring the application to maintain its own auth form.
+In short, microauthd's hybrid PKCE flow provides a full-featured authentication journey that adapts to a client's capabilities and the user's security needs, while preserving clarity and control throughout.
 
 PKCE endpoints are only enabled if PKCE is enabled.
 

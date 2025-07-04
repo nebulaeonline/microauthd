@@ -63,7 +63,7 @@ public class RedirectUrisModel : BasePageModel
         if (string.IsNullOrWhiteSpace(uriId))
         {
             Error = "Invalid redirect URI.";
-            return OnGet();
+            return RedirectToPage(new { id = Id });
         }
 
         var result = ClientService.DeleteRedirectUri(uriId);
@@ -76,6 +76,6 @@ public class RedirectUrisModel : BasePageModel
             Success = "Redirect URI deleted.";
         }
 
-        return OnGet();
+        return RedirectToPage(new { id = Id });
     }
 }
