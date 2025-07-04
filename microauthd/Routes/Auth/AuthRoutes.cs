@@ -329,6 +329,11 @@ public static class AuthRoutes
                     config)
                 .ToHttpResult(),
 
+                "client_credentials" => AuthService.IssueOidcToken(
+                    form,
+                    config)
+                .ToHttpResult(),
+
                 _ => ApiResult<TokenResponse>.Fail("Unsupported grant_type", 400).ToHttpResult()
             };            
         })
@@ -390,21 +395,6 @@ public static class AuthRoutes
         .WithName("JwksDocument")
         .WithTags("OIDC")
         .Produces<JwksResponse>(StatusCodes.Status200OK)
-        .WithOpenApi();
-
-        // OIDC token endpoint**********************************************************************
-        group.MapPost("/oidc/token", async (HttpContext ctx, AppConfig config) =>
-        {
-            if (!ctx.Request.HasFormContentType)
-                return ApiResult<TokenResponse>.Fail("Invalid content type", 400).ToHttpResult();
-
-            var form = await ctx.Request.ReadFormAsync();
-            return AuthService.IssueOidcToken(form, config).ToHttpResult();
-        })
-        .Produces<TokenResponse>(StatusCodes.Status200OK)
-        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .WithName("OidcToken")
-        .WithTags("OIDC")
         .WithOpenApi();
 
         // provision user endpoint******************************************************************
