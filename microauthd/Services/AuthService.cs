@@ -437,7 +437,7 @@ public static class AuthService
             return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
 
         var requiresTotp = false;
-        var clientTotpEnabled = ClientFeaturesStore.IsFeatureEnabled(clientIdentifier!, ClientFeatures.Flags.EnableTotp);
+        var clientTotpEnabled = ClientFeaturesService.IsFeatureEnabled(clientIdentifier!, ClientFeatures.Flags.EnableTotp);
         if (clientTotpEnabled is true && UserStore.IsTotpEnabledForUserId(userId, session.ClientId))
             requiresTotp = true;
 

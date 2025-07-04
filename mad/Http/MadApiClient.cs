@@ -684,6 +684,42 @@ internal class MadApiClient
         return res.IsSuccessStatusCode;
     }
 
+    public async Task<bool> SetClientFeatureFlag(string clientId, string flag, bool enable)
+    {
+        var payload = new { is_enabled = enable };
+        var content = JsonContent.Create(payload, MadJsonContext.Default.Object);
+        var res = await _http.PostAsync($"{BaseUrl}/client/options/{flag}?client_id={clientId}", content);
+        return res.IsSuccessStatusCode;
+    }
+
+    public async Task<bool?> GetClientFeatureFlag(string clientId, string flag)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/client/options/{flag}?client_id={clientId}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        var parsed = await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse);
+        return parsed?.Success;
+    }
+
+    public async Task<bool> SetClientFeatureOption(string clientId, string flag, string options)
+    {
+        var payload = new { options = options };
+        var content = JsonContent.Create(payload, MadJsonContext.Default.Object);
+        var res = await _http.PostAsync($"{BaseUrl}/client/options/{flag}/ext?client_id={clientId}", content);
+        return res.IsSuccessStatusCode;
+    }
+
+    public async Task<string?> GetClientFeatureOption(string clientId, string flag)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/client/options/{flag}/ext?client_id={clientId}");
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        var parsed = await res.Content.ReadFromJsonAsync(MadJsonContext.Default.MessageResponse);
+        return parsed?.Message;
+    }
+
     public void SetToken(string token)
     {
         Token = token;

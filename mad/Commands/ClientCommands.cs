@@ -25,6 +25,11 @@ internal static class ClientCommands
         cmd.AddCommand(ListRedirectUrisCommand());
         cmd.AddCommand(DeleteRedirectUriCommand());
 
+        cmd.AddCommand(BuildSetFeatureFlagCommand());
+        cmd.AddCommand(BuildGetFeatureFlagCommand());
+        cmd.AddCommand(BuildSetFlagOptionsCommand());
+        cmd.AddCommand(BuildGetFlagOptionsCommand());
+
         cmd.AddCommand(AssignScopesCommand());
         cmd.AddCommand(ListScopesCommand());
         cmd.AddCommand(RemoveScopeCommand());
@@ -617,6 +622,206 @@ internal static class ClientCommands
                 Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
             }
         }, adminUrl, adminToken, uriId, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command BuildSetFeatureFlagCommand()
+    {
+        var cmd = new Command("set-flag", "Enable or disable a feature flag for a client");
+
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
+        var flag = new Option<string>("--flag", "Feature flag name (e.g. ENABLE_TOTP)") { IsRequired = true };
+        var isEnabled = new Option<bool>("--enable", "Enable or disable the flag") { IsRequired = true };
+
+        var url = SharedOptions.AdminUrl;
+        var token = SharedOptions.AdminToken;
+        var json = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientId);
+        cmd.AddOption(flag);
+        cmd.AddOption(isEnabled);
+        cmd.AddOption(url);
+        cmd.AddOption(token);
+        cmd.AddOption(json);
+
+        cmd.SetHandler(async (string baseUrl, string? authToken, string client, string flag, bool enable, bool jsonOut) =>
+        {
+            try
+            {
+                authToken ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(authToken))
+                {
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var clientApi = new MadApiClient(baseUrl, authToken);
+                var response = await clientApi.SetClientFeatureFlag(client, flag, enable);
+
+                if (response is false)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "Failed to set feature flag"), MadJsonContext.Default.ErrorResponse));
+                }
+                else if (jsonOut)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(response, MadJsonContext.Default.MessageResponse));
+                }
+                else
+                {
+                    Console.WriteLine($"The response was {response}");
+                }
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, ex.Message);
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, url, token, clientId, flag, isEnabled, json);
+
+        return cmd;
+    }
+
+    private static Command BuildGetFeatureFlagCommand()
+    {
+        var cmd = new Command("get-flag", "Check if a feature flag is enabled for a client");
+
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
+        var flag = new Option<string>("--flag") { IsRequired = true };
+
+        var url = SharedOptions.AdminUrl;
+        var token = SharedOptions.AdminToken;
+        var json = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientId);
+        cmd.AddOption(flag);
+        cmd.AddOption(url);
+        cmd.AddOption(token);
+        cmd.AddOption(json);
+
+        cmd.SetHandler(async (string baseUrl, string? authToken, string client, string flag, bool jsonOut) =>
+        {
+            try
+            {
+                authToken ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(authToken))
+                {
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var clientApi = new MadApiClient(baseUrl, authToken);
+                var enabled = await clientApi.GetClientFeatureFlag(client, flag);
+
+                if (jsonOut)
+                    Console.WriteLine(JsonSerializer.Serialize(enabled));
+                else
+                    Console.WriteLine((enabled is null or false) ? "disabled" : "enabled");
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, ex.Message);
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, url, token, clientId, flag, json);
+
+        return cmd;
+    }
+
+    private static Command BuildSetFlagOptionsCommand()
+    {
+        var cmd = new Command("set-flag-options", "Set the extended options string for a feature flag");
+
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
+        var flag = new Option<string>("--flag") { IsRequired = true };
+        var options = new Option<string>("--options") { IsRequired = true };
+
+        var url = SharedOptions.AdminUrl;
+        var token = SharedOptions.AdminToken;
+        var json = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientId);
+        cmd.AddOption(flag);
+        cmd.AddOption(options);
+        cmd.AddOption(url);
+        cmd.AddOption(token);
+        cmd.AddOption(json);
+
+        cmd.SetHandler(async (string baseUrl, string? authToken, string client, string flag, string opt, bool jsonOut) =>
+        {
+            try
+            {
+                authToken ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(authToken))
+                {
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var clientApi = new MadApiClient(baseUrl, authToken);
+                var response = await clientApi.SetClientFeatureOption(client, flag, opt);
+
+                if (jsonOut)
+                    Console.WriteLine(JsonSerializer.Serialize(response, MadJsonContext.Default.MessageResponse));
+                else
+                    Console.WriteLine($"Updated result is {response}");
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, ex.Message);
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, url, token, clientId, flag, options, json);
+
+        return cmd;
+    }
+
+    private static Command BuildGetFlagOptionsCommand()
+    {
+        var cmd = new Command("get-flag-options", "Retrieve the extended options string for a flag");
+
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
+        var flag = new Option<string>("--flag") { IsRequired = true };
+
+        var url = SharedOptions.AdminUrl;
+        var token = SharedOptions.AdminToken;
+        var json = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientId);
+        cmd.AddOption(flag);
+        cmd.AddOption(url);
+        cmd.AddOption(token);
+        cmd.AddOption(json);
+
+        cmd.SetHandler(async (string baseUrl, string? authToken, string client, string flag, bool jsonOut) =>
+        {
+            try
+            {
+                authToken ??= AuthUtils.TryLoadToken();
+                if (string.IsNullOrWhiteSpace(authToken))
+                {
+                    var err = new ErrorResponse(false, "No token. Use --admin-token or run `mad session login`.");
+                    Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+                    return;
+                }
+
+                var clientApi = new MadApiClient(baseUrl, authToken);
+                var val = await clientApi.GetClientFeatureOption(client, flag);
+
+                if (jsonOut)
+                    Console.WriteLine(JsonSerializer.Serialize(val));
+                else
+                    Console.WriteLine(val ?? "(none)");
+            }
+            catch (Exception ex)
+            {
+                var err = new ErrorResponse(false, ex.Message);
+                Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
+            }
+        }, url, token, clientId, flag, json);
 
         return cmd;
     }

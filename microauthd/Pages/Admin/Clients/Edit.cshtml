@@ -38,25 +38,33 @@
 
     <div class="mb-4">
         <h5>Feature Flags</h5>
-        @foreach (var feature in microauthd.Common.ClientFeatures.AllMetadata)
+        @foreach (var feature in madTypes.Common.ClientFeatures.AllMetadata)
         {
-            var isEnabled = microauthd.Data.ClientFeaturesStore.IsFeatureEnabled(Model.ClientForm.Id!, feature.Flag);
-            var options = microauthd.Data.ClientFeaturesStore.GetFeatureOption(Model.ClientForm.Id!, feature.Flag);
+            var isEnabled = microauthd.Services.ClientFeaturesService.IsFeatureEnabled(Model.ClientForm.Id!, feature.Flag);
+            var options = microauthd.Services.ClientFeaturesService.GetFeatureOption(Model.ClientForm.Id!, feature.Flag);
 
             <div class="form-check mb-1">
-                <input class="form-check-input" type="checkbox" name="features" value="@feature.FlagString" id="@feature.FlagString" @((isEnabled is true) ? "checked" : "") />
+                <input class="form-check-input"
+                       type="checkbox"
+                       name="features"
+                       value="@feature.FlagString"
+                       id="@feature.FlagString"
+                       @((isEnabled is true) ? "checked" : "") />
                 <label class="form-check-label" for="@feature.FlagString">
                     <strong>@feature.FlagString</strong>: @feature.Description
                 </label>
             </div>
 
-            <div class="mb-3 ms-4">
-                <input type="text"
-                       class="form-control form-control-sm w-50"
-                       name="options[@feature.FlagString]"
-                       value="@options"
-                       placeholder="Option (optional)" />
-            </div>
+            @if (feature.HasExtendedOptions)
+            {
+                <div class="mb-3 ms-4">
+                    <input type="text"
+                           class="form-control form-control-sm w-50"
+                           name="options[@feature.FlagString]"
+                           value="@options"
+                           placeholder="Option (optional)" />
+                </div>
+            }
         }
     </div>
 

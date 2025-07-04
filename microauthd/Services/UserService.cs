@@ -1143,9 +1143,9 @@ public static class UserService
     {
         try
         {
-            var isTotpEnabledForClient = ClientFeaturesStore.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
+            var isTotpEnabledForClient = ClientFeaturesService.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
 
-            if (isTotpEnabledForClient is null or false)
+            if (isTotpEnabledForClient is false)
                 return ApiResult<TotpQrResponse>.Fail("TOTP is not enabled for this client", 400);
 
             var user = UserStore.GetUsernameById(userId);
@@ -1155,7 +1155,7 @@ public static class UserService
 
             // Generate new TOTP secret
             var secret = Utils.GenerateBase32Secret();
-            var uri = $"otpauth://totp/{ClientFeaturesStore.GetFeatureOption(clientId, ClientFeatures.Flags.TotpIssuer)}:{Uri.EscapeDataString(user)}?secret={secret}&issuer={ClientFeaturesStore.GetFeatureOption(clientId, ClientFeatures.Flags.TotpIssuer)}&digits=6&period=30&algorithm=SHA1";
+            var uri = $"otpauth://totp/{ClientFeaturesService.GetFeatureOption(clientId, ClientFeatures.Flags.TotpIssuer)}:{Uri.EscapeDataString(user)}?secret={secret}&issuer={ClientFeaturesService.GetFeatureOption(clientId, ClientFeatures.Flags.TotpIssuer)}&digits=6&period=30&algorithm=SHA1";
 
             // Generate filename
             var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
@@ -1212,9 +1212,9 @@ public static class UserService
 
         try
         {
-            var isTotpEnabledForClient = ClientFeaturesStore.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
+            var isTotpEnabledForClient = ClientFeaturesService.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
 
-            if (isTotpEnabledForClient is null or false)
+            if (isTotpEnabledForClient is false)
                 return ApiResult<MessageResponse>.Fail("TOTP is not enabled for this client", 400);
 
             var otpSecret = UserStore.GetTotpSecretByUserId(userId, clientId);
@@ -1260,9 +1260,9 @@ public static class UserService
 
         try
         {
-            var isTotpEnabledForClient = ClientFeaturesStore.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
+            var isTotpEnabledForClient = ClientFeaturesService.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
 
-            if (isTotpEnabledForClient is null or false)
+            if (isTotpEnabledForClient is false)
                 return ApiResult<MessageResponse>.Fail("TOTP is not enabled for this client", 400);
 
             var affected = UserStore.DisableTotpForUserId(userId, clientId);

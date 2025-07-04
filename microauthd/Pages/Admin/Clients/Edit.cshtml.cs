@@ -1,3 +1,4 @@
+using madTypes.Common;
 using madTypes.Api.Common;
 using microauthd.Common;
 using microauthd.Data;
@@ -56,7 +57,7 @@ public class EditModel : BasePageModel
         {
             var flagKey = ClientFeatures.GetFlagString(flag);
             bool shouldEnable = formFlags.Contains(flagKey);
-            ClientFeaturesStore.SetClientFeatureFlag(ClientForm.Id!, flag, shouldEnable);
+            ClientFeaturesService.SetClientFeatureFlag(ClientForm.Id!, flag, shouldEnable);
         }
 
         var formOptions = Request.Form
@@ -70,7 +71,7 @@ public class EditModel : BasePageModel
         {
             if (ClientFeatures.Parse(flagString) is { } flag)
             {
-                ClientFeaturesStore.SetFeatureOption(ClientForm.Id!, flag, optionValue ?? "");
+                ClientFeaturesService.SetFeatureOption(ClientForm.Id!, flag, optionValue ?? "");
             }
         }
 

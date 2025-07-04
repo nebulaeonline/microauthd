@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel;
 
-namespace microauthd.Common;
+namespace madTypes.Common;
 
 public static class ClientFeatures
 {
@@ -10,7 +10,7 @@ public static class ClientFeatures
         TotpIssuer = 1,
     }
 
-    public record FeatureFlagMetadata(ClientFeatures.Flags Flag, string FlagString, string Description);
+    public record FeatureFlagMetadata(ClientFeatures.Flags Flag, string FlagString, string Description, bool HasExtendedOptions);
 
     private readonly static Dictionary<Flags, string> _map = new()
     {
@@ -24,11 +24,20 @@ public static class ClientFeatures
         { Flags.TotpIssuer, "Issuer for TOTP apps" }
     };
 
+    private readonly static Dictionary<Flags, bool> _hasExtendedOptions = new()
+    {
+        { Flags.EnableTotp, false },
+        { Flags.TotpIssuer, true }
+    };
+
     public static string GetFlagString(Flags flag) =>
         _map.TryGetValue(flag, out var val) ? val : throw new ArgumentOutOfRangeException(nameof(flag));
 
     public static string GetFlagDescription(Flags flag) =>
         _descriptions.TryGetValue(flag, out var desc) ? desc : throw new ArgumentOutOfRangeException(nameof(flag));
+
+    public static bool GetHasExtendedOptions(Flags flag) =>
+        _hasExtendedOptions.TryGetValue(flag, out var hasOptions) ? hasOptions : throw new ArgumentOutOfRangeException(nameof(flag));
 
     public static Flags? Parse(string input)
     {
@@ -49,7 +58,8 @@ public static class ClientFeatures
             new FeatureFlagMetadata(
                 Flag: kvp.Key,
                 FlagString: GetFlagString(kvp.Key),
-                Description: kvp.Value
+                Description: kvp.Value,
+                HasExtendedOptions: GetHasExtendedOptions(kvp.Key)
             )
         );
 }

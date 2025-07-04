@@ -937,6 +937,94 @@ public static class AdminRoutes
         .WithTags("Clients")
         .WithOpenApi();
 
+        // set client feature flag endpoint*********************************************************
+        group.MapPost("/client/options/{flag}", (HttpRequest req, string flag) =>
+        {
+            var form = req.ReadFormAsync().Result;
+            var clientId = form["client_id"];
+            var enabled = form["enabled"];
+
+            if (ClientFeatures.Parse(flag) is not { } parsed)
+                return ApiResult<MessageResponse>.Fail("Unknown feature flag", 400).ToHttpResult();
+
+            if (string.IsNullOrWhiteSpace(clientId))
+                return ApiResult<MessageResponse>.Fail("Missing client_id", 400).ToHttpResult();
+
+            var isEnabled = bool.TryParse(enabled, out var result) && result;
+            ClientFeaturesService.SetClientFeatureFlag(clientId, parsed, isEnabled);
+
+            return ApiResult<MessageResponse>.Ok(new(true, $"Feature '{flag}' set to {isEnabled}")).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("SetClientFeatureFlag")
+        .WithTags("ClientFeatures")
+        .WithOpenApi();
+
+        // set client feature flag extended options endpoint****************************************
+        group.MapPost("/client/options/{flag}/ext", (HttpRequest req, string flag) =>
+        {
+            var form = req.ReadFormAsync().Result;
+            var clientId = form["client_id"];
+            var options = form["options"];
+
+            if (ClientFeatures.Parse(flag) is not { } parsed)
+                return ApiResult<MessageResponse>.Fail("Unknown feature flag", 400).ToHttpResult();
+
+            if (!ClientFeatures.GetHasExtendedOptions(parsed))
+                return ApiResult<MessageResponse>.Fail("This feature has no extended options", 400).ToHttpResult();
+
+            if (string.IsNullOrWhiteSpace(clientId))
+                return ApiResult<MessageResponse>.Fail("Missing client_id", 400).ToHttpResult();
+
+            ClientFeaturesService.SetFeatureOption(clientId, parsed, options);
+            return ApiResult<MessageResponse>.Ok(new(true, $"Option for '{flag}' updated.")).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("SetClientFeatureFlagExtended")
+        .WithTags("ClientFeatures")
+        .WithOpenApi();
+
+        // get client feature flag enabled endpoint*************************************************
+        group.MapGet("/client/options/{flag}", (HttpRequest req, string flag) =>
+        {
+            var clientId = req.Query["client_id"];
+
+            if (ClientFeatures.Parse(flag) is not { } parsed)
+                return ApiResult<MessageResponse>.Fail("Unknown feature flag", 400).ToHttpResult();
+
+            if (string.IsNullOrWhiteSpace(clientId))
+                return ApiResult<MessageResponse>.Fail("Missing client_id", 400).ToHttpResult();
+
+            var enabled = ClientFeaturesService.IsFeatureEnabled(clientId, parsed);
+            return ApiResult<MessageResponse>.Ok(new(true, enabled.ToString())).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetClientFeatureFlagEnabled")
+        .WithTags("ClientFeatures")
+        .WithOpenApi();
+
+        // get client feature flag extended options endpoint****************************************
+        group.MapGet("/client/options/{flag}/ext", (HttpRequest req, string flag) =>
+        {
+            var clientId = req.Query["client_id"];
+
+            if (ClientFeatures.Parse(flag) is not { } parsed)
+                return ApiResult<MessageResponse>.Fail("Unknown feature flag", 400).ToHttpResult();
+
+            if (!ClientFeatures.GetHasExtendedOptions(parsed))
+                return ApiResult<MessageResponse>.Fail("This feature has no extended options", 400).ToHttpResult();
+
+            if (string.IsNullOrWhiteSpace(clientId))
+                return ApiResult<MessageResponse>.Fail("Missing client_id", 400).ToHttpResult();
+
+            var options = ClientFeaturesService.GetFeatureOption(clientId, parsed);
+            return ApiResult<MessageResponse>.Ok(new(true, options ?? "")).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetClientFeatureFlagExtendedOptions")
+        .WithTags("ClientFeatures")
+        .WithOpenApi();
+
         // list clients endpoint********************************************************************
         group.MapGet("/clients", () =>
         {
