@@ -50,7 +50,6 @@ public static class TestHelpers
             EnableTokenRefresh = true,
             RefreshTokenExpiration = 86400,
 
-            EnableOtpAuth = true,
             PrintEffectiveConfig = false,
             MaxLoginFailures = 5,
             SecondsToResetLoginFailures = 300,

@@ -16,6 +16,12 @@ public class EditModel : BasePageModel
     [BindProperty]
     public EditClientModel ClientForm { get; set; } = new();
 
+    [BindProperty(SupportsGet = false)]
+    public List<string> Features { get; set; } = new();
+
+    [BindProperty(SupportsGet = false)]
+    public Dictionary<string, string> Options { get; set; } = new();
+
     public string? GeneratedSecret { get; set; }
 
     public IActionResult OnGet(string? id)
@@ -37,12 +43,35 @@ public class EditModel : BasePageModel
             return Page();
 
         var toUpdate = ClientForm.ToClientObject();
-
         var result = ClientService.UpdateClient(toUpdate.Id, toUpdate, Config);
         if (!result.Success)
         {
             ModelState.AddModelError(string.Empty, result.Error ?? "Update failed.");
             return Page();
+        }
+
+        // Handle feature flag updates
+        var formFlags = Request.Form["features"].ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (ClientFeatures.Flags flag in Enum.GetValues(typeof(ClientFeatures.Flags)))
+        {
+            var flagKey = ClientFeatures.GetFlagString(flag);
+            bool shouldEnable = formFlags.Contains(flagKey);
+            ClientFeaturesStore.SetClientFeatureFlag(ClientForm.Id!, flag, shouldEnable);
+        }
+
+        var formOptions = Request.Form
+            .Where(kvp => kvp.Key.StartsWith("options["))
+            .ToDictionary(
+                kvp => kvp.Key.Substring(8, kvp.Key.Length - 9), // extract key between brackets
+                kvp => kvp.Value.ToString()
+            );
+
+        foreach (var (flagString, optionValue) in formOptions)
+        {
+            if (ClientFeatures.Parse(flagString) is { } flag)
+            {
+                ClientFeaturesStore.SetFeatureOption(ClientForm.Id!, flag, optionValue ?? "");
+            }
         }
 
         TempData["Success"] = $"Client '{toUpdate.DisplayName}' updated.";
@@ -65,18 +94,13 @@ public class EditModel : BasePageModel
             return Page();
         }
 
-        // Clear stale form state
         ModelState.Clear();
 
-        // Re-fetch updated client into the model
         var client = ClientStore.GetClientById(ClientForm.Id);
         if (client != null)
             ClientForm = EditClientModel.FromClient(client);
 
-        // Set new secret
         GeneratedSecret = result.Value?.Message ?? "";
-
-        // Return cleanly to the same page
         return Page();
     }
 
@@ -97,4 +121,3 @@ public class EditModel : BasePageModel
         return RedirectToPage("/Admin/Clients/Index");
     }
 }
-

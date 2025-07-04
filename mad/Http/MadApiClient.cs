@@ -116,9 +116,9 @@ internal class MadApiClient
         );
     }
 
-    public async Task<MessageResponse?> DisableTotpForUser(string userId)
+    public async Task<MessageResponse?> DisableTotpForUser(string userId, string clientId)
     {
-        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/disable-totp", null);
+        var res = await _http.PostAsync($"{BaseUrl}/users/{userId}/{clientId}/disable-totp", null);
         if (!res.IsSuccessStatusCode)
             return null;
 

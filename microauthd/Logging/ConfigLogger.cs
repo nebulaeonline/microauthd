@@ -23,7 +23,6 @@ namespace microauthd.Logging
                 config.AdminTokenExpiration,
                 config.EnableTokenRevocation,
                 config.EnableTokenRefresh,
-                config.EnableOtpAuth,
                 config.MaxLoginFailures,
                 config.FailedPasswordLockoutDuration,
             });

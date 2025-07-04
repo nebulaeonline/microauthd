@@ -161,8 +161,6 @@ public static class ConfigLoader
             RefreshTokenExpiration = GetInt(Options.RefreshTokenExpiration),
             RefreshTokenPurgeDays = GetInt(Options.RefreshTokenPurgeDays),
 
-            EnableOtpAuth = GetBool(Options.EnableOtpAuth),
-            OtpIssuer = GetString(Options.OtpIssuer),
             PrintEffectiveConfig = GetBool(Options.PrintEffectiveConfig),
             MaxLoginFailures = GetInt(Options.MaxLoginFailures),
             SecondsToResetLoginFailures = GetInt(Options.SecondsToResetLoginFailures),

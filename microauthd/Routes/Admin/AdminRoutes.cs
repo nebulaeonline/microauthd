@@ -14,6 +14,7 @@ using static nebulae.dotArgon2.Argon2;
 using microauthd.Tokens;
 using madTypes.Api.Common;
 using microauthd.Services;
+using microauthd.Data;
 
 namespace microauthd.Routes.Admin;
 
@@ -1250,70 +1251,47 @@ public static class AdminRoutes
         .WithOpenApi();
 
         // generate TOTP QR code endpoint***********************************************************
-        if (config.EnableOtpAuth)
+        group.MapPost("/users/{id}/totp/generate", (
+            string id,
+            [FromBody] TotpQrRequest req,
+            AppConfig config) =>
         {
-            group.MapPost("/users/{id}/totp/generate", (
-                string id,
-                [FromBody] TotpQrRequest req,
-                AppConfig config) =>
-            {
-                return UserService.GenerateTotpForUser(id, req.QrOutputPath, config).ToHttpResult();
-            })
-            .RequireAuthorization()
-            .WithTags("Users")
-            .Produces<TotpQrResponse>(StatusCodes.Status200OK)
-            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-            .WithName("GenerateTotpQr");
-        }
-
-        // verify TOTP code endpoint****************************************************************
-        if (config.EnableOtpAuth)
-        {
-            group.MapPost("/users/totp/verify", (
-                [FromBody] VerifyTotpRequest req,
-                AppConfig config) =>
-            {
-                return UserService.VerifyTotpCode(req.UserId, req.Code, config).ToHttpResult();
-            })
-            .RequireAuthorization()
-            .WithTags("Users")
-            .Produces<MessageResponse>(StatusCodes.Status200OK)
-            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-            .WithName("VerifyTotpCode");
-        }
-
-        // verify username/password combo endpoint**************************************************
-        group.MapPost("/users/verify-password", (
-            [FromBody] VerifyPasswordRequest req,
-            AppConfig config
-        ) =>
-        {
-            return AuthService.VerifyPasswordOnly(req, config).ToHttpResult();
+            return UserService.GenerateTotpForUser(id, req.QrOutputPath, req.ClientId, config).ToHttpResult();
         })
         .RequireAuthorization()
         .WithTags("Users")
-        .Produces<VerifyPasswordResponse>(StatusCodes.Status200OK)
+        .Produces<TotpQrResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+        .WithName("GenerateTotpQr");
+
+        // verify TOTP code endpoint****************************************************************
+        group.MapPost("/users/totp/verify", (
+            [FromBody] VerifyTotpRequest req,
+            AppConfig config) =>
+        {
+            return UserService.VerifyTotpCode(req.UserId, req.ClientId, req.Code, config).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithTags("Users")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-        .WithName("VerifyPasswordOnly");
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+        .WithName("VerifyTotpCode");
 
         // disable TOTP for user endpoint***********************************************************
-        if (config.EnableOtpAuth)
-        {
-            group.MapPost("/users/{userId}/disable-totp",
-                (string userId, AppConfig config) =>
-                    UserService.DisableTotpForUser(userId, config).ToHttpResult())
+        group.MapPost("/users/{userId}/{clientId}/disable-totp",
+            (string userId, string clientId, AppConfig config) =>
+                UserService.DisableTotpForUser(userId, clientId, config).ToHttpResult())
 
-            .RequireAuthorization()
-            .WithName("DisableTotpForUser")
-            .WithTags("TOTP")
-            .Produces<MessageResponse>(StatusCodes.Status200OK)
-            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-            .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-            .WithOpenApi();
-        }
+        .RequireAuthorization()
+        .WithName("DisableTotpForUser")
+        .WithTags("TOTP")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+        .WithOpenApi();
 
         return group;
     }

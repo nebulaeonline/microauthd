@@ -402,25 +402,6 @@ internal static class Options
         };
 
     /// <summary>
-    /// Represents an option to enable or disable OTP (One-Time Password) authentication.
-    /// </summary>
-    /// <remarks>This option defaults to <see langword="false"/> and can be configured by setting the environment
-    /// variable <c>MAD_ENABLE_OTP_AUTH</c> to <c>1</c>. The option requires an explicit value to be provided.</remarks>
-    public static readonly Option<bool> EnableOtpAuth =
-        new Option<bool>("--enable-otp-auth", () => false, "Enable OTP authentication (defaults to false) (env var MAD_ENABLE_OTP_AUTH = 1)");
-
-    /// <summary>
-    /// Represents the issuer name for OTP (One-Time Password) authentication.
-    /// </summary>
-    /// <remarks>This value is displayed in the authentication app when generating OTP codes.  The default
-    /// value is "microauthd". The value can also be set using the  environment variable
-    /// <c>MAD_OTP_AUTH_ISSUER</c>.</remarks>
-    public static readonly Option<string> OtpIssuer =
-        new Option<string>("--otp-issuer", () => "microauthd", "Issuer for OTP authentication (this will show in the authentication app; defaults to 'microauthd') (env var MAD_OTP_AUTH_ISSUER)")
-        {
-            Arity = ArgumentArity.ExactlyOne
-        };
-    /// <summary>
     /// Represents an option to print the effective configuration.
     /// </summary>
     /// <remarks>This option is a boolean flag that determines whether the effective configuration should be

@@ -53,7 +53,9 @@ I will keep the last 5 days of updates here; older updates can be found in the [
 
 **2025-07-04**
 
-Today is the day I begin the migration toward a per-client feature flag model, including TOTP. The global TOTP flag will be going away and OOBE will be adjusted accordingly. 
+Per client feature flags are now in place, and the global TOTP flag has been removed. The OOBE has been adjusted accordingly, and you can now enable or disable TOTP on a per-client basis. The options for TOTP are now on the edit client page in the web gui. I have not yet provided API calls to adjust options yet. That may take another day or so.
+
+~~Today is the day I begin the migration toward a per-client feature flag model, including TOTP. The global TOTP flag will be going away and OOBE will be adjusted accordingly.~~
 
 **2025-07-03**
 

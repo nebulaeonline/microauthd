@@ -14,5 +14,7 @@ namespace madTypes.Api.Requests
 
         [JsonPropertyName("password")]
         public string Password { get; set; } = string.Empty;
+        [JsonPropertyName("client_id")]
+        public string ClientId { get; set; } = string.Empty;
     }
 }

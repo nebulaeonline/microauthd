@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 9;
+    private const int CurrentSchemaVersion = 11;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -154,6 +154,12 @@ public static class DbMigrations
                 break;
             case (8, 9):
                 Migrate_8_to_9();
+                break;
+            case (9, 10):
+                Migrate_9_to_10();
+                break;
+            case (10, 11):
+                Migrate_10_to_11();
                 break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
@@ -316,6 +322,65 @@ public static class DbMigrations
                     ON auth_sessions (client_id);
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_session_client_nonce 
                     ON auth_sessions (client_id, nonce, jti);
+            """;
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    // Migration: v9 to v10
+    // Add client_features table
+    private static void Migrate_9_to_10()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS client_features (
+                    id TEXT PRIMARY KEY,
+                    client_id TEXT NOT NULL,
+                    feature_flag TEXT NOT NULL,
+                    options TEXT NOT NULL DEFAULT '',
+                    is_enabled BOOLEAN NOT NULL DEFAULT 1,
+                    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_client_features_client 
+                    ON client_features (client_id);
+                CREATE INDEX IF NOT EXISTS idx_client_features_enabled 
+                    ON client_features (is_enabled);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_client_feature_unique
+                    ON client_features (client_id, feature_flag);
+            """;
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    // Migration: v10 to v11
+    // Add client_features table
+    private static void Migrate_10_to_11()
+    {
+        if (ColumnExists("users", "totp_secret"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE users DROP COLUMN totp_secret;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS user_totp (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    client_id TEXT NOT NULL,
+                    totp_secret TEXT NOT NULL,
+                    is_enabled BOOLEAN NOT NULL DEFAULT 0,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+                );                
             """;
             cmd.ExecuteNonQuery();
         });

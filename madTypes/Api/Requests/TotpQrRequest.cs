@@ -11,6 +11,8 @@ public class TotpQrRequest
 {
     [JsonPropertyName("user_id")]
     public string UserId { get; set; } = string.Empty;
+    [JsonPropertyName("client_id")]
+    public string ClientId { get; set; } = string.Empty;
 
     [JsonPropertyName("qr_output_path")]
     public string QrOutputPath { get; set; } = ".";

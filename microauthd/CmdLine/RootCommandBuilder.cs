@@ -51,7 +51,6 @@ public static class RootCommandBuilder
         root.AddOption(Options.EnableTokenRefresh);
         root.AddOption(Options.RefreshTokenExpiration);
 
-        root.AddOption(Options.EnableOtpAuth);
         root.AddOption(Options.PrintEffectiveConfig);
 
         root.AddOption(Options.MaxLoginFailures);

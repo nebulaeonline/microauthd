@@ -11,6 +11,8 @@ namespace madTypes.Api.Requests
     {
         [JsonPropertyName("user_id")]
         public string UserId { get; set; } = string.Empty;
+        [JsonPropertyName("client_id")]
+        public string ClientId { get; set; } = string.Empty;
 
         [JsonPropertyName("code")]
         public string Code { get; set; } = string.Empty;

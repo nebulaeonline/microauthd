@@ -129,18 +129,20 @@ internal static class UserCommands
         var cmd = new Command("totp-qr", "Generate TOTP QR for a user");
 
         var userId = new Option<string>("--id") { IsRequired = true };
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
         var pathOpt = new Option<string>("--output-path", () => ".") { Description = "Where to save the QR SVG" };
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
         var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(userId);
+        cmd.AddOption(clientId);
         cmd.AddOption(pathOpt);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
         cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string uid, string path, bool json) =>
+        cmd.SetHandler(async (string url, string? token, string uid, string cid, string path, bool json) =>
         {
             token ??= AuthUtils.TryLoadToken();
             if (string.IsNullOrWhiteSpace(token))
@@ -153,6 +155,7 @@ internal static class UserCommands
             var result = await client.GenerateTotpQrCode(new TotpQrRequest
             {
                 UserId = uid,
+                ClientId = cid,
                 QrOutputPath = path
             });
 
@@ -171,7 +174,7 @@ internal static class UserCommands
                 Console.Error.WriteLine("Failed to generate TOTP QR.");
             }
 
-        }, adminUrl, adminToken, userId, pathOpt, jsonOut);
+        }, adminUrl, adminToken, userId, clientId, pathOpt, jsonOut);
 
         return cmd;
     }
@@ -181,18 +184,20 @@ internal static class UserCommands
         var cmd = new Command("totp-verify", "Verify a TOTP code for a user");
 
         var userId = new Option<string>("--user-id") { IsRequired = true };
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
         var code = new Option<string>("--code") { IsRequired = true };
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
         var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(userId);
+        cmd.AddOption(clientId);
         cmd.AddOption(code);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
         cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string uid, string code, bool json) =>
+        cmd.SetHandler(async (string url, string? token, string uid, string cid, string code, bool json) =>
         {
             token ??= AuthUtils.TryLoadToken();
             if (string.IsNullOrWhiteSpace(token))
@@ -205,6 +210,7 @@ internal static class UserCommands
             var result = await client.VerifyTotpCode(new VerifyTotpRequest
             {
                 UserId = uid,
+                ClientId = cid,
                 Code = code
             });
 
@@ -222,7 +228,7 @@ internal static class UserCommands
             {
                 Console.WriteLine(result.Success ? "TOTP verified and enabled" : $"Failed: {result.Message}");
             }
-        }, adminUrl, adminToken, userId, code, jsonOut);
+        }, adminUrl, adminToken, userId, clientId, code, jsonOut);
 
         return cmd;
     }
@@ -232,16 +238,18 @@ internal static class UserCommands
         var cmd = new Command("disable-totp", "Disable TOTP for a user");
 
         var userId = new Option<string>("--user-id") { IsRequired = true };
+        var clientId = new Option<string>("--client-id") { IsRequired = true };
         var adminUrl = SharedOptions.AdminUrl;
         var adminToken = SharedOptions.AdminToken;
         var jsonOut = SharedOptions.OutputJson;
 
         cmd.AddOption(userId);
+        cmd.AddOption(clientId);
         cmd.AddOption(adminUrl);
         cmd.AddOption(adminToken);
         cmd.AddOption(jsonOut);
 
-        cmd.SetHandler(async (string url, string? token, string uid, bool json) =>
+        cmd.SetHandler(async (string url, string? token, string uid, string cid, bool json) =>
         {
             token ??= AuthUtils.TryLoadToken();
             if (string.IsNullOrWhiteSpace(token))
@@ -251,7 +259,7 @@ internal static class UserCommands
             }
 
             var client = new MadApiClient(url, token);
-            var result = await client.DisableTotpForUser(uid);
+            var result = await client.DisableTotpForUser(uid, cid);
 
             if (result is null)
             {
@@ -264,7 +272,7 @@ internal static class UserCommands
             else
                 Console.WriteLine(result.Message);
 
-        }, adminUrl, adminToken, userId, jsonOut);
+        }, adminUrl, adminToken, userId, clientId, jsonOut);
 
         return cmd;
     }

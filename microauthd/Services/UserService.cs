@@ -1138,10 +1138,16 @@ public static class UserService
     public static ApiResult<TotpQrResponse> GenerateTotpForUser(
         string userId,
         string outputPath,
+        string clientId,
         AppConfig config)
     {
         try
         {
+            var isTotpEnabledForClient = ClientFeaturesStore.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
+
+            if (isTotpEnabledForClient is null or false)
+                return ApiResult<TotpQrResponse>.Fail("TOTP is not enabled for this client", 400);
+
             var user = UserStore.GetUsernameById(userId);
 
             if (user is null)
@@ -1149,7 +1155,7 @@ public static class UserService
 
             // Generate new TOTP secret
             var secret = Utils.GenerateBase32Secret();
-            var uri = $"otpauth://totp/{config.OtpIssuer}:{Uri.EscapeDataString(user)}?secret={secret}&issuer={config.OtpIssuer}&digits=6&period=30&algorithm=SHA1";
+            var uri = $"otpauth://totp/{ClientFeaturesStore.GetFeatureOption(clientId, ClientFeatures.Flags.TotpIssuer)}:{Uri.EscapeDataString(user)}?secret={secret}&issuer={ClientFeaturesStore.GetFeatureOption(clientId, ClientFeatures.Flags.TotpIssuer)}&digits=6&period=30&algorithm=SHA1";
 
             // Generate filename
             var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
@@ -1163,6 +1169,7 @@ public static class UserService
 
             UserStore.StoreTotpSecret(
                 userId: userId,
+                clientId: clientId,
                 otpSecret: secret
             );
 
@@ -1198,28 +1205,33 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
     /// operation. Returns a success response if the TOTP code is valid and TOTP is successfully enabled for the user.
     /// Returns a failure response with an appropriate status code and message if the operation fails.</returns>
-    public static ApiResult<MessageResponse> VerifyTotpCode(string userId, string code, AppConfig config)
+    public static ApiResult<MessageResponse> VerifyTotpCode(string userId, string clientId, string code, AppConfig config)
     {
-        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(code))
-            return ApiResult<MessageResponse>.Fail("totp failure", 403);
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(code))
+            return ApiResult<MessageResponse>.Fail("totp failure", 400);
 
         try
         {
-            var otpSecret = UserStore.GetTotpSecretByUserId(userId);
+            var isTotpEnabledForClient = ClientFeaturesStore.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
+
+            if (isTotpEnabledForClient is null or false)
+                return ApiResult<MessageResponse>.Fail("TOTP is not enabled for this client", 400);
+
+            var otpSecret = UserStore.GetTotpSecretByUserId(userId, clientId);
 
             if (string.IsNullOrWhiteSpace(otpSecret))
-                return ApiResult<MessageResponse>.Fail("totp failure", 403);
+                return ApiResult<MessageResponse>.Fail("totp failure", 400);
 
             var totp = new OtpNet.Totp(Base32Encoding.ToBytes(otpSecret));
             if (!totp.VerifyTotp(code, out _, new VerificationWindow(1, 1)))
-                return ApiResult<MessageResponse>.Fail("totp failure", 403);
+                return ApiResult<MessageResponse>.Fail("totp failure", 400);
 
-            var affected = UserStore.EnableTotpForUserId(userId);
+            var affected = UserStore.EnableTotpForUserId(userId, clientId);
 
             if (affected > 0)
                 return ApiResult<MessageResponse>.Ok(new(true, "TOTP enabled for user"));
 
-            return ApiResult<MessageResponse>.Fail("totp failure", 403);
+            return ApiResult<MessageResponse>.Fail("totp failure", 400);
         }
         catch (Exception ex)
         {
@@ -1241,14 +1253,19 @@ public static class UserService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that indicates the result of the
     /// operation. Returns a success response if TOTP was successfully disabled, or a failure response with an
     /// appropriate error message and status code.</returns>
-    public static ApiResult<MessageResponse> DisableTotpForUser(string userId, AppConfig config)
+    public static ApiResult<MessageResponse> DisableTotpForUser(string userId, string clientId, AppConfig config)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-            return ApiResult<MessageResponse>.Fail("Missing user_id", 400);
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(clientId))
+            return ApiResult<MessageResponse>.Fail("Missing user_id or client_id", 400);
 
         try
         {
-            var affected = UserStore.DisableTotpForUserId(userId);
+            var isTotpEnabledForClient = ClientFeaturesStore.IsFeatureEnabled(clientId, ClientFeatures.Flags.EnableTotp);
+
+            if (isTotpEnabledForClient is null or false)
+                return ApiResult<MessageResponse>.Fail("TOTP is not enabled for this client", 400);
+
+            var affected = UserStore.DisableTotpForUserId(userId, clientId);
 
             if (affected == 0)
                 return ApiResult<MessageResponse>.Fail("User not found or already inactive", 404);

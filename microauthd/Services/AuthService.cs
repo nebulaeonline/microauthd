@@ -436,7 +436,10 @@ public static class AuthService
         if (string.IsNullOrWhiteSpace(userId))
             return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
 
-        var requiresTotp = config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(userId);
+        var requiresTotp = false;
+        var clientTotpEnabled = ClientFeaturesStore.IsFeatureEnabled(clientIdentifier!, ClientFeatures.Flags.EnableTotp);
+        if (clientTotpEnabled is true && UserStore.IsTotpEnabledForUserId(userId, session.ClientId))
+            requiresTotp = true;
 
         AuthSessionStore.AttachUserIdAndTotpFlag(jti, userId, requiresTotp);
 
@@ -491,7 +494,7 @@ public static class AuthService
             string.IsNullOrWhiteSpace(session.RedirectUri))
             return ApiResult<PkceAuthorizeResponse>.Fail("Malformed session", 500);
 
-        var result = UserService.VerifyTotpCode(session.UserId, totp, config);
+        var result = UserService.VerifyTotpCode(session.UserId, session.ClientId, totp, config);
         if (!result.Success)
             return ApiResult<PkceAuthorizeResponse>.Fail("Invalid credentials", 400);
 
@@ -815,6 +818,7 @@ public static class AuthService
         try
         {
             var audience = ClientStore.GetClientAudienceByIdentifier(clientIdent);
+            var actualClientId = ClientStore.GetClientIdByIdentifier(clientIdent);
 
             if (string.IsNullOrWhiteSpace(audience))
             {
@@ -829,11 +833,11 @@ public static class AuthService
                 return OidcErrors.InvalidGrant<TokenResponse>();
             }
 
-            var requiresTotp = (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(r.UserId!));
+            var requiresTotp = UserStore.IsTotpEnabledForUserId(r.UserId!, actualClientId);
             if (requiresTotp)
             {
                 var totpCode = form["totp_code"].ToString();
-                if (string.IsNullOrWhiteSpace(totpCode) || !ValidateTotpCode(r.UserId!, totpCode))
+                if (string.IsNullOrWhiteSpace(totpCode) || !ValidateTotpCode(r.UserId!, actualClientId, totpCode))
                 {
                     Log.Warning("TOTP required and failed for user {UserId}", r.UserId);
                     return OidcErrors.InvalidGrant<TokenResponse>();
@@ -1616,14 +1620,14 @@ public static class AuthService
     /// <param name="code">The TOTP code to validate. Cannot be null, empty, or whitespace.</param>
     /// <returns><see langword="true"/> if the provided TOTP code is valid for the specified user; otherwise, <see
     /// langword="false"/>.</returns>
-    public static bool ValidateTotpCode(string userId, string code)
+    public static bool ValidateTotpCode(string userId, string clientId, string code)
     {
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(code))
             return false;
 
         try
         {
-            var secret = UserStore.GetTotpSecretByUserId(userId);
+            var secret = UserStore.GetTotpSecretByUserId(userId, clientId);
 
             if (string.IsNullOrWhiteSpace(secret))
                 return false;
@@ -1638,37 +1642,4 @@ public static class AuthService
             return false;
         }
     }
-
-    /// <summary>
-    /// Verifies the provided username and password credentials and determines if additional authentication steps are
-    /// required.
-    /// </summary>
-    /// <remarks>This method checks the validity of the provided username and password against the
-    /// authentication service. If the credentials are valid, it also determines whether Time-based One-Time Password
-    /// (TOTP) authentication is required for the user. The result includes the user's ID, email, and TOTP requirement
-    /// status.</remarks>
-    /// <param name="req">The request containing the username and password to verify.</param>
-    /// <param name="config">The application configuration used for authentication.</param>
-    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="VerifyPasswordResponse"/> object if the credentials are
-    /// valid. If the credentials are invalid, the result will indicate the failure reason and status code.</returns>
-    public static ApiResult<VerifyPasswordResponse> VerifyPasswordOnly(VerifyPasswordRequest req, AppConfig config)
-    {
-        if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
-            return ApiResult<VerifyPasswordResponse>.Forbidden("Invalid credentials");
-
-        var result = AuthService.AuthenticateUser(req.Username, req.Password, config);
-        if (result is not { Success: true } r)
-            return ApiResult<VerifyPasswordResponse>.Forbidden("Invalid credentials");
-
-        var totpRequired = (config.EnableOtpAuth && UserStore.IsTotpEnabledForUserId(r.UserId!));
-
-        return ApiResult<VerifyPasswordResponse>.Ok(new VerifyPasswordResponse
-        {
-            Valid = true,
-            UserId = r.UserId,
-            Email = r.Email,
-            TotpRequired = totpRequired
-        });
-    }
-
 }

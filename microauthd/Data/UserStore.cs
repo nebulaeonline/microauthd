@@ -1338,107 +1338,121 @@ public static class UserStore
     }
 
     /// <summary>
-    /// Updates the OTP secret for the specified user in the database.
+    /// Stores a Time-based One-Time Password (TOTP) secret for a specific user and client.
     /// </summary>
-    /// <remarks>This method updates the OTP secret for a user in the database only if the user is active.
-    /// Ensure that <paramref name="userId"/> corresponds to a valid and active user.</remarks>
-    /// <param name="userId">The unique identifier of the user whose OTP secret is being updated. Must correspond to an active user.</param>
-    /// <param name="otpSecret">The new OTP secret to associate with the user. Cannot be null or empty.</param>
-    public static void StoreTotpSecret(string userId, string otpSecret)
+    /// <remarks>This method inserts the provided TOTP secret into the database, associating it with the
+    /// specified user and client. Ensure that the <paramref name="userId"/>, <paramref name="clientId"/>, and <paramref
+    /// name="otpSecret"/> parameters are valid and non-empty before calling this method.</remarks>
+    /// <param name="userId">The unique identifier of the user for whom the TOTP secret is being stored. This parameter cannot be null or
+    /// empty.</param>
+    /// <param name="clientId">The unique identifier of the client associated with the TOTP secret. This parameter cannot be null or empty.</param>
+    /// <param name="otpSecret">The TOTP secret to be stored. This parameter cannot be null or empty.</param>
+    public static void StoreTotpSecret(string userId, string clientId, string otpSecret)
     {
+        // if there's already a TOTP secret for this user/client, disable it first
+        if (IsTotpEnabledForUserId(userId, clientId))
+            DisableTotpForUserId(userId, clientId);
+
         Db.WithConnection(conn =>
         {
+            var id = Guid.NewGuid().ToString();
+
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                UPDATE users
-                SET totp_secret = $secret
-                WHERE id = $id AND is_active = 1;
+                INSERT INTO user_totp (id, user_id, client_id, totp_secret)
+                VALUES ($id, $uid, $cid, $secret);                
             """;
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.AddWithValue("$uid", userId);
+            cmd.Parameters.AddWithValue("$cid", clientId);
             cmd.Parameters.AddWithValue("$secret", otpSecret);
-            cmd.Parameters.AddWithValue("$id", userId);
             cmd.ExecuteNonQuery();
         });
     }
 
     /// <summary>
-    /// Retrieves the OTP secret associated with the specified user ID.
+    /// Retrieves the TOTP (Time-based One-Time Password) secret associated with a specific user and client.
     /// </summary>
-    /// <remarks>This method queries the database to retrieve the OTP secret for the user with the given ID.
-    /// The user must be active for the OTP secret to be returned.</remarks>
-    /// <param name="userId">The unique identifier of the user whose OTP secret is to be retrieved. Must not be <see langword="null"/> or
-    /// empty.</param>
-    /// <returns>The OTP secret as a string if the user exists and is active; otherwise, <see langword="null"/>.</returns>
-    public static string? GetTotpSecretByUserId(string userId)
+    /// <remarks>This method queries the database to retrieve the TOTP secret for the specified user and
+    /// client. Ensure that both <paramref name="userId"/> and <paramref name="clientId"/> are valid and correspond to
+    /// existing records.</remarks>
+    /// <param name="userId">The unique identifier of the user whose TOTP secret is being retrieved. Cannot be null or empty.</param>
+    /// <param name="clientId">The unique identifier of the client associated with the user. Cannot be null or empty.</param>
+    /// <returns>The TOTP secret as a string if a matching record is found; otherwise, <see langword="null"/>.</returns>
+    public static string? GetTotpSecretByUserId(string userId, string clientId)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT totp_secret FROM users WHERE id = $id AND is_active = 1";
-            cmd.Parameters.AddWithValue("$id", userId);
+            cmd.CommandText = "SELECT totp_secret FROM user_totp WHERE user_id = $uid AND client_id = $cid";
+            cmd.Parameters.AddWithValue("$uid", userId);
+            cmd.Parameters.AddWithValue("$cid", clientId);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? reader.GetString(0) : null;
         });
     }
 
     /// <summary>
-    /// Enables OTP (One-Time Password) authentication for the specified user.
+    /// Enables Time-based One-Time Password (TOTP) authentication for the specified user and client.
     /// </summary>
-    /// <remarks>This method updates the database to enable OTP authentication for the user with the specified
-    /// ID. Ensure that the database connection is properly configured and accessible.</remarks>
-    /// <param name="userId">The unique identifier of the user for whom OTP authentication should be enabled. This parameter cannot be null
-    /// or empty.</param>
-    /// <returns>The number of rows affected by the operation. Typically, this will be 1 if the user exists and the update is
-    /// successful, or 0 if no matching user is found.</returns>
-    public static int EnableTotpForUserId(string userId)
+    /// <remarks>This method updates the database to enable TOTP authentication for the specified user and
+    /// client. Ensure that the provided identifiers correspond to valid entries in the database.</remarks>
+    /// <param name="userId">The unique identifier of the user for whom TOTP authentication is being enabled. Cannot be null or empty.</param>
+    /// <param name="client_id">The unique identifier of the client associated with the user. Cannot be null or empty.</param>
+    /// <returns>The number of rows affected in the database. Typically, this will be 1 if the operation succeeds, or 0 if no
+    /// matching record is found.</returns>
+    public static int EnableTotpForUserId(string userId, string client_id)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE users SET totp_enabled = 1 WHERE id = $id";
-            cmd.Parameters.AddWithValue("$id", userId);
+            cmd.CommandText = "UPDATE user_totp SET is_enabled = 1 WHERE user_id = $uid AND client_id = $cid";
+            cmd.Parameters.AddWithValue("$uid", userId);
+            cmd.Parameters.AddWithValue("$cid", client_id);
             return cmd.ExecuteNonQuery();
         });
     }
 
     /// <summary>
-    /// Disables OTP (One-Time Password) functionality for the specified user.
+    /// Disables Time-based One-Time Password (TOTP) authentication for the specified user and client.
     /// </summary>
-    /// <remarks>This method updates the user's record in the database to disable OTP functionality by
-    /// clearing the OTP secret and marking OTP as disabled. The operation only affects users who are active.</remarks>
-    /// <param name="userId">The unique identifier of the user for whom OTP functionality should be disabled. Must not be <see
-    /// langword="null"/> or empty.</param>
-    /// <returns>The number of rows affected by the operation. Returns 0 if no active user with the specified ID exists.</returns>
-    public static int DisableTotpForUserId(string userId)
+    /// <remarks>This method updates the database to disable TOTP authentication for the specified user and
+    /// client. Ensure that the provided identifiers correspond to valid entries in the database.</remarks>
+    /// <param name="userId">The unique identifier of the user for whom TOTP authentication should be disabled. Cannot be null or empty.</param>
+    /// <param name="clientId">The unique identifier of the client associated with the user's TOTP authentication. Cannot be null or empty.</param>
+    /// <returns>The number of rows affected in the database. Typically, this will be 1 if the operation succeeds, or 0 if no
+    /// matching record is found.</returns>
+    public static int DisableTotpForUserId(string userId, string clientId)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                UPDATE users
-                SET totp_enabled = 0,
-                    totp_secret = NULL
-                WHERE id = $id AND is_active = 1;
+                DELETE FROM user_totp
+                WHERE user_id = $uid AND client_id = $cid;
             """;
-            cmd.Parameters.AddWithValue("$id", userId);
+            cmd.Parameters.AddWithValue("$uid", userId);
+            cmd.Parameters.AddWithValue("$cid", clientId);
             return cmd.ExecuteNonQuery();
         });
     }
 
     /// <summary>
-    /// Determines whether Time-based One-Time Password (TOTP) authentication is enabled for the specified user.
+    /// Determines whether TOTP (Time-based One-Time Password) is enabled for the specified user and client.
     /// </summary>
-    /// <remarks>This method queries the database to check the TOTP status for the user. Ensure the database
-    /// connection is properly configured and accessible.</remarks>
+    /// <remarks>This method queries the database to check the TOTP status for the given user and client.
+    /// Ensure that the database connection is properly configured and accessible.</remarks>
     /// <param name="userId">The unique identifier of the user. Cannot be null or empty.</param>
-    /// <returns><see langword="true"/> if TOTP authentication is enabled for the user and the user is active; otherwise, <see
-    /// langword="false"/>.</returns>
-    public static bool IsTotpEnabledForUserId(string userId)
+    /// <param name="clientId">The unique identifier of the client application. Cannot be null or empty.</param>
+    /// <returns><see langword="true"/> if TOTP is enabled for the specified user and client; otherwise, <see langword="false"/>.</returns>
+    public static bool IsTotpEnabledForUserId(string userId, string clientId)
     {
         return Db.WithConnection(conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT totp_enabled FROM users WHERE id = $id AND is_active = 1";
-            cmd.Parameters.AddWithValue("$id", userId);
+            cmd.CommandText = "SELECT is_enabled FROM user_totp WHERE user_id = $uid AND client_id = $cid";
+            cmd.Parameters.AddWithValue("$uid", userId);
+            cmd.Parameters.AddWithValue("$cid", clientId);
             using var reader = cmd.ExecuteReader();
             return reader.Read() && reader.GetBoolean(0);
         });
