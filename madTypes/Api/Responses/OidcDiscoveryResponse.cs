@@ -10,8 +10,16 @@ public sealed class OidcDiscoveryResponse
     public required string TokenEndpoint { get; init; }
     [JsonPropertyName("jwks_uri")]
     public required string JwksUri { get; init; }
+    [JsonPropertyName("grant_types_supported")]
+    public required string[] GrantTypesSupported { get; init; }
     [JsonPropertyName("response_types_supported")]
     public required string[] ResponseTypesSupported { get; init; }
+    [JsonPropertyName("token_endpoint_auth_methods_supported")]
+    public required string[] TokenEndpointAuthMethodsSupported { get; init; }
+    [JsonPropertyName("response_modes_supported")]
+    public required string[] ResponseModesSupported { get; init; }
+    [JsonPropertyName("code_challenge_methods_supported")]
+    public required string[] CodeChallengeMethodsSupported { get; init; }
     [JsonPropertyName("subject_types_supported")]
     public required string[] SubjectTypesSupported { get; init; }
     [JsonPropertyName("id_token_signing_alg_values_supported")]
@@ -22,6 +30,4 @@ public sealed class OidcDiscoveryResponse
     public required string[] ClaimsSupported { get; init; }
     [JsonPropertyName("userinfo_endpoint")]
     public required string UserInfoEndpoint { get; init; }
-    [JsonPropertyName("authorization_ui_endpoint")]
-    public required string AuthorizationUIEndpoint { get; init; }
 }

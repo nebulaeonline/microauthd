@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.Tokens;
 using nebulae.dotArgon2;
 using Serilog;
@@ -310,6 +311,17 @@ public static class AuthRoutes
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             var ua = ctx.Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
 
+            if (ctx.Request.Headers.TryGetValue("Authorization", out var authHeader) &&
+                AuthHelpers.TryParseBasicAuth(authHeader.FirstOrDefault(), out var clientId, out var clientSecret))
+            {
+                var formDict = new Dictionary<string, StringValues>(form)
+                {
+                    ["client_id"] = clientId,
+                    ["client_secret"] = clientSecret
+                };
+                form = new FormCollection(formDict);
+            }
+
             return grantType switch
             {
                 "password" => AuthService.IssueUserToken(
@@ -395,6 +407,21 @@ public static class AuthRoutes
         .WithName("JwksDocument")
         .WithTags("OIDC")
         .Produces<JwksResponse>(StatusCodes.Status200OK)
+        .WithOpenApi();
+
+        // OIDC token endpoint**********************************************************************
+        group.MapPost("/oidc/token", async (HttpContext ctx, AppConfig config) =>
+        {
+            if (!ctx.Request.HasFormContentType)
+                return ApiResult<TokenResponse>.Fail("Invalid content type", 400).ToHttpResult();
+
+            var form = await ctx.Request.ReadFormAsync();
+            return AuthService.IssueOidcToken(form, config).ToHttpResult();
+        })
+        .Produces<TokenResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .WithName("OidcToken")
+        .WithTags("OIDC")
         .WithOpenApi();
 
         // provision user endpoint******************************************************************

@@ -800,10 +800,10 @@ public static class AuthService
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> if the request is successful. Returns a
     /// forbidden result if the credentials or client information are invalid.</returns>
     public static ApiResult<TokenResponse> IssueUserToken(
-    IFormCollection form,
-    AppConfig config,
-    string ip,
-    string userAgent)
+        IFormCollection form,
+        AppConfig config,
+        string ip,
+        string userAgent)
     {
         var username = form["username"].ToString().Trim();
         var password = form["password"].ToString().Trim();
@@ -1211,13 +1211,16 @@ public static class AuthService
             Issuer = baseUrl,
             TokenEndpoint = $"{baseUrl}/token",
             JwksUri = $"{baseUrl}/jwks.json",
+            GrantTypesSupported = new[] { "authorization_code", "password", "client_credentials", "refresh_token" },
             ResponseTypesSupported = new[] { "token" },
+            TokenEndpointAuthMethodsSupported = new[] { "client_secret_post", "client_secret_basic" },
+            ResponseModesSupported = new[] { "fragment" },
+            CodeChallengeMethodsSupported = new[] { "plain", "S256" },
             SubjectTypesSupported = new[] { "public" },
             IdTokenSigningAlgValuesSupported = new[] { "RS256", "ES256" },
             ScopesSupported = new[] { "openid", "email", "profile" },
             ClaimsSupported = new[] { "sub", "email", "jti", "iat", "exp", "aud", "iss", "token_use", "mad" },
             UserInfoEndpoint = $"{baseUrl}/userinfo",
-            AuthorizationUIEndpoint = $"{baseUrl}/authorize-ui"
         };
 
         return ApiResult<OidcDiscoveryResponse>.Ok(discovery);
