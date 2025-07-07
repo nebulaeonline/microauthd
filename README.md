@@ -6,7 +6,9 @@ microauthd uses a dual-port architecture with separate admin and auth endpoints,
 
 **Next Steps**
 
-The next major step for microauthd is to implement WebAuthn (FIDO2) and MSAL's native broker support, which will allow for modern authentication methods like FaceID and fingerprint scanning. This will be a significant addition to the existing PKCE and TOTP support, enhancing the security and usability of the platform.
+microauthd is going to begin implementing session-based authentication on a per-client basis, which will allow those seeking to use microauthd like a traditional identity provider possible. Right now microauthd is limited to being a token generator mostly for non-web based workloads. This addition will bring official login / logout pages and a new max_age session parameter. Stay tuned!_
+
+The next major step for microauthd is to implement WebAuthn (FIDO2) and MSAL's native broker support, which will allow for modern authentication methods like FaceID and fingerprint scanning. This will be a significant addition to the existing PKCE and TOTP support, enhancing the security and usability of the platform. FIDO2 is an entirely new beast, and integration will take some time. MSAL is really just an augmentation and should cross the finish line sooner than FIDO2.
 
 **Release Cadence**
 
@@ -55,6 +57,10 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 I will keep the last 5 days of updates here; older updates can be found in the [CHANGELOG](CHANGELOG.md) file.
 
+**2025-07-07**
+
+Beginning the long slog to implement session-based authentication on a per-client basis.
+
 **2025-07-06**
 
 Used the infra brought in for the AMR claim to add per-client token and refresh token expiration times; now you can use the global setting or fall back to a per-client setting if your use case requires.
@@ -82,14 +88,6 @@ TOTP is working again, and we added an --otp-issuer option so that you can contr
 Added a new token inspector for both `mad` cli and for the ADMIN web gui. Now you can paste raw tokens in and have them decoded locally. I've wanted this functionality since the outset, so I'm glad it's finally done.
 
 The march continues for bringing our tokens and our token issuance into compliance with OAuth2 and OIDC. Fixed a bug where Id Tokens were not being issued in the case of refresh, even if the original token had an openid scope. Also updated /userinfo to bring it into compliance with OAuth2 specifications.
-
-**2025-07-01**
-
-Big changes in bringing several of the API responses into RFC compliance with OAuth2 & OIDC. This included a new error object and the expansion of our ApiResponse to include the new object. Testing has gone well, but things may be screwy here or there until the dust settles.
-
-The next big project in preparation for an alpha release is to solidify API responses and make them uniform. What I am specifically going to focus on is returning 404 errors where appropriate rather than blanket 400 errors. It'll be a big project, but it will bring clarity to consumers of the JSON/HTTP APIs.
-
-Made a lot of progress today with implementing standard login flows expected by OAuth2 and OIDC clients. This lays the groundwork for acting as a client rather than a server for 3rd party logins and federated IAM/IdP systems. Demos for both flows are in the /public directory.
 
 ---
 
