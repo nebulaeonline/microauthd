@@ -36,4 +36,6 @@ public class AuthSessionDto
     public DateTime ExpiresAtUtc { get; set; }
     [JsonPropertyName("login_method")]
     public string? LoginMethod { get; set; }
+    [JsonPropertyName("max_age")]
+    public int? MaxAge { get; set; }
 }

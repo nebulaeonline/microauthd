@@ -22,8 +22,8 @@ public static class AuthSessionStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO auth_sessions (jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method)
-                VALUES ($jti, $client_id, $user_id, $redirect_uri, $totp_required, $nonce, $scope, $state, $code_challenge, $code_challenge_method, $created, $expires, $login_method);
+                INSERT INTO auth_sessions (jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method max_age)
+                VALUES ($jti, $client_id, $user_id, $redirect_uri, $totp_required, $nonce, $scope, $state, $code_challenge, $code_challenge_method, $created, $expires, $login_method, $max_age);
             """;
             cmd.Parameters.AddWithValue("$jti", session.Jti);
             cmd.Parameters.AddWithValue("$client_id", session.ClientId);
@@ -38,6 +38,7 @@ public static class AuthSessionStore
             cmd.Parameters.AddWithValue("$created", session.CreatedAtUtc);
             cmd.Parameters.AddWithValue("$expires", session.ExpiresAtUtc);
             cmd.Parameters.AddWithValue("$login_method", (object?)session.LoginMethod ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$max_age", session.MaxAge ?? (object)DBNull.Value);
             cmd.ExecuteNonQuery();
         });
     }
@@ -59,7 +60,8 @@ public static class AuthSessionStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method
+                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, 
+                    code_challenge_method, created_at, expires_at, login_method, max_age
                 FROM auth_sessions
                 WHERE jti = $jti;
             """;
@@ -82,7 +84,8 @@ public static class AuthSessionStore
                 CodeChallengeMethod = reader.GetString(9),
                 CreatedAtUtc = reader.GetDateTime(10).ToUniversalTime(),
                 ExpiresAtUtc = reader.GetDateTime(11).ToUniversalTime(),
-                LoginMethod = reader.IsDBNull(12) ? null : reader.GetString(12)
+                LoginMethod = reader.IsDBNull(12) ? null : reader.GetString(12),
+                MaxAge = reader.IsDBNull(13) ? null : (int?)reader.GetInt32(13)
             };
         });
     }
@@ -157,7 +160,8 @@ public static class AuthSessionStore
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = """
-                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method
+                SELECT jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, 
+                    code_challenge_method, created_at, expires_at, login_method, max_age
                 FROM auth_sessions
                 WHERE jti = $jti;
             """;
@@ -184,7 +188,8 @@ public static class AuthSessionStore
                 CodeChallengeMethod = reader.GetString(9),
                 CreatedAtUtc = reader.GetDateTime(10).ToUniversalTime(),
                 ExpiresAtUtc = reader.GetDateTime(11).ToUniversalTime(),
-                LoginMethod = reader.IsDBNull(12) ? null : reader.GetString(12)
+                LoginMethod = reader.IsDBNull(12) ? null : reader.GetString(12),
+                MaxAge = reader.IsDBNull(13) ? null : (int?)reader.GetInt32(13)
             };
 
             reader.Close();

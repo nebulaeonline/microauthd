@@ -19,9 +19,9 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     INSERT INTO pkce_codes 
-                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti, nonce, scope, login_method)
+                    (code, client_identifier, redirect_uri, code_challenge, code_challenge_method, expires_at, is_used, user_id, jti, nonce, scope, login_method, max_age)
                     VALUES
-                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti, $nonce, $scope, $login_method);
+                    ($code, $client_identifier, $redirect_uri, $challenge, $method, $expires, $used, $user_id, $jti, $nonce, $scope, $login_method, $max_age);
                 """;
 
                 cmd.Parameters.AddWithValue("$code", pkce.Code);
@@ -36,6 +36,7 @@ namespace microauthd.Data
                 cmd.Parameters.AddWithValue("$nonce", (object?)pkce.Nonce?.Trim() ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$scope", pkce.Scope?.Trim());
                 cmd.Parameters.AddWithValue("$login_method", pkce.LoginMethod);
+                cmd.Parameters.AddWithValue("$max_age", pkce.MaxAge.HasValue ? (object)pkce.MaxAge.Value : DBNull.Value);
                 cmd.ExecuteNonQuery();
             });
         }
@@ -57,7 +58,7 @@ namespace microauthd.Data
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     SELECT code, client_identifier, redirect_uri, code_challenge, code_challenge_method,
-                           expires_at, is_used, user_id, jti, nonce, scope, login_method
+                           expires_at, is_used, user_id, jti, nonce, scope, login_method, max_age
                     FROM pkce_codes
                     WHERE code = $code
                     LIMIT 1;
@@ -84,7 +85,8 @@ namespace microauthd.Data
                     Jti = reader.IsDBNull(8) ? null : reader.GetString(8).Trim(),
                     Nonce = reader.IsDBNull(9) ? null : reader.GetString(9).Trim(),
                     Scope = reader.IsDBNull(10) ? null : reader.GetString(10).Trim(),
-                    LoginMethod = reader.GetString(11).Trim()
+                    LoginMethod = reader.GetString(11).Trim(),
+                    MaxAge = reader.IsDBNull(12) ? null : (int?)reader.GetInt32(12)
                 };
             });
         }

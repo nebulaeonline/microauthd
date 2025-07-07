@@ -28,4 +28,6 @@ public class PkceCode
     public string? Scope { get; set; }
     [JsonPropertyName("login_method")]
     public string? LoginMethod { get; set; }
+    [JsonPropertyName("max_age")]
+    public int? MaxAge { get; set; }
 }

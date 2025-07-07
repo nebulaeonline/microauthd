@@ -725,6 +725,19 @@ public static class UserService
         }
     }
 
+    public static void WriteSessionBasedSessionToDb(TokenInfo token, AppConfig config, string clientIdent, string loginMethod, int maxAge = 0)
+    {
+        try
+        {
+            UserStore.WriteSessionBasedSessionToDb(token, clientIdent, loginMethod, maxAge);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to write session-based session {token.Jti} for user {token.UserId} to database: {ex.Message} with max_age: {maxAge.ToString()}");
+            throw; // Re-throw the exception to be handled by the caller
+        }
+    }
+
     /// <summary>
     /// Retrieves all session records from the database, ordered by their issuance date in descending order.
     /// </summary>

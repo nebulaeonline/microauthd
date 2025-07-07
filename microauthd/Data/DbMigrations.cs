@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 12;
+    private const int CurrentSchemaVersion = 13;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -163,6 +163,9 @@ public static class DbMigrations
                 break;
             case (11, 12):
                 Migrate_11_to_12();
+                break;
+            case (12, 13):
+                Migrate_12_to_13();
                 break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
@@ -390,7 +393,7 @@ public static class DbMigrations
     }
 
     // Migration: v11 to v12
-    // Add `login_method` column to `sessions` table
+    // Add `login_method` column to `auth_sessions` and `pkce_codes` tables
     private static void Migrate_11_to_12()
     {
         if (!ColumnExists("pkce_codes", "login_method"))
@@ -409,6 +412,72 @@ public static class DbMigrations
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = "ALTER TABLE auth_sessions ADD COLUMN login_method TEXT;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+    }
+
+    // Migration: v12 to v13
+    // Add columns to support session-based authentication
+    private static void Migrate_12_to_13()
+    {
+        if (!ColumnExists("sessions", "is_session_based"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE sessions ADD COLUMN is_session_based INTEGER DEFAULT 0;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        if (!ColumnExists("sessions", "session_max_age_seconds"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE sessions ADD COLUMN session_max_age_seconds INTEGER;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        if (!ColumnExists("sessions", "session_expires_at"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE sessions ADD COLUMN session_expires_at TEXT;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE INDEX IF NOT EXISTS idx_session_user_client_active 
+                    ON sessions(user_id, client_identifier) 
+                    WHERE is_session_based = 1 AND is_revoked = 0;
+            """;
+            cmd.ExecuteNonQuery();
+        });
+
+        if (!ColumnExists("auth_sessions", "max_age"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE auth_sessions ADD COLUMN max_age INTEGER DEFAULT 0;";
+                cmd.ExecuteNonQuery();
+            });
+        }
+
+        if (!ColumnExists("pkce_codes", "max_age"))
+        {
+            Db.WithConnection(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "ALTER TABLE pkce_codes ADD COLUMN max_age INTEGER DEFAULT 0;";
                 cmd.ExecuteNonQuery();
             });
         }

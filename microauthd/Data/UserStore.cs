@@ -722,6 +722,47 @@ public static class UserStore
     }
 
     /// <summary>
+    /// Writes a session-based token to the database, including metadata about the session.
+    /// </summary>
+    /// <remarks>This method inserts a new session record into the database, marking it as session-based and
+    /// including details  such as the token's metadata, client identifier, login method, and session expiration
+    /// time.</remarks>
+    /// <param name="token">The token information to be stored, including its unique identifier, user ID, issue time, and expiration time.</param>
+    /// <param name="clientIdent">A string that uniquely identifies the client associated with the session.</param>
+    /// <param name="loginMethod">The method used to log in, such as "password" or "OAuth".</param>
+    /// <param name="maxAge">The maximum age of the session, in seconds. If greater than zero, the session expiration time is calculated 
+    /// based on the issue time and this value. Otherwise, the token's expiration time is used.</param>
+    public static void WriteSessionBasedSessionToDb(TokenInfo token, string clientIdent, string loginMethod, int maxAge = 0)
+    {
+        var sessionExpiresAt = maxAge > 0
+            ? token.IssuedAt.AddSeconds(maxAge)
+            : token.ExpiresAt;
+
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, 
+                        token_use, mad_use, login_method, is_session_based, session_max_age_seconds, session_expires_at)
+                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $tok_use, $mad_use, $login_method, $is_session_based, $session_max_age_seconds, $session_expires_at);
+                """;
+            cmd.Parameters.AddWithValue("$id", token.Jti);
+            cmd.Parameters.AddWithValue("$uid", token.UserId);
+            cmd.Parameters.AddWithValue("$cid", clientIdent);
+            cmd.Parameters.AddWithValue("$token", token.Token);
+            cmd.Parameters.AddWithValue("$iat", token.IssuedAt.ToString("o"));
+            cmd.Parameters.AddWithValue("$exp", token.ExpiresAt.ToString("o"));
+            cmd.Parameters.AddWithValue("$tok_use", token.TokenUse);
+            cmd.Parameters.AddWithValue("$mad_use", token.MadUse);
+            cmd.Parameters.AddWithValue("$login_method", loginMethod);
+            cmd.Parameters.AddWithValue("$is_session_based", 1);
+            cmd.Parameters.AddWithValue("$session_max_age_seconds", maxAge);
+            cmd.Parameters.AddWithValue("$session_expires_at", sessionExpiresAt.ToString("o"));
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
     /// Retrieves a list of all sessions from the database, ordered by their issuance date in descending order.
     /// </summary>
     /// <remarks>This method queries the database to fetch session information and returns it as a collection

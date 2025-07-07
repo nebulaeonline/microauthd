@@ -311,6 +311,10 @@ public static class AuthService
             var nonce = form["nonce"].ToString();
             var state = form["state"].ToString();
 
+            // propagate max_age if present
+            var maxAgeStr = form["max_age"].ToString();
+            int? maxAge = int.TryParse(maxAgeStr, out var val) && val > 0 ? val : null;
+
             if (string.IsNullOrWhiteSpace(clientId) ||
                 string.IsNullOrWhiteSpace(redirectUri) ||
                 string.IsNullOrWhiteSpace(codeChallenge) ||
@@ -344,7 +348,8 @@ public static class AuthService
                 CodeChallengeMethod = codeChallengeMethod,
                 CreatedAtUtc = DateTime.UtcNow,
                 ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
-                LoginMethod = null
+                LoginMethod = null,
+                MaxAge = maxAge
             };
 
             AuthSessionStore.Insert(session);
@@ -560,7 +565,8 @@ public static class AuthService
             Jti = session.Jti,
             Nonce = session.Nonce,
             Scope = session.Scope,
-            LoginMethod = session.LoginMethod
+            LoginMethod = session.LoginMethod,
+            MaxAge = session.MaxAge
         });
 
         // build redirect_uri?code=...&state=...
@@ -687,7 +693,36 @@ public static class AuthService
 
         var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientIdentifier);
         var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, clientId: actualClientId, audience: audience);
-        UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientIdentifier, pkce.LoginMethod!);
+
+        // Need to check if session-based auth is enabled for this client
+        bool? sessionBasedAuth = ClientFeaturesStore.IsFeatureEnabled(actualClientId, ClientFeatures.Flags.SessionBasedAuth);
+
+        if (sessionBasedAuth is not true)
+        {
+            // No session-based auth, write a regular session
+            UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientIdentifier, pkce.LoginMethod!);
+        }
+        else
+        {
+            // For session-based auth, we need to determine the max age for the session;
+            // We will honor the requestor's max age, if provided, but not exceeding the client's configured max age.
+            var clientMaxAge = ClientFeaturesStore.GetFeatureOptionInt(actualClientId, ClientFeatures.Flags.SessionBasedMaxAge);
+            int maxAge = 0;
+
+            if (pkce.MaxAge.HasValue && pkce.MaxAge > 0)
+            {
+                if (clientMaxAge.HasValue && clientMaxAge > 0)
+                    maxAge = Math.Min(pkce.MaxAge.Value, clientMaxAge.Value);
+                else
+                    maxAge = Math.Min(pkce.MaxAge.Value, 24 * 60 * 60); // if no client max age is set, default to a 24 hour max age
+            }
+            else if (clientMaxAge.HasValue && clientMaxAge > 0)
+            {
+                maxAge = clientMaxAge.Value;
+            }
+
+            UserService.WriteSessionBasedSessionToDb(tokenInfo, config, pkce.ClientIdentifier, pkce.LoginMethod!, maxAge);
+        }
 
         string? refreshToken = null;
         if (config.EnableTokenRefresh)
