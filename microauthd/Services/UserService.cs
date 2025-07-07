@@ -5,6 +5,7 @@ using madTypes.Common;
 using microauthd.Common;
 using microauthd.Config;
 using microauthd.Data;
+using microauthd.Tokens;
 using Microsoft.Data.Sqlite;
 using nebulae.dotArgon2;
 using OtpNet;
@@ -971,7 +972,8 @@ public static class UserService
         bool isOpenIdToken)
     {
         var raw = Utils.GenerateBase64EncodedRandomBytes(32);
-        var expires = DateTime.UtcNow.AddSeconds(config.RefreshTokenExpiration);
+        var actualClientId = ClientStore.GetClientIdByIdentifier(clientIdent);
+        var expires = DateTime.UtcNow.AddSeconds(TokenPolicy.GetRefreshTokenLifetime(config, actualClientId!));
 
         var id = Guid.NewGuid().ToString();
 

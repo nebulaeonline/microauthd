@@ -686,7 +686,7 @@ public static class AuthService
         }
 
         var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientIdentifier);
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience);
+        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, clientId: actualClientId, audience: audience);
         UserService.WriteSessionToDb(tokenInfo, config, pkce.ClientIdentifier, pkce.LoginMethod!);
 
         string? refreshToken = null;
@@ -766,7 +766,7 @@ public static class AuthService
             return ApiResult<TokenResponse>.Forbidden("Invalid credentials");
         }
 
-        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: true);
+        var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: true, "admin");
 
         UserService.WriteSessionToDb(tokenInfo, config, req.ClientIdentifier ?? "admin", "pwd");
 
@@ -865,7 +865,7 @@ public static class AuthService
             if (scopeValues.Any())
                 claims.Add(new Claim("scope", string.Join(' ', scopeValues)));
 
-            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
+            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, clientId: actualClientId, audience: audience);
             UserService.WriteSessionToDb(tokenInfo, config, clientIdent, "pwd");
 
             var issueIdToken = scopeValues.Contains("openid");
@@ -964,7 +964,8 @@ public static class AuthService
 
             var audience = ClientStore.GetClientAudienceByIdentifier(tokenRow.ClientIdentifier);
 
-            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
+            var actualClientId = ClientStore.GetClientIdByIdentifier(tokenRow.ClientIdentifier);
+            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, clientId: actualClientId!, audience: audience);
             UserService.WriteSessionToDb(tokenInfo, config, tokenRow.ClientIdentifier, "refresh");
 
             var newRefreshToken = UserService.GenerateAndStoreRefreshToken(
@@ -1338,7 +1339,8 @@ public static class AuthService
 
             var audience = ClientStore.GetClientAudienceByIdentifier(clientId);
 
-            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, audience: audience);
+            var actualClientId = ClientStore.GetClientIdByIdentifier(clientId);
+            var tokenInfo = TokenIssuer.IssueToken(config, claims, isAdmin: false, clientId: actualClientId!, audience: audience);
 
             var response = new TokenResponse
             {

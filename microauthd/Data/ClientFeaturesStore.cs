@@ -88,6 +88,24 @@ public static class ClientFeaturesStore
     }
 
     /// <summary>
+    /// Retrieves the integer value of a feature option for a specified client.
+    /// </summary>
+    /// <remarks>This method attempts to parse the feature option value as an integer. If the feature option
+    /// is not defined  or cannot be parsed as an integer, the method returns <see langword="null"/>.</remarks>
+    /// <param name="clientId">The unique identifier of the client for which the feature option is being retrieved. Cannot be null or empty.</param>
+    /// <param name="featureFlag">The feature flag representing the specific feature option to retrieve.</param>
+    /// <returns>The integer value of the feature option if it is defined and can be parsed as an integer;  otherwise, <see
+    /// langword="null"/>.</returns>
+    public static int? GetFeatureOptionInt(string clientId, ClientFeatures.Flags featureFlag)
+    {
+        var option = GetFeatureOption(clientId, featureFlag);
+        if (option == null) return null;
+        if (int.TryParse(option, out var value))
+            return value;
+        return null; // or throw an exception if you prefer
+    }
+
+    /// <summary>
     /// Updates the configuration options for a specific feature flag associated with a client.
     /// </summary>
     /// <remarks>This method updates the options for a feature flag in the database for the specified client.

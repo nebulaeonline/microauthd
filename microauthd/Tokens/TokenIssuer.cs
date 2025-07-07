@@ -35,7 +35,7 @@ public static class TokenIssuer
     /// <returns>A <see cref="TokenInfo"/> object containing the issued token, its unique identifier (JTI),  the issuance and
     /// expiration times, the user ID, and the token's intended use.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the private key used for signing the token is of an unsupported type.</exception>
-    public static TokenInfo IssueToken(AppConfig config, IEnumerable<Claim> userClaims, bool isAdmin, string? audience = null)
+    public static TokenInfo IssueToken(AppConfig config, IEnumerable<Claim> userClaims, bool isAdmin, string clientId, string? audience = null)
     {
         var key = TokenKeyCache.GetPrivateKey(isAdmin);
         var signingCredentials = key switch
@@ -47,7 +47,14 @@ public static class TokenIssuer
 
         var userId = userClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value ?? "unknown";
         var now = DateTime.UtcNow;
-        var expires = now.AddSeconds(isAdmin ? config.AdminTokenExpiration : config.TokenExpiration);
+
+        DateTime expires;
+
+        if (isAdmin)
+            expires = now.AddSeconds(config.AdminTokenExpiration);
+        else
+            expires = now.AddSeconds(TokenPolicy.GetAccessTokenLifetime(config, clientId));
+        
         var jti = Guid.NewGuid().ToString("N");
         var madUse = isAdmin ? "admin" : "auth";
         var aud = audience;
