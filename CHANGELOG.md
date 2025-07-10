@@ -1,3 +1,11 @@
+**2025-07-02**
+
+TOTP is working again, and we added an --otp-issuer option so that you can control how your entry will appear in authentication apps like Google Authenticator; it was previously hardcoded to microauthd, but we didn't like that look.
+
+Added a new token inspector for both `mad` cli and for the ADMIN web gui. Now you can paste raw tokens in and have them decoded locally. I've wanted this functionality since the outset, so I'm glad it's finally done.
+
+The march continues for bringing our tokens and our token issuance into compliance with OAuth2 and OIDC. Fixed a bug where Id Tokens were not being issued in the case of refresh, even if the original token had an openid scope. Also updated /userinfo to bring it into compliance with OAuth2 specifications.
+
 **2025-07-01**
 
 Big changes in bringing several of the API responses into RFC compliance with OAuth2 & OIDC. This included a new error object and the expansion of our ApiResponse to include the new object. Testing has gone well, but things may be screwy here or there until the dust settles.

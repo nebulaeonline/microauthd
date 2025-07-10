@@ -1,0 +1,137 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PKCE Test Callback</title>
+</head>
+<body>
+    <h2>Authorization Complete</h2>
+    <p>Code: <span id="code"></span></p>
+
+    <form id="exchangeForm">
+        <input type="hidden" name="code" id="form-code">
+        <input type="hidden" name="code_verifier" value="abcd1234">
+        <input type="hidden" name="client_id" value="testclient">
+        <input type="hidden" name="grant_type" value="authorization_code">
+        <input type="hidden" name="redirect_uri" value="http://localhost:9040/test_callback.html">
+        <input type="hidden" name="nonce" id="exchange-nonce">
+        <button type="submit">Exchange for Token</button>
+    </form>
+
+    <pre id="result" style="margin-top: 2rem; background: #eee; padding: 1rem;"></pre>
+
+    <button id="reauthSession">Reauthorize Session</button>
+
+    <button id="logoutButton">Log Out</button>
+
+    <script>
+        // Util: base64url encode from Uint8Array
+        function base64urlEncode(arrayBuffer) {
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)))
+                .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        // Generate nonce and store it
+        function generateNonce() {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            const nonce = base64urlEncode(bytes);
+            sessionStorage.setItem("pkce_nonce", nonce);
+            return nonce;
+        }
+
+        // Either load existing nonce or generate new one
+        function getNonce() {
+            return sessionStorage.getItem("pkce_nonce") || generateNonce();
+        }
+
+        async function startAuthorizationFlow() {
+            const nonce = getNonce();
+
+            const formData = new URLSearchParams({
+                client_id: "testclient",
+                redirect_uri: "http://localhost:9040/test_callback.html",
+                scope: "openid email profile",
+                code_challenge: "6c7nGrky_ehjM40Ivk3p3-OeoEm9r7NCzmWexUULaa4",
+                code_challenge_method: "S256",
+                nonce: nonce
+            });
+
+            const response = await fetch("/authorize", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: formData
+            });
+
+            // If we get redirected, let it happen naturally
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else {
+                console.warn("No redirect from /authorize — check flow manually.");
+            }
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        if (code) {
+            // We returned from redirect_uri with a code
+            document.getElementById('code').textContent = code;
+            document.getElementById('form-code').value = code;
+
+            // Reapply stored nonce into exchange form
+            document.getElementById('exchange-nonce').value = getNonce();
+        } else {
+            // No code yet — start authorization automatically
+            startAuthorizationFlow();
+        }
+
+        document.getElementById('exchangeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+
+            const response = await fetch('/token', {
+                method: 'POST',
+                body: new URLSearchParams(formData),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+
+            const text = await response.text();
+            document.getElementById('result').textContent = text;
+        });
+
+        document.getElementById("reauthSession").addEventListener("click", async () => {
+            const nonce = generateNonce(); // generate a fresh nonce
+            sessionStorage.setItem("pkce_nonce", nonce);
+
+            const formData = new URLSearchParams({
+                client_id: "testclient",
+                redirect_uri: "http://localhost:9040/test_callback.html",
+                scope: "openid email profile",
+                code_challenge: "6c7nGrky_ehjM40Ivk3p3-OeoEm9r7NCzmWexUULaa4",
+                code_challenge_method: "S256",
+                nonce: nonce
+            });
+
+            const response = await fetch("/authorize", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: formData
+            });
+
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else {
+                document.getElementById("result").textContent = await response.text();
+            }
+        });
+
+        document.getElementById("logoutButton").addEventListener("click", async () => {
+            await fetch("/logout/browser", { method: "POST" });
+            sessionStorage.clear();
+            alert("Session cookie cleared.");
+        });
+    </script>
+</body>
+</html>

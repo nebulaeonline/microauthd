@@ -24,4 +24,10 @@ public sealed class SessionResponse
     public string MadUse { get; init; } = string.Empty;
     [JsonPropertyName("login_method")]
     public string LoginMethod { get; init; } = string.Empty;
+    [JsonPropertyName("is_session_based")]
+    public bool IsSessionBased { get; init; } = false;
+    [JsonPropertyName("session_max_age")]
+    public int SessionMaxAge { get; init; } = 0;
+    [JsonPropertyName("session_expires_at")]
+    public DateTime? SessionExpiresAt { get; init; } = null;
 }

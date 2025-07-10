@@ -705,8 +705,9 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, token_use, mad_use, login_method)
-                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $tok_use, $mad_use, $login_method);
+                    INSERT INTO sessions (id, user_id, client_identifier, token, issued_at, expires_at, is_revoked, token_use, mad_use, login_method,
+                        is_session_based, session_max_age_seconds, session_expires_at)
+                    VALUES ($id, $uid, $cid, $token, $iat, $exp, 0, $tok_use, $mad_use, $login_method, $is_session_based, $session_max_age_seconds, $session_expires_at);
                 """;
             cmd.Parameters.AddWithValue("$id", token.Jti);
             cmd.Parameters.AddWithValue("$uid", token.UserId);
@@ -717,6 +718,9 @@ public static class UserStore
             cmd.Parameters.AddWithValue("$tok_use", token.TokenUse);
             cmd.Parameters.AddWithValue("$mad_use", token.MadUse);
             cmd.Parameters.AddWithValue("$login_method", loginMethod);
+            cmd.Parameters.AddWithValue("$is_session_based", 0); // Not session-based
+            cmd.Parameters.AddWithValue("$session_max_age_seconds", 0); // Not session-based
+            cmd.Parameters.AddWithValue("$session_expires_at", DBNull.Value); // Not session-based
             cmd.ExecuteNonQuery();
         });
     }
@@ -777,7 +781,8 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use, mad_use, login_method
+                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use, mad_use, login_method,
+                        is_session_based, session_max_age_seconds, session_expires_at
                     FROM sessions
                     ORDER BY issued_at DESC;
                 """;
@@ -802,7 +807,13 @@ public static class UserStore
                     IsRevoked = reader.GetInt64(4) == 1,
                     TokenUse = reader.GetString(5),
                     MadUse = reader.GetString(6),
-                    LoginMethod = reader.GetString(7)
+                    LoginMethod = reader.GetString(7),
+                    IsSessionBased = reader.GetInt64(8) == 1,
+                    SessionMaxAge = reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
+                    SessionExpiresAt = reader.IsDBNull(10) ? null : DateTime.Parse(reader.GetString(10),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal)
                 });
             }
 
@@ -838,6 +849,9 @@ public static class UserStore
                     s.token_use,
                     s.mad_use,
                     s.login_method
+                    s.is_session_based,
+                    s.session_max_age_seconds,
+                    s.session_expires_at
                 FROM sessions s
                 LEFT JOIN users u ON s.user_id = u.id
                 ORDER BY s.issued_at DESC
@@ -862,11 +876,71 @@ public static class UserStore
                     IsRevoked = reader.GetBoolean(6),
                     TokenUse = reader.GetString(7),
                     MadUse = reader.GetString(8),
-                    LoginMethod = reader.GetString(9)
+                    LoginMethod = reader.GetString(9),
+                    IsSessionBased = reader.GetInt64(10) == 1,
+                    SessionMaxAge = reader.IsDBNull(11) ? 0 : reader.GetInt32(11),
+                    SessionExpiresAt = reader.IsDBNull(12) ? null : DateTime.Parse(reader.GetString(12),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal)
                 });
             }
 
             return sessions;
+        });
+    }
+
+    /// <summary>
+    /// Retrieves a list of session-based sessions for a specified user.
+    /// </summary>
+    /// <remarks>This method queries the database for sessions that are marked as session-based and belong to
+    /// the specified user. The sessions are ordered by their issue date in descending order.</remarks>
+    /// <param name="userId">The unique identifier of the user whose session-based sessions are to be retrieved. Cannot be null or empty.</param>
+    /// <returns>A list of <see cref="SessionResponse"/> objects representing the session-based sessions for the specified user.
+    /// The list will be empty if no sessions are found.</returns>
+    public static List<SessionResponse> GetSessionBasedSessionsByUserId(string userId)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use, mad_use, login_method,
+                    is_session_based, session_max_age_seconds, session_expires_at
+                FROM sessions
+                WHERE user_id = $uid AND is_session_based = 1
+                ORDER BY issued_at DESC;
+            """;
+            cmd.Parameters.AddWithValue("$uid", userId);
+            using var reader = cmd.ExecuteReader();
+            var list = new List<SessionResponse>();
+            while (reader.Read())
+            {
+                list.Add(new SessionResponse
+                {
+                    Id = reader.GetString(0),
+                    UserId = reader.GetString(1),
+                    ClientIdentifier = reader.GetString(2),
+                    IssuedAt = DateTime.Parse(reader.GetString(3),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    ExpiresAt = DateTime.Parse(reader.GetString(4),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    IsRevoked = reader.GetInt64(5) == 1,
+                    TokenUse = reader.GetString(6),
+                    MadUse = reader.GetString(7),
+                    LoginMethod = reader.GetString(8),
+                    IsSessionBased = reader.GetInt64(9) == 1,
+                    SessionMaxAge = reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
+                    SessionExpiresAt = reader.IsDBNull(11) ? null : DateTime.Parse(reader.GetString(11),
+                        CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal |
+                            System.Globalization.DateTimeStyles.AdjustToUniversal)
+                });
+            }
+            return list;
         });
     }
 
@@ -883,7 +957,8 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use, mad_use, login_method
+                SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use, mad_use, login_method,
+                    is_session_based, session_max_age_seconds, session_expires_at
                 FROM sessions
                 WHERE id = $jti;
             """;
@@ -909,7 +984,13 @@ public static class UserStore
                 IsRevoked = reader.GetInt64(5) == 1,
                 TokenUse = reader.GetString(6),
                 MadUse = reader.GetString(7),
-                LoginMethod = reader.GetString(8)
+                LoginMethod = reader.GetString(8),
+                IsSessionBased = reader.GetInt64(9) == 1,
+                SessionMaxAge = reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
+                SessionExpiresAt = reader.IsDBNull(11) ? null : DateTime.Parse(reader.GetString(11),
+                    CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal |
+                        System.Globalization.DateTimeStyles.AdjustToUniversal)
             };
         });
 
@@ -932,7 +1013,8 @@ public static class UserStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                    SELECT id, user_id, issued_at, expires_at, is_revoked, token_use, mad_use, login_method
+                    SELECT id, user_id, client_identifier, issued_at, expires_at, is_revoked, token_use, mad_use, login_method,
+                        is_session_based, session_max_age_seconds, session_expires_at
                     FROM sessions
                     WHERE user_id = $uid
                     ORDER BY issued_at DESC;
@@ -948,18 +1030,25 @@ public static class UserStore
                 {
                     Id = reader.GetString(0),
                     UserId = reader.GetString(1),
-                    IssuedAt = DateTime.Parse(reader.GetString(2),
+                    ClientIdentifier = reader.GetString(2),
+                    IssuedAt = DateTime.Parse(reader.GetString(3),
+                    CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal |
+                        System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    ExpiresAt = DateTime.Parse(reader.GetString(4),
+                    CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal |
+                        System.Globalization.DateTimeStyles.AdjustToUniversal),
+                    IsRevoked = reader.GetInt64(5) == 1,
+                    TokenUse = reader.GetString(6),
+                    MadUse = reader.GetString(7),
+                    LoginMethod = reader.GetString(8),
+                    IsSessionBased = reader.GetInt64(9) == 1,
+                    SessionMaxAge = reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
+                    SessionExpiresAt = reader.IsDBNull(11) ? null : DateTime.Parse(reader.GetString(11),
                         CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.AssumeUniversal |
-                            System.Globalization.DateTimeStyles.AdjustToUniversal),
-                    ExpiresAt = DateTime.Parse(reader.GetString(3),
-                        CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.AssumeUniversal |
-                            System.Globalization.DateTimeStyles.AdjustToUniversal),
-                    IsRevoked = reader.GetInt64(4) == 1,
-                    TokenUse = reader.GetString(5),
-                    MadUse = reader.GetString(6),
-                    LoginMethod = reader.GetString(7)
+                            System.Globalization.DateTimeStyles.AdjustToUniversal)
                 });
             }
 
@@ -967,6 +1056,65 @@ public static class UserStore
         });
 
         return sessions;
+    }
+
+    /// <summary>
+    /// Updates an existing session in the database with new token information and session parameters.
+    /// </summary>
+    /// <remarks>This method resets the session's token and expiration details, revokes any previous session
+    /// state, and updates the login method. The session's expiration is recalculated based on the provided <paramref
+    /// name="maxAge"/>.</remarks>
+    /// <param name="existing">The existing session to be updated, identified by its unique ID.</param>
+    /// <param name="token">The new token information, including the token value, issue time, and expiration time.</param>
+    /// <param name="loginMethod">The method used for logging in, which will be recorded in the session.</param>
+    /// <param name="maxAge">The maximum age of the session in seconds, determining the session's expiration time.</param>
+    public static void OverwriteSessionBasedSession(SessionResponse existing, TokenInfo token, string loginMethod, int maxAge)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE sessions SET
+                    token = $token,
+                    issued_at = $iat,
+                    expires_at = $exp,
+                    is_revoked = 0,
+                    login_method = $login_method,
+                    session_max_age_seconds = $session_max_age,
+                    session_expires_at = $session_exp_at
+                WHERE id = $id;
+            """;
+            cmd.Parameters.AddWithValue("$id", existing.Id);
+            cmd.Parameters.AddWithValue("$token", token.Token);
+            cmd.Parameters.AddWithValue("$iat", token.IssuedAt.ToString("o"));
+            cmd.Parameters.AddWithValue("$exp", token.ExpiresAt.ToString("o"));
+            cmd.Parameters.AddWithValue("$login_method", loginMethod);
+            cmd.Parameters.AddWithValue("$session_max_age", maxAge);
+            cmd.Parameters.AddWithValue("$session_exp_at", token.IssuedAt.AddSeconds(maxAge).ToString("o"));
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// Associates a token with a session in the database.
+    /// </summary>
+    /// <remarks>This method updates the session record in the database to include the specified token. 
+    /// Ensure that the session identified by <paramref name="jti"/> exists in the database before calling this
+    /// method.</remarks>
+    /// <param name="jti">The unique identifier of the session to which the token will be attached. Cannot be null or empty.</param>
+    /// <param name="token">The token to associate with the session. Cannot be null or empty.</param>
+    public static void AttachTokenToSession(string jti, string token)
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            UPDATE sessions SET token = $token WHERE id = $jti;
+        """;
+            cmd.Parameters.AddWithValue("$token", token);
+            cmd.Parameters.AddWithValue("$jti", jti);
+            cmd.ExecuteNonQuery();
+        });
     }
 
     /// <summary>

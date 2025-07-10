@@ -243,6 +243,94 @@ public static class ServerHost
 
                     app.UseAntiforgery();
                 }
+
+                // set up routes for pkce session handling
+                app.MapGet("/login", async (HttpContext ctx) =>
+                {
+                    var jti = ctx.Request.Query["jti"];
+                    if (string.IsNullOrWhiteSpace(jti))
+                        return Results.BadRequest("Missing login context");
+
+                    var file = Path.Combine("Templates", "login.html");
+                    if (!File.Exists(file)) return Results.NotFound();
+
+                    var html = await File.ReadAllTextAsync(file);
+                    html = html.Replace("{{jti}}", jti);
+
+                    var error = ctx.Request.Query["error"];
+                    
+                    if (string.IsNullOrEmpty(error))
+                        html = html.Replace("{{error}}", "");
+                    else
+                        html = html.Replace("{{error}}", error);
+                                    
+                    return Results.Content(html, "text/html");
+                })
+                .WithName("LoginPage")
+                .WithTags("Session");
+
+                app.MapPost("/login", async (HttpContext ctx, AppConfig config) =>
+                {
+                    var form = await ctx.Request.ReadFormAsync();
+                    var jti = form["jti"];
+                    var username = form["username"];
+                    var password = form["password"];
+
+                    var session = AuthSessionStore.Get(jti);
+                    if (session is null || session.ExpiresAtUtc < DateTime.UtcNow)
+                        return Results.BadRequest("Invalid or expired login attempt.");
+
+                    var auth = AuthService.AuthenticateUser(username, password, config);
+                    if (auth is null || !auth.Value.Success)
+                        return Results.Redirect($"/login?jti={jti}&error=Invalid%20credentials");
+
+                    session.UserId = auth.Value.UserId;
+
+                    var userTotp = UserStore.IsTotpEnabledForUserId(session.UserId!, session.ClientId) == true;
+                    AuthSessionStore.AttachUserIdAndTotpFlag(jti, session.UserId!, userTotp);
+
+                    if (userTotp)
+                        return Results.Redirect($"/totp?jti={jti}");
+                    else
+                        return Results.Redirect($"/login/finalize?jti={jti}");
+                });
+
+                app.MapGet("/totp", async (HttpContext ctx) =>
+                {
+                    var jti = ctx.Request.Query["jti"];
+                    var file = Path.Combine("Templates", "totp.html");
+                    if (!File.Exists(file)) return Results.NotFound();
+
+                    var html = await File.ReadAllTextAsync(file);
+                    html = html.Replace("{{jti}}", jti);
+
+                    var error = ctx.Request.Query["error"];
+                        
+                    if (string.IsNullOrEmpty(error))
+                        html = html.Replace("{{error}}", "");
+                    else
+                        html = html.Replace("{{error}}", error);
+
+                    return Results.Content(html, "text/html");
+                });
+
+                app.MapPost("/totp", async (HttpContext ctx, AppConfig config) =>
+                {
+                    var form = await ctx.Request.ReadFormAsync();
+                    var jti = form["jti"];
+                    var code = form["totp"];
+
+                    var session = AuthSessionStore.Get(jti);
+                    if (session is null || session.ExpiresAtUtc < DateTime.UtcNow || string.IsNullOrWhiteSpace(session.UserId))
+                        return Results.BadRequest("Invalid session.");
+
+                    var verified = AuthService.ValidateTotpCode(session.UserId, session.ClientId, code);
+                    if (!verified)
+                        return Results.Redirect($"/totp?jti={jti}&error=Invalid");
+
+                    // Auth complete → continue to /authorize/finalize
+                    return Results.Redirect($"/login/finalize?jti={jti}");
+                });                
             },
             config
         );

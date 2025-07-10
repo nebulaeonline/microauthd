@@ -80,11 +80,10 @@ def test_cleanup_all_test_objects():
     # 8. Confirm deletions (optional: skip if you're confident)
     if user:
       ok, result = run_mad(["user", "get", "--id", user["id"], "--json"], fail_ok=True)
-      if result.get("success", True):
-        assert result.get("success", True) is True, "This assert should never trigger if success == False"
+      if not ok or not isinstance(result, dict) or not result.get("success", False):
         fail_with_data("User still exists after deletion", result)
 
     if role:
         ok, result = run_mad(["role", "get", "--id", role["id"], "--json"], fail_ok=True)
-        if result.get("success", True):
+        if not ok or not isinstance(result, dict) or not result.get("success", False):
             fail_with_data("Role still exists after deletion", result)

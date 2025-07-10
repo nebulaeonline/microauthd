@@ -209,8 +209,33 @@ public static class AuthRoutes
                 // Read the form data
                 var form = await ctx.Request.ReadFormAsync();
 
-                // Call the service layer to handle the authorization logic
-                return AuthService.BeginPkceAuthorization(form, config).ToHttpResult();
+                // See if we're doing the session-based PKCE login flow
+                var sessionLoginResult = AuthService.CheckPkceSessionAuthorization(form, config, ctx);
+
+                switch (sessionLoginResult.result)
+                {
+                    case PkceSessionAuthorizationResult.ContinueWithHeadlessAuthorization:
+                        return AuthService.BeginPkceAuthorization(form, config).ToHttpResult();
+                    
+                    case PkceSessionAuthorizationResult.RedirectToSessionLogin:
+                        return Results.Redirect($"/login?jti={sessionLoginResult.newJti}");
+                    
+                    case PkceSessionAuthorizationResult.RedirectToFinalizeLogin:
+                        return Results.Redirect($"/login/finalize?jti={sessionLoginResult.newJti}");
+                    
+                    case PkceSessionAuthorizationResult.MissingRequiredParameters:
+                    case PkceSessionAuthorizationResult.InvalidRedirectUri:
+                    case PkceSessionAuthorizationResult.MissingNonce:
+                    case PkceSessionAuthorizationResult.InvalidClientId:
+                        return ApiResult<PkceAuthorizeResponse>
+                            .Fail("Invalid credentials", 400)
+                            .ToHttpResult();
+                    case PkceSessionAuthorizationResult.InternalServerError:
+                    default:
+                        return ApiResult<PkceAuthorizeResponse>
+                            .Fail("Internal server error", 500)
+                            .ToHttpResult();
+                }
             })
             .AllowAnonymous()
             .WithName("BeginPkceAuthorization")
@@ -294,7 +319,21 @@ public static class AuthRoutes
             .Produces<IResult>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
+        }
 
+        // finalize session login for pkce endpoint*************************************************
+        if (config.EnablePkce)
+        {
+            group.MapGet("/login/finalize", (HttpContext ctx, AppConfig config) =>
+            {
+                return AuthService.FinalizePkceSessionLogin(ctx, config);
+            })
+            .AllowAnonymous()
+            .WithName("FinalizePkceSessionLogin")
+            .WithTags("PKCE")
+            .Produces<IResult>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
         }
 
         // token request endpoint*******************************************************************
@@ -338,7 +377,8 @@ public static class AuthRoutes
 
                 "authorization_code" => AuthService.ExchangePkceCode(
                     form,
-                    config)
+                    config,
+                    ctx)
                 .ToHttpResult(),
 
                 "client_credentials" => AuthService.IssueOidcToken(
@@ -358,7 +398,7 @@ public static class AuthRoutes
         .WithOpenApi();
 
         // user logout endpoint*********************************************************************
-        group.MapPost("/logout", (ClaimsPrincipal user, AppConfig config) =>
+        group.MapPost("/logout", (ClaimsPrincipal user, AppConfig config, HttpContext ctx) =>
         {
             var userId = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             var clientIdentifier = user.FindFirst("client_id")?.Value;
@@ -366,7 +406,11 @@ public static class AuthRoutes
             if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(clientIdentifier))
                 return ApiResult<MessageResponse>.Fail("Missing user or client identifier", 400).ToHttpResult();
 
-            return AuthService.Logout(userId, clientIdentifier, config).ToHttpResult();
+            var result = AuthService.Logout(userId, clientIdentifier, config);
+
+            ctx.Response.Cookies.Delete($"session_{clientIdentifier}");
+
+            return result.ToHttpResult();
         })
         .RequireAuthorization()
         .WithName("Logout")
@@ -374,14 +418,23 @@ public static class AuthRoutes
         .WithOpenApi();
 
         // logout of all sessions endpoint**********************************************************
-        group.MapPost("/logout-all", (ClaimsPrincipal user, AppConfig config) =>
+        group.MapPost("/logout-all", (ClaimsPrincipal user, AppConfig config, HttpContext ctx) =>
         {
             var userId = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
             if (string.IsNullOrWhiteSpace(userId))
                 return ApiResult<MessageResponse>.Fail("Missing user identifier", 400).ToHttpResult();
 
-            return AuthService.LogoutAll(userId, config).ToHttpResult();
+            var result = AuthService.LogoutAll(userId, config, ctx);
+
+            var sessionBasedSessions = UserStore.GetSessionBasedSessionsByUserId(userId);
+
+            foreach (var session in sessionBasedSessions)
+            {
+                ctx.Response.Cookies.Delete($"session_{session.ClientIdentifier}");
+            }
+
+            return result.ToHttpResult();
         })
         .RequireAuthorization()
         .WithName("LogoutAll")

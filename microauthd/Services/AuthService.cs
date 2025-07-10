@@ -8,18 +8,22 @@ using microauthd.Data;
 using microauthd.Tokens;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Session;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using OtpNet;
 using Serilog;
+using System.CommandLine.Parsing;
 using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using static microauthd.Tokens.TokenIssuer;
 using static nebulae.dotArgon2.Argon2;
 
 namespace microauthd.Services;
@@ -334,11 +338,12 @@ public static class AuthService
             }
 
             var jti = Utils.GenerateBase64EncodedRandomBytes(16);
+            var actualClientId = ClientStore.GetClientIdByIdentifier(clientId)!;
 
             var session = new AuthSessionDto
             {
                 Jti = jti,
-                ClientId = ClientStore.GetClientIdByIdentifier(clientId)!,
+                ClientId = actualClientId,
                 RedirectUri = redirectUri,
                 Nonce = string.IsNullOrWhiteSpace(nonce) ? null : nonce,
                 Scope = string.IsNullOrWhiteSpace(scope) ? null : scope,
@@ -353,20 +358,161 @@ public static class AuthService
             };
 
             AuthSessionStore.Insert(session);
+            PkceAuthorizeResponse response;
 
-            var response = new PkceAuthorizeResponse(
+            response = new PkceAuthorizeResponse(
                 Jti: session.Jti,
                 ClientId: clientId,
                 RedirectUri: session.RedirectUri,
                 RequiresTotp: session.TotpRequired
             );
-
+            
             return ApiResult<PkceAuthorizeResponse>.Ok(response);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Error during PKCE authorization");
             return ApiResult<PkceAuthorizeResponse>.Fail("Internal server error", 500);
+        }
+    }
+
+    /// <summary>
+    /// Checks the PKCE session authorization based on the provided form data and configuration.
+    /// </summary>
+    /// <remarks>This method validates the required PKCE parameters and checks for an existing session.  It
+    /// returns different results based on the validity of the parameters and the session state.</remarks>
+    /// <param name="form">The form collection containing authorization request parameters.</param>
+    /// <param name="config">The application configuration settings.</param>
+    /// <param name="ctx">The current HTTP context.</param>
+    /// <returns>A tuple containing a new JWT identifier (JTI) if a session is created or renewed, and a  <see
+    /// cref="PkceSessionAuthorizationResult"/> indicating the result of the authorization check.</returns>
+    public static (string? newJti, PkceSessionAuthorizationResult result) CheckPkceSessionAuthorization(IFormCollection form, AppConfig config, HttpContext ctx)
+    {
+        try
+        {
+            var clientId = form["client_id"].ToString();
+            var redirectUri = form["redirect_uri"].ToString();
+            var codeChallenge = form["code_challenge"].ToString();
+            var codeChallengeMethod = form["code_challenge_method"].ToString();
+            var scope = form["scope"].ToString();
+            var nonce = form["nonce"].ToString();
+            var state = form["state"].ToString();
+
+            // propagate max_age if present
+            var maxAgeStr = form["max_age"].ToString();
+            int? maxAge = int.TryParse(maxAgeStr, out var val) && val > 0 ? val : null;
+
+            // check for required parameters
+            if (string.IsNullOrWhiteSpace(clientId) ||
+                string.IsNullOrWhiteSpace(redirectUri) ||
+                string.IsNullOrWhiteSpace(codeChallenge) ||
+                string.IsNullOrWhiteSpace(codeChallengeMethod))
+            {
+                return (null, PkceSessionAuthorizationResult.MissingRequiredParameters);
+            }
+
+            // validate redirect URI
+            if (!AuthStore.IsRedirectUriValid(clientId, redirectUri))
+            {
+                return (null, PkceSessionAuthorizationResult.InvalidRedirectUri);
+            }
+
+            // see if we need a nonce and if so, if we have one
+            if (!string.IsNullOrWhiteSpace(scope) && scope.Contains("openid") && string.IsNullOrWhiteSpace(nonce))
+            {
+                return (null, PkceSessionAuthorizationResult.MissingNonce);
+            }
+
+            // make sure the client id is valid
+            var actualClientId = ClientStore.GetClientIdByIdentifier(clientId);
+            if (actualClientId is null)
+            {
+                Log.Warning("Client ID {ClientId} not found", clientId);
+                return (null, PkceSessionAuthorizationResult.InvalidClientId);
+            }
+
+            // see if this client requests session-based authentication
+            var doSessionLogin = ClientFeaturesStore.IsFeatureEnabled(actualClientId, ClientFeatures.Flags.SessionBasedAuth) == true;
+
+            // if not, go back to headless token-based pkce
+            if (!doSessionLogin)
+                return (null, PkceSessionAuthorizationResult.ContinueWithHeadlessAuthorization);
+
+            // see if we have a session already
+            var sessionJti = ctx.Request.Cookies.TryGetValue($"session_{clientId}", out var value) ? value : null;
+            if (!string.IsNullOrWhiteSpace(sessionJti))
+            {
+                var storedSession = UserStore.GetSessionById(sessionJti);
+                if (storedSession is not null &&
+                    storedSession.IsSessionBased &&
+                    !storedSession.IsRevoked)
+                {
+                    // see if the existing session is expired
+                    if (storedSession.SessionExpiresAt <= DateTime.UtcNow)
+                    {
+                        // Session lifetime fully expired — redirect to /login
+                        return (null, PkceSessionAuthorizationResult.RedirectToSessionLogin);
+                    }
+
+                    // see if a max age has been set and if so, if the session is too old
+                    if (storedSession.SessionMaxAge > 0)
+                    {
+                        var age = (DateTime.UtcNow - storedSession.IssuedAt).TotalSeconds;
+                        if (age > storedSession.SessionMaxAge)
+                        {
+                            // Session too old — redirect to /login
+                            return (null, PkceSessionAuthorizationResult.RedirectToSessionLogin);
+                        }
+                    }
+
+                    // session is valid, so set up an auth_session DTO for /finalize
+                    var oldSessionDto = new AuthSessionDto
+                    {
+                        Jti = sessionJti,
+                        UserId = storedSession.UserId,
+                        ClientId = actualClientId,
+                        RedirectUri = redirectUri,
+                        Nonce = string.IsNullOrWhiteSpace(nonce) ? null : nonce,
+                        Scope = string.IsNullOrWhiteSpace(scope) ? null : scope,
+                        State = string.IsNullOrWhiteSpace(state) ? null : state,
+                        TotpRequired = false, // evaluated after authentication
+                        CodeChallenge = codeChallenge,
+                        CodeChallengeMethod = codeChallengeMethod,
+                        CreatedAtUtc = DateTime.UtcNow,
+                        ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
+                        LoginMethod = "RenewSession",
+                        MaxAge = maxAge
+                    };
+
+                    AuthSessionStore.Insert(oldSessionDto);
+                    return (oldSessionDto.Jti, PkceSessionAuthorizationResult.RedirectToFinalizeLogin);
+                }
+            }
+
+            var newSessionDto = new AuthSessionDto
+            {
+                Jti = Utils.GenerateBase64EncodedRandomBytes(16),
+                ClientId = actualClientId,
+                RedirectUri = redirectUri,
+                Nonce = string.IsNullOrWhiteSpace(nonce) ? null : nonce,
+                Scope = string.IsNullOrWhiteSpace(scope) ? null : scope,
+                State = string.IsNullOrWhiteSpace(state) ? null : state,
+                TotpRequired = false, // determined after username/password verification
+                CodeChallenge = codeChallenge,
+                CodeChallengeMethod = codeChallengeMethod,
+                CreatedAtUtc = DateTime.UtcNow,
+                ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
+                LoginMethod = "NewSession",
+                MaxAge = maxAge
+            };
+
+            AuthSessionStore.Insert(newSessionDto);
+            return (newSessionDto.Jti, PkceSessionAuthorizationResult.RedirectToSessionLogin);                           
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error during PKCE authorization");
+            return (null, PkceSessionAuthorizationResult.InternalServerError);
         }
     }
 
@@ -543,7 +689,7 @@ public static class AuthService
 
         var clientIdentifier = ClientStore.GetClientIdentifierById(session.ClientId);
         if (clientIdentifier is null)
-            return Results.BadRequest("Invalid client");
+            return Results.BadRequest("Invalid credentials");
 
         if (!AuthStore.IsRedirectUriValid(clientIdentifier, session.RedirectUri))
             return Results.BadRequest("Invalid credentials");
@@ -584,6 +730,139 @@ public static class AuthService
     }
 
     /// <summary>
+    /// Finalizes the PKCE session login process by validating the provided session information and issuing an
+    /// authentication token.
+    /// </summary>
+    /// <remarks>This method validates the session information provided in the request, including the session
+    /// identifier, client ID, and redirect URI. It issues an authentication token and optionally a refresh token, and
+    /// manages session cookies. The method also generates and stores a PKCE code for the client to use in subsequent
+    /// authorization requests.</remarks>
+    /// <param name="ctx">The current HTTP context containing the request and response information.</param>
+    /// <param name="config">The application configuration settings used to control token expiration and other security features.</param>
+    /// <returns>A result indicating the outcome of the login process. Returns a redirect to the specified URI with an
+    /// authorization code if successful, or a bad request result if validation fails.</returns>
+    public static IResult FinalizePkceSessionLogin(HttpContext ctx, AppConfig config)
+    {
+        var jti = ctx.Request.Query["jti"].ToString();
+        if (string.IsNullOrWhiteSpace(jti))
+            return Results.BadRequest("Missing session");
+
+        var auth = AuthSessionStore.Consume(jti);
+        if (auth is null || auth.ExpiresAtUtc < DateTime.UtcNow)
+            return Results.BadRequest("Session expired or invalid");
+
+        var clientIdentifier = ClientStore.GetClientIdentifierById(auth.ClientId);
+        if (clientIdentifier is null)
+            return Results.BadRequest("Invalid client");
+
+        if (!AuthStore.IsRedirectUriValid(clientIdentifier, auth.RedirectUri))
+            return Results.BadRequest("Invalid redirect URI");
+
+        if (string.IsNullOrWhiteSpace(auth.UserId))
+            return Results.BadRequest("Missing user");
+
+        var now = DateTime.UtcNow;
+
+        // Determine effective session max age
+        var clientMaxAge = ClientFeaturesStore.GetFeatureOptionInt(auth.ClientId, ClientFeatures.Flags.SessionBasedMaxAge);
+        var effectiveMaxAge = (auth.MaxAge.HasValue && clientMaxAge.HasValue)
+            ? Math.Min(auth.MaxAge.Value, clientMaxAge.Value)
+            : auth.MaxAge ?? clientMaxAge ?? 86400; // default 24h
+
+        // Compute expiration of token (clamped to session bounds)
+        var tokenTtl = TokenPolicy.GetAccessTokenLifetime(config, auth.ClientId, effectiveMaxAge);
+        var tokenExpiresAt = now.AddSeconds(tokenTtl);
+
+        // In RenewSession, ensure session still valid
+        if (auth.LoginMethod == "RenewSession")
+        {
+            var cookieJti = ctx.Request.Cookies[$"session_{clientIdentifier}"];
+            if (string.IsNullOrWhiteSpace(cookieJti))
+                return Results.Redirect($"/login?jti={auth.Jti}");
+
+            var existingSession = UserStore.GetSessionById(cookieJti);
+            if (existingSession is null || existingSession.IsRevoked || !existingSession.IsSessionBased)
+                return Results.Redirect($"/login?jti={auth.Jti}");
+
+            // Validate hard expiration
+            if (existingSession.SessionExpiresAt <= now)
+                return Results.Redirect($"/login?jti={auth.Jti}");
+
+            // Validate max age (sliding window)
+            if (existingSession.SessionMaxAge > 0)
+            {
+                var age = (now - existingSession.IssuedAt).TotalSeconds;
+                if (age > existingSession.SessionMaxAge)
+                    return Results.Redirect($"/login?jti={auth.Jti}");
+            }
+
+            // Continue using the same session record (we reuse the same jti)
+        }
+        else if (auth.LoginMethod == "NewSession")
+        {
+            // Store the new session now (token not yet issued)
+            var sessionExpires = now.AddSeconds(effectiveMaxAge);
+            UserService.WriteSessionBasedSessionToDb(new TokenInfo(
+                Token: "__UNISSUED__" + Utils.GenerateBase64EncodedRandomBytes(8), // placeholder for now
+                Jti: auth.Jti,
+                IssuedAt: now,
+                ExpiresAt: sessionExpires,
+                UserId: auth.UserId!,
+                MadUse: "auth",
+                TokenUse: "access"
+            ), config, clientIdentifier, auth.LoginMethod!, effectiveMaxAge);
+
+            // Set secure cookie for session
+            ctx.Response.Cookies.Append($"session_{clientIdentifier}", auth.Jti, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                Expires = sessionExpires
+            });
+        }
+        else
+        {
+            return Results.BadRequest("Unknown login method");
+        }
+
+        // Generate and store PKCE code
+        var code = Utils.GenerateBase64EncodedRandomBytes(32);
+        var codeExpiresAt = now.AddSeconds(config.PkceCodeLifetime);
+
+        AuthStore.StorePkceCode(new PkceCode
+        {
+            Code = code,
+            ClientIdentifier = clientIdentifier,
+            RedirectUri = auth.RedirectUri!,
+            CodeChallenge = auth.CodeChallenge!,
+            CodeChallengeMethod = auth.CodeChallengeMethod!,
+            ExpiresAt = codeExpiresAt,
+            IsUsed = false,
+            UserId = auth.UserId!,
+            Jti = auth.Jti, // reuse session JTI
+            Nonce = auth.Nonce,
+            Scope = auth.Scope,
+            LoginMethod = auth.LoginMethod,
+            MaxAge = effectiveMaxAge
+        });
+
+        // Build final redirect URI
+        var uri = new UriBuilder(auth.RedirectUri!);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        query["code"] = code;
+        if (!string.IsNullOrWhiteSpace(auth.State))
+            query["state"] = auth.State;
+
+        var rebuilt = new QueryBuilder(query.SelectMany(kvp =>
+            kvp.Value.Select(v => new KeyValuePair<string, string>(kvp.Key, v))));
+        uri.Query = rebuilt.ToQueryString().Value;
+
+        return Results.Redirect(uri.ToString());
+    }
+
+
+    /// <summary>
     /// Exchanges a PKCE authorization code for an access token and optional ID token.
     /// </summary>
     /// <remarks>This method validates the provided PKCE authorization code, client identifier, code verifier,
@@ -595,7 +874,7 @@ public static class AuthService
     /// <param name="config">The application configuration settings, which determine PKCE and token refresh behavior.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="TokenResponse"/> object with the issued tokens if the
     /// exchange is successful. If the exchange fails, an error result is returned indicating the reason for failure.</returns>
-    public static ApiResult<TokenResponse> ExchangePkceCode(IFormCollection form, AppConfig config)
+    public static ApiResult<TokenResponse> ExchangePkceCode(IFormCollection form, AppConfig config, HttpContext ctx)
     {
         if (!config.EnablePkce)
             return OidcErrors.InvalidGrant<TokenResponse>();
@@ -621,6 +900,13 @@ public static class AuthService
             return OidcErrors.InvalidGrant<TokenResponse>();
         }
 
+        var user = UserStore.GetUserById(pkce.UserId);
+        if (user is null)
+        {
+            Log.Warning("PKCE exchange failed: user not found. user_id={UserId}", pkce.UserId);
+            return OidcErrors.InvalidGrant<TokenResponse>();
+        }
+        
         if (!string.Equals(pkce.ClientIdentifier, clientId, StringComparison.Ordinal) ||
             !string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
         {
@@ -629,10 +915,12 @@ public static class AuthService
             return OidcErrors.InvalidGrant<TokenResponse>();
         }
 
+        var computedChallenge = Utils.ComputeS256Challenge(codeVerifier);
+        
         var challengeValid = pkce.CodeChallengeMethod.ToLowerInvariant() switch
         {
             "plain" => pkce.CodeChallenge == codeVerifier,
-            "s256" => pkce.CodeChallenge == Utils.ComputeS256Challenge(codeVerifier),
+            "s256" => pkce.CodeChallenge == computedChallenge,
             _ => false
         };
 
@@ -649,20 +937,18 @@ public static class AuthService
             Log.Warning("PKCE exchange failed: no user associated with code. client_id={ClientId}, code={Code}", clientId, code);
             return OidcErrors.InvalidGrant<TokenResponse>();
         }
-
-        var user = UserStore.GetUserById(pkce.UserId);
-        if (user is null)
-        {
-            Log.Warning("PKCE exchange failed: user not found. user_id={UserId}", pkce.UserId);
-            return OidcErrors.InvalidGrant<TokenResponse>();
-        }
-
+        
         var actualClientId = ClientStore.GetClientIdByIdentifier(clientId);
         if (actualClientId is null)
         {
             Log.Warning("PKCE exchange failed: client_id not found. client_id={ClientId}", clientId);
             return OidcErrors.InvalidGrant<TokenResponse>();
         }
+
+        // branch off if this is a session-based PKCE exchange
+        var isSessionLogin = pkce.LoginMethod is "NewSession" or "RenewSession";
+        if (isSessionLogin)
+            return ExchangePkceSessionCode(form, config, pkce, user, ctx);
 
         var claims = AuthStore.GetUserClaims(pkce.UserId);
         claims.Add(new Claim("client_id", pkce.ClientIdentifier));
@@ -741,6 +1027,95 @@ public static class AuthService
 
         Log.Debug("PKCE exchange successful. client_id={ClientId}, user_id={UserId}, jti={Jti}", clientId, pkce.UserId, tokenInfo.Jti);
 
+        return ApiResult<TokenResponse>.Ok(new TokenResponse
+        {
+            AccessToken = tokenInfo.Token,
+            TokenType = "bearer",
+            ExpiresIn = (int)(tokenInfo.ExpiresAt - tokenInfo.IssuedAt).TotalSeconds,
+            Jti = tokenInfo.Jti,
+            RefreshToken = refreshToken,
+            Audience = audience,
+            IdToken = idToken
+        });
+    }
+
+    /// <summary>
+    /// Exchanges a PKCE session code for an access token, and optionally an ID token and refresh token.
+    /// </summary>
+    /// <remarks>This method validates the PKCE session code and issues a new access token. If the "openid"
+    /// scope is requested, an ID token is also issued. A refresh token is generated if token refresh is enabled in the
+    /// configuration. The method ensures that the nonce is unique for the session when the "openid" scope is
+    /// used.</remarks>
+    /// <param name="form">The form collection containing the request parameters.</param>
+    /// <param name="config">The application configuration settings.</param>
+    /// <param name="pkce">The PKCE code object containing client and session information.</param>
+    /// <param name="user">The user object representing the authenticated user.</param>
+    /// <returns>An <see cref="ApiResult{TokenResponse}"/> containing the access token, and optionally an ID token and refresh
+    /// token.</returns>
+    private static ApiResult<TokenResponse> ExchangePkceSessionCode(
+        IFormCollection form,
+        AppConfig config,
+        PkceCode pkce,
+        UserObject user,
+        HttpContext ctx)
+    {
+        var now = DateTime.UtcNow;
+        var actualClientId = ClientStore.GetClientIdByIdentifier(pkce.ClientIdentifier)!;
+
+        // Determine effective max_age
+        var clientMaxAge = ClientFeaturesStore.GetFeatureOptionInt(actualClientId, ClientFeatures.Flags.SessionBasedMaxAge);
+        var effectiveMaxAge = (pkce.MaxAge.HasValue && clientMaxAge.HasValue)
+            ? Math.Min(pkce.MaxAge.Value, clientMaxAge.Value)
+            : pkce.MaxAge ?? clientMaxAge ?? 86400;
+
+        var claims = AuthStore.GetUserClaims(user.Id);
+        claims.Add(new Claim("client_id", pkce.ClientIdentifier));
+        if (!string.IsNullOrWhiteSpace(pkce.Scope))
+            claims.Add(new Claim("scope", pkce.Scope));
+
+        var audience = ClientStore.GetClientAudienceByIdentifier(pkce.ClientIdentifier);
+
+        var tokenInfo = TokenIssuer.IssueToken(
+            config, claims, isAdmin: false, clientId: actualClientId,
+            audience: audience, maxAge: effectiveMaxAge);
+
+        var sessionJti = ctx.Request.Cookies[$"session_{pkce.ClientIdentifier}"];
+        if (string.IsNullOrEmpty(sessionJti))
+            return OidcErrors.InvalidGrant<TokenResponse>("Session expired or invalid.");
+
+        var session = UserStore.GetSessionById(sessionJti);
+        if (session is null || session.SessionExpiresAt < DateTime.UtcNow)
+            return OidcErrors.InvalidGrant<TokenResponse>("Session expired or invalid.");
+
+        // Update session row with actual token string
+        UserStore.AttachTokenToSession(sessionJti, tokenInfo.Token);
+
+        // We don't issue refresh tokens for session-based flows
+        string? refreshToken = null;
+        
+        string? idToken = null;
+        if (pkce.Scope?.Contains("openid") == true)
+        {
+            if (!string.IsNullOrWhiteSpace(pkce.Nonce))
+            {
+                if (!AuthStore.InsertNonce(user.Id, actualClientId, pkce.Nonce))
+                {
+                    Log.Warning("Session-based login failed: nonce reuse. user={UserId}, client={ClientId}, nonce={Nonce}",
+                        user.Id, actualClientId, pkce.Nonce);
+                    return OidcErrors.InvalidGrant<TokenResponse>();
+                }
+            }
+            else
+            {
+                return OidcErrors.InvalidGrant<TokenResponse>("Missing nonce for openid scope");
+            }
+
+            idToken = TokenIssuer.IssueIdToken(config, claims, pkce.ClientIdentifier, pkce.LoginMethod, pkce.Nonce);
+        }
+
+        AuthStore.MarkPkceCodeAsUsed(pkce.Code);
+        Log.Debug("Session-based PKCE exchange complete. client_id={ClientId}, jti={Jti}", pkce.ClientIdentifier, sessionJti);
+        
         return ApiResult<TokenResponse>.Ok(new TokenResponse
         {
             AccessToken = tokenInfo.Token,
@@ -1204,7 +1579,7 @@ public static class AuthService
     /// <param name="userId">The unique identifier of the user whose sessions and refresh tokens are to be revoked. Cannot be null or empty.</param>
     /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/> that confirms the operation's success.
     /// The message indicates that all sessions and refresh tokens for the specified user have been revoked.</returns>
-    public static ApiResult<MessageResponse> LogoutAll(string userId, AppConfig config)
+    public static ApiResult<MessageResponse> LogoutAll(string userId, AppConfig config, HttpContext ctx)
     {
         try
         {

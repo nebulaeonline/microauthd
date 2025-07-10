@@ -57,6 +57,12 @@ Check out my blog post on [why microauthd](https://purplekungfu.com/Post/9/dont-
 
 I will keep the last 5 days of updates here; older updates can be found in the [CHANGELOG](CHANGELOG.md) file.
 
+**2025-07-10**
+
+It's been a few days and a lot of code has churned. We have implemented client-based persistent sessions that are controlled by cookies. The purpose here was to have the other type of pkce login flow, one that is browser-based. It is configurable per-client, and uses the files in Templates/* to serve up a username & password dialog and/or a totp dialog. There is an example on how to use this flow in public/test_callback.html. This login flow will allow a user to get a new token as long as the max_age of the session has not been reached. Users will receive the same token if it is valid. No refresh tokens are issued in the session-based login flow.
+
+It's important to note this session-based code is *extremely* experimental. I performed a lot of testing and everything appears to be working properly, but as always, YMMV. If you notice anything wrong, please send it our way so we can fix.
+
 **2025-07-07**
 
 Beginning the long slog to implement session-based authentication on a per-client basis.
@@ -80,14 +86,6 @@ It has also occurred to us that we need to mostly likely implement TOTP use by c
 Update: the pkce flow **has** changed and is now partially documented. An example is in /public/pkce_demo. Over the next week or so we are going to begin implementing WebAuthn (FIDO2) and MSAL's native broker. These should allow things like Apple's FaceId. I'm still digesting the specs, so this one will be a longer slog, but rest assured that we won't go to 0.9.x and an alpha without support for the features that modern developers and users alike demand.
 
 This is just a heads up that the PKCE flow is going to change. The current implementation is just too busy code-wise, and makes implementing it on the front end challenging. The new flow will be more modular, with examples in the /public folder that are easier to work with and reason about. I hope to push these changes out today.
-
-**2025-07-02**
-
-TOTP is working again, and we added an --otp-issuer option so that you can control how your entry will appear in authentication apps like Google Authenticator; it was previously hardcoded to microauthd, but we didn't like that look.
-
-Added a new token inspector for both `mad` cli and for the ADMIN web gui. Now you can paste raw tokens in and have them decoded locally. I've wanted this functionality since the outset, so I'm glad it's finally done.
-
-The march continues for bringing our tokens and our token issuance into compliance with OAuth2 and OIDC. Fixed a bug where Id Tokens were not being issued in the case of refresh, even if the original token had an openid scope. Also updated /userinfo to bring it into compliance with OAuth2 specifications.
 
 ---
 

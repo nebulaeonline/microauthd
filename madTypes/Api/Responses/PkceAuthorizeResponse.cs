@@ -10,5 +10,7 @@ public record PkceAuthorizeResponse(
     [property: JsonPropertyName("redirect_uri")]
     string RedirectUri,
     [property: JsonPropertyName("requires_totp")]
-    bool RequiresTotp
+    bool RequiresTotp,
+    [property: JsonPropertyName("is_session_based")]
+    bool? IsSessionBased = false
 );

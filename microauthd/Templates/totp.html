@@ -1,0 +1,14 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Enter TOTP</title>
+</head>
+<body>
+    <form method="POST" action="/totp">
+        <input type="hidden" name="jti" value="{{jti}}">
+        <label>TOTP Code: <input name="totp" /></label><br>
+        <button type="submit">Verify</button>
+    </form>
+    <div class="alert-danger">{{error}}</div>
+</body>
+</html>

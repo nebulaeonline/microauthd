@@ -22,7 +22,7 @@ public static class AuthSessionStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO auth_sessions (jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method max_age)
+                INSERT INTO auth_sessions (jti, client_id, user_id, redirect_uri, totp_required, nonce, scope, state, code_challenge, code_challenge_method, created_at, expires_at, login_method, max_age)
                 VALUES ($jti, $client_id, $user_id, $redirect_uri, $totp_required, $nonce, $scope, $state, $code_challenge, $code_challenge_method, $created, $expires, $login_method, $max_age);
             """;
             cmd.Parameters.AddWithValue("$jti", session.Jti);

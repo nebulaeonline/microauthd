@@ -1,0 +1,15 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+</head>
+<body>
+    <form method="POST" action="/login">
+        <input type="hidden" name="jti" value="{{jti}}">
+        <label>Username: <input name="username" /></label><br>
+        <label>Password: <input name="password" type="password" /></label><br>
+        <button type="submit">Login</button>
+    </form>
+    <div>{{error}}</div>
+</body>
+</html>
