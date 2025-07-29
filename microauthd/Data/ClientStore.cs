@@ -704,6 +704,188 @@ public static class ClientStore
     }
 
     /// <summary>
+    /// Retrieves a list of external identity provider configurations associated with a specified client.
+    /// </summary>
+    /// <param name="clientId">The unique identifier of the client for which to retrieve external identity providers. Cannot be null or empty.</param>
+    /// <returns>A list of <see cref="ExternalIdpProviderDto"/> objects representing the external identity providers configured
+    /// for the specified client. Returns an empty list if no providers are found.</returns>
+    public static List<ExternalIdpProviderDto> GetExternalIdpsForClient(string clientId)
+    {
+        var list = new List<ExternalIdpProviderDto>();
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, client_id, provider_key, display_name, issuer, client_identifier, scopes, created_at, modified_at
+                FROM external_idp_providers
+                WHERE client_id = $cid
+                ORDER BY display_name;
+            """;
+            cmd.Parameters.AddWithValue("$cid", clientId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                list.Add(new ExternalIdpProviderDto
+                {
+                    Id = reader.GetString(0),
+                    ClientId = reader.GetString(1),
+                    ProviderKey = reader.GetString(2).Trim().ToLowerInvariant(),
+                    DisplayName = reader.GetString(3).Trim(),
+                    Issuer = reader.GetString(4).Trim(),
+                    ClientIdentifier = reader.GetString(5).Trim(),
+                    Scopes = reader.GetString(6).Trim(),
+                    CreatedAt = reader.GetDateTime(7).ToUniversalTime(),
+                    ModifiedAt = reader.GetDateTime(8).ToUniversalTime()
+                });
+            }
+        });
+        return list;
+    }
+
+    /// <summary>
+    /// Retrieves an external identity provider configuration based on the specified client ID and provider key.
+    /// </summary>
+    /// <remarks>This method queries the database for an external identity provider configuration that matches
+    /// the given client ID and provider key. If no matching configuration is found, the method returns <see
+    /// langword="null"/>.</remarks>
+    /// <param name="clientId">The client ID associated with the external identity provider.</param>
+    /// <param name="providerKey">The unique key identifying the external identity provider. This value is trimmed of whitespace.</param>
+    /// <returns>An <see cref="ExternalIdpProviderDto"/> representing the external identity provider configuration if found;
+    /// otherwise, <see langword="null"/>.</returns>
+    public static ExternalIdpProviderDto? GetExternalIdpByKey(string clientId, string providerKey)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, client_id, provider_key, display_name, issuer, client_identifier, scopes, created_at, modified_at
+                FROM external_idp_providers
+                WHERE client_id = $cid AND provider_key = $key
+                LIMIT 1;
+            """;
+            cmd.Parameters.AddWithValue("$cid", clientId);
+            cmd.Parameters.AddWithValue("$key", providerKey.Trim());
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+            return new ExternalIdpProviderDto
+            {
+                Id = reader.GetString(0),
+                ClientId = reader.GetString(1),
+                ProviderKey = reader.GetString(2).Trim().ToLowerInvariant(),
+                DisplayName = reader.GetString(3).Trim(),
+                Issuer = reader.GetString(4).Trim(),
+                ClientIdentifier = reader.GetString(5).Trim(),
+                Scopes = reader.GetString(6).Trim(),
+                CreatedAt = reader.GetDateTime(7).ToUniversalTime(),
+                ModifiedAt = reader.GetDateTime(8).ToUniversalTime()
+            };
+        });
+    }
+
+    /// <summary>
+    /// Inserts a new external identity provider into the database.
+    /// </summary>
+    /// <remarks>This method generates a new unique identifier for the provider and stores the provider's
+    /// details in the database. If the insertion is successful, it returns a DTO with the newly assigned ID and
+    /// timestamps. If an error occurs during the database operation, the method logs the error and returns <see
+    /// langword="null"/>.</remarks>
+    /// <param name="provider">The <see cref="ExternalIdpProviderDto"/> containing the details of the provider to insert. The <c>ClientId</c>
+    /// and <c>ProviderKey</c> must not be null or whitespace.</param>
+    /// <returns>An <see cref="ExternalIdpProviderDto"/> representing the inserted provider, or <see langword="null"/> if the
+    /// insertion fails or if required fields are missing.</returns>
+    public static ExternalIdpProviderDto? InsertExternalIdpProvider(ExternalIdpProviderDto provider)
+    {
+        if (string.IsNullOrWhiteSpace(provider.ClientId) || string.IsNullOrWhiteSpace(provider.ProviderKey))
+            return null;
+        
+        var id = Guid.NewGuid().ToString();
+        
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO external_idp_providers (id, client_id, provider_key, display_name, issuer, client_identifier, scopes, created_at, modified_at)
+                VALUES ($id, $client_id, $provider_key, $display_name, $issuer, $client_identifier, $scopes, datetime('now'), datetime('now'));
+            """;
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.AddWithValue("$client_id", provider.ClientId);
+            cmd.Parameters.AddWithValue("$provider_key", provider.ProviderKey.Trim().ToLowerInvariant());
+            cmd.Parameters.AddWithValue("$display_name", provider.DisplayName.Trim());
+            cmd.Parameters.AddWithValue("$issuer", provider.Issuer.Trim());
+            cmd.Parameters.AddWithValue("$client_identifier", provider.ClientIdentifier.Trim());
+            cmd.Parameters.AddWithValue("$scopes", provider.Scopes.Trim());
+            cmd.ExecuteNonQuery();
+        });
+        return new ExternalIdpProviderDto
+        {
+            Id = id,
+            ClientId = provider.ClientId,
+            ProviderKey = provider.ProviderKey.Trim(),
+            DisplayName = provider.DisplayName.Trim(),
+            Issuer = provider.Issuer.Trim(),
+            ClientIdentifier = provider.ClientIdentifier.Trim(),
+            Scopes = provider.Scopes.Trim(),
+            CreatedAt = DateTime.UtcNow,
+            ModifiedAt = DateTime.UtcNow
+        };
+        
+    }
+
+    public static ExternalIdpProviderDto? UpdateExternalIdpProvider(ExternalIdpProviderDto provider)
+    {
+        if (string.IsNullOrWhiteSpace(provider.Id) || string.IsNullOrWhiteSpace(provider.ClientId) || string.IsNullOrWhiteSpace(provider.ProviderKey))
+            return null;
+
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE external_idp_providers
+                SET display_name = $display_name,
+                    issuer = $issuer,
+                    client_identifier = $client_identifier,
+                    provider_key = $provider_key,
+                    scopes = $scopes,
+                    modified_at = datetime('now')
+                WHERE id = $id AND client_id = $client_id;
+            """;
+            cmd.Parameters.AddWithValue("$id", provider.Id);
+            cmd.Parameters.AddWithValue("$client_id", provider.ClientId);
+            cmd.Parameters.AddWithValue("$provider_key", provider.ProviderKey.Trim());
+            cmd.Parameters.AddWithValue("$display_name", provider.DisplayName.Trim());
+            cmd.Parameters.AddWithValue("$issuer", provider.Issuer.Trim());
+            cmd.Parameters.AddWithValue("$client_identifier", provider.ClientIdentifier.Trim());
+            cmd.Parameters.AddWithValue("$scopes", provider.Scopes.Trim());
+            cmd.ExecuteNonQuery();
+        });
+        return provider;
+    }
+
+    /// <summary>
+    /// Deletes an external identity provider record from the database.
+    /// </summary>
+    /// <remarks>This method returns <see langword="false"/> if either <paramref name="id"/> or <paramref
+    /// name="clientId"/> is null or whitespace.</remarks>
+    /// <param name="id">The unique identifier of the identity provider to delete. Cannot be null or whitespace.</param>
+    /// <param name="clientId">The client identifier associated with the identity provider. Cannot be null or whitespace.</param>
+    /// <returns><see langword="true"/> if the identity provider was successfully deleted; otherwise, <see langword="false"/>.</returns>
+    public static bool DeleteExternalIdpProvider(string id, string clientId)
+    {
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(clientId))
+            return false;
+        
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM external_idp_providers WHERE id = $id AND client_id = $client_id;";
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.AddWithValue("$client_id", clientId);
+            return cmd.ExecuteNonQuery() > 0;
+        });
+    }
+
+    /// <summary>
     /// Retrieves the count of active clients from the database.
     /// </summary>
     /// <remarks>This method queries the database to count the number of clients marked as active.  It assumes

@@ -25,10 +25,15 @@ internal static class ClientCommands
         cmd.AddCommand(ListRedirectUrisCommand());
         cmd.AddCommand(DeleteRedirectUriCommand());
 
-        cmd.AddCommand(BuildSetFeatureFlagCommand());
-        cmd.AddCommand(BuildGetFeatureFlagCommand());
-        cmd.AddCommand(BuildSetFlagOptionsCommand());
-        cmd.AddCommand(BuildGetFlagOptionsCommand());
+        cmd.AddCommand(SetFeatureFlagCommand());
+        cmd.AddCommand(GetFeatureFlagCommand());
+        cmd.AddCommand(SetFlagOptionsCommand());
+        cmd.AddCommand(GetFlagOptionsCommand());
+
+        cmd.AddCommand(AddExternalIdpCommand());
+        cmd.AddCommand(UpdateExternalIdpCommand());
+        cmd.AddCommand(ListExternalIdpsCommand());
+        cmd.AddCommand(DeleteExternalIdpCommand());
 
         cmd.AddCommand(AssignScopesCommand());
         cmd.AddCommand(ListScopesCommand());
@@ -45,7 +50,6 @@ internal static class ClientCommands
         var secret = new Option<string?>("--secret", "Client secret to use (omit to auto-generate)");
         var genLen = new Option<int?>("--gen-password", "Generate a random secret of the given length");
         var name = new Option<string?>("--display-name", () => string.Empty);
-        var redirectUri = new Option<string?>("--redirect-uri", "Redirect URI for the client (optional, defaults to empty)");
         var audience = new Option<string?>("--audience", "Audience for the client (optional. Defaults to 'microauthd'") { IsRequired = false };
 
         var adminUrl = SharedOptions.AdminUrl;
@@ -626,7 +630,7 @@ internal static class ClientCommands
         return cmd;
     }
 
-    private static Command BuildSetFeatureFlagCommand()
+    private static Command SetFeatureFlagCommand()
     {
         var cmd = new Command("set-flag", "Enable or disable a feature flag for a client");
 
@@ -683,7 +687,7 @@ internal static class ClientCommands
         return cmd;
     }
 
-    private static Command BuildGetFeatureFlagCommand()
+    private static Command GetFeatureFlagCommand()
     {
         var cmd = new Command("get-flag", "Check if a feature flag is enabled for a client");
 
@@ -730,7 +734,7 @@ internal static class ClientCommands
         return cmd;
     }
 
-    private static Command BuildSetFlagOptionsCommand()
+    private static Command SetFlagOptionsCommand()
     {
         var cmd = new Command("set-flag-options", "Set the extended options string for a feature flag");
 
@@ -779,7 +783,7 @@ internal static class ClientCommands
         return cmd;
     }
 
-    private static Command BuildGetFlagOptionsCommand()
+    private static Command GetFlagOptionsCommand()
     {
         var cmd = new Command("get-flag-options", "Retrieve the extended options string for a flag");
 
@@ -822,6 +826,247 @@ internal static class ClientCommands
                 Console.WriteLine(JsonSerializer.Serialize(err, MadJsonContext.Default.ErrorResponse));
             }
         }, url, token, clientId, flag, json);
+
+        return cmd;
+    }
+
+    private static Command AddExternalIdpCommand()
+    {
+        var cmd = new Command("add-idp", "Add an external identity provider to a client");
+
+        var clientGuid = new Option<string>("--id", "The GUID of the client") { IsRequired = true };
+        var providerKey = new Option<string>("--provider-key", "Unique key for this provider") { IsRequired = true };
+        var displayName = new Option<string>("--display-name", "Human-readable name") { IsRequired = true };
+        var issuer = new Option<string>("--issuer", "OIDC issuer URL") { IsRequired = true };
+        var externalClientId = new Option<string>("--external-client-id", "Client ID used at the external IdP") { IsRequired = true };
+        var scopes = new Option<string>("--scopes", () => "openid email profile", "Scopes to request");
+
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientGuid);
+        cmd.AddOption(providerKey);
+        cmd.AddOption(displayName);
+        cmd.AddOption(issuer);
+        cmd.AddOption(externalClientId);
+        cmd.AddOption(scopes);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (
+            string clientGuid,
+            string providerKey,
+            string displayName,
+            string issuer,
+            string externalClientId,
+            string scopes,
+            bool json) =>
+        {
+            var token = AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "No token. Use `mad session login`."), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var url = AuthUtils.TryLoadAdminUrl();
+            var client = new MadApiClient(url, token);
+            var localClient = await client.GetClientById(clientGuid);
+            if (localClient == null)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, $"Client '{clientGuid}' not found"), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var dto = new ExternalIdpProviderDto
+            {
+                ClientId = localClient.ClientId,
+                ProviderKey = providerKey.Trim().ToLowerInvariant(),
+                DisplayName = displayName.Trim(),
+                Issuer = issuer.Trim(),
+                ClientIdentifier = externalClientId.Trim(),
+                Scopes = scopes.Trim()
+            };
+
+            var result = await client.AddExternalIdp(dto);
+            if (result == null)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "Failed to create external IdP."), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.ExternalIdpProviderDto));
+            }
+            else
+            {
+                Console.WriteLine($"External IdP '{result.ProviderKey}' added to client '{result.ClientId}'.");
+            }
+        },
+        clientGuid, providerKey, displayName, issuer, externalClientId, scopes, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command UpdateExternalIdpCommand()
+    {
+        var cmd = new Command("update-idp", "Update an external identity provider");
+
+        var clientGuid = new Option<string>("--id", "GUID of the client") { IsRequired = true };
+        var idpId = new Option<string>("--idp-id", "ID of the external IdP to update") { IsRequired = true };
+        var providerKey = new Option<string>("--provider-key") { IsRequired = true };
+        var displayName = new Option<string>("--display-name") { IsRequired = true };
+        var issuer = new Option<string>("--issuer") { IsRequired = true };
+        var externalClientId = new Option<string>("--external-client-id") { IsRequired = true };
+        var scopes = new Option<string>("--scopes", () => "openid email profile");
+
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientGuid);
+        cmd.AddOption(idpId);
+        cmd.AddOption(providerKey);
+        cmd.AddOption(displayName);
+        cmd.AddOption(issuer);
+        cmd.AddOption(externalClientId);
+        cmd.AddOption(scopes);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (
+            string clientGuid,
+            string idpId,
+            string providerKey,
+            string displayName,
+            string issuer,
+            string externalClientId,
+            string scopes,
+            bool json) =>
+        {
+            var token = AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "No token. Use `mad session login`."), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var url = AuthUtils.TryLoadAdminUrl();
+            var client = new MadApiClient(url, token);
+
+            var dto = new ExternalIdpProviderDto
+            {
+                Id = idpId,
+                ClientId = clientGuid,
+                ProviderKey = providerKey.Trim().ToLowerInvariant(),
+                DisplayName = displayName.Trim(),
+                Issuer = issuer.Trim(),
+                ClientIdentifier = externalClientId.Trim(),
+                Scopes = scopes.Trim()
+            };
+
+            var result = await client.UpdateExternalIdp(dto);
+
+            if (result is null)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "Failed to update external IdP"), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            if (json)
+                Console.WriteLine(JsonSerializer.Serialize(result, MadJsonContext.Default.ExternalIdpProviderDto));
+            else
+                Console.WriteLine($"External IdP '{result.ProviderKey}' updated.");
+        },
+        clientGuid, idpId, providerKey, displayName, issuer, externalClientId, scopes, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command ListExternalIdpsCommand()
+    {
+        var cmd = new Command("list-idps", "List external identity providers for a client");
+
+        var clientGuid = new Option<string>("--id", "GUID of the client") { IsRequired = true };
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientGuid);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string clientGuid, bool json) =>
+        {
+            var token = AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "No token. Use `mad session login`."), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var url = AuthUtils.TryLoadAdminUrl();
+            var client = new MadApiClient(url, token);
+            var idps = await client.ListExternalIdps(clientGuid);
+
+            if (idps == null || idps.Count == 0)
+            {
+                Console.WriteLine(json ? "[]" : "(no external providers)");
+                return;
+            }
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(idps, MadJsonContext.Default.ListExternalIdpProviderDto));
+            }
+            else
+            {
+                Console.WriteLine($"{"Id",-36} {"ProviderKey",-15} {"DisplayName",-25} Issuer");
+                Console.WriteLine(new string('-', 100));
+                foreach (var idp in idps)
+                {
+                    Console.WriteLine($"{idp.Id,-36} {idp.ProviderKey,-15} {idp.DisplayName,-25} {idp.Issuer}");
+                }
+            }
+        }, clientGuid, jsonOut);
+
+        return cmd;
+    }
+
+    private static Command DeleteExternalIdpCommand()
+    {
+        var cmd = new Command("delete-idp", "Delete an external identity provider");
+
+        var clientGuid = new Option<string>("--id", "GUID of the client") { IsRequired = true };
+        var idpId = new Option<string>("--idp-id", "ID of the external IdP to delete") { IsRequired = true };
+        var jsonOut = SharedOptions.OutputJson;
+
+        cmd.AddOption(clientGuid);
+        cmd.AddOption(idpId);
+        cmd.AddOption(jsonOut);
+
+        cmd.SetHandler(async (string clientGuid, string idpId, bool json) =>
+        {
+            var token = AuthUtils.TryLoadToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "No token. Use `mad session login`."), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            var url = AuthUtils.TryLoadAdminUrl();
+            var client = new MadApiClient(url, token);
+            var ok = await client.DeleteExternalIdp(idpId, clientGuid);
+
+            if (!ok)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new ErrorResponse(false, "Failed to delete external IdP."), MadJsonContext.Default.ErrorResponse));
+                return;
+            }
+
+            if (json)
+            {
+                var response = new MessageResponse(true, "External IdP deleted");
+                Console.WriteLine(JsonSerializer.Serialize(response, MadJsonContext.Default.MessageResponse));
+            }
+            else
+            {
+                Console.WriteLine("External IdP deleted.");
+            }
+        }, clientGuid, idpId, jsonOut);
 
         return cmd;
     }

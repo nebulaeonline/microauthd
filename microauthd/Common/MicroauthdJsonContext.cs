@@ -89,6 +89,8 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(AuthSessionDto))]
 [JsonSerializable(typeof(List<AuthSessionDto>))]
 [JsonSerializable(typeof(PkceAuthorizeResponse))]
+[JsonSerializable(typeof(ExternalIdpProviderDto))]
+[JsonSerializable(typeof(List<ExternalIdpProviderDto>))]
 public partial class MicroauthdJsonContext : JsonSerializerContext
 {
 }

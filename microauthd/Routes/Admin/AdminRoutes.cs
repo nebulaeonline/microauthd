@@ -138,8 +138,8 @@ public static class AdminRoutes
         )
         .RequireAuthorization()
         .WithName("VerifyEmail")
-        .Produces<ApiResult<string>>(StatusCodes.Status200OK)
-        .Produces<ApiResult<ErrorResponse>>(StatusCodes.Status404NotFound)
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("Users");
 
@@ -289,7 +289,7 @@ public static class AdminRoutes
             })
             .RequireAuthorization()
             .WithName("RevokeSession")
-            .Produces(StatusCodes.Status200OK)
+            .Produces<RevokeResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
             .WithTags("Sessions")
@@ -1140,6 +1140,63 @@ public static class AdminRoutes
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
         .WithTags("clients");
+
+        // get external IDP providers for a client endpoint*****************************************
+        group.MapGet("/clients/{clientId}/idp", (string clientId) =>
+        {
+            return ClientService.GetExternalIdpProvidersForClient(clientId).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("GetExternalIdpProviders")
+        .WithTags("Client", "ExternalIdp")
+        .Produces<List<ExternalIdpProviderDto>>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+
+        // create external IDP provider for a client endpoint***************************************
+        group.MapPost("/clients/{clientId}/idp", async (string clientId, HttpContext ctx) =>
+        {
+            var dto = await ctx.Request.ReadFromJsonAsync(MicroauthdJsonContext.Default.ExternalIdpProviderDto);
+            if (dto is null)
+                return Results.BadRequest(new ErrorResponse(false, "Invalid payload"));
+
+            dto.ClientId = clientId;
+
+            return ClientService.InsertExternalIdpProvider(dto).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("AddExternalIdpProvider")
+        .WithTags("Client", "ExternalIdp")
+        .Produces<ExternalIdpProviderDto>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+
+        // update external IDP provider for a client endpoint***************************************
+        group.MapPut("/clients/{clientId}/idp/{id}", async (string clientId, string id, HttpContext ctx) =>
+        {
+            var dto = await ctx.Request.ReadFromJsonAsync(MicroauthdJsonContext.Default.ExternalIdpProviderDto);
+            if (dto is null)
+                return Results.BadRequest(new ErrorResponse(false, "Invalid payload"));
+
+            dto.Id = id;
+            dto.ClientId = clientId;
+
+            return ClientService.UpdateExternalIdpProvider(dto).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("UpdateExternalIdpProvider")
+        .WithTags("Client", "ExternalIdp")
+        .Produces<ExternalIdpProviderDto>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+
+        // delete external IDP provider for a client endpoint***************************************
+        group.MapDelete("/clients/{clientId}/idp/{id}", (string clientId, string id) =>
+        {
+            return ClientService.DeleteExternalIdpProvider(id, clientId).ToHttpResult();
+        })
+        .RequireAuthorization()
+        .WithName("DeleteExternalIdpProvider")
+        .WithTags("Client", "ExternalIdp")
+        .Produces<MessageResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
 
         // add scopes to client endpoint************************************************************
         group.MapPost("/clients/{clientId}/scopes", (

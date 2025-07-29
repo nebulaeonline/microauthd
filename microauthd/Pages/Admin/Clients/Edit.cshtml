@@ -77,6 +77,9 @@
 <a asp-page="/Admin/Clients/RedirectUris" asp-route-id="@Model.ClientForm.Id" class="btn btn-outline-info ms-2">
     Manage Redirect URIs
 </a>
+<a href="@Url.Page("/Admin/Clients/ExternalProviders", new { clientId = Model.ClientForm.Id })" class="btn btn-outline-info ms-2">
+    Manage External IdP Providers
+</a>
 <hr />
 <form method="post" asp-page-handler="Delete" class="ms-2 d-inline">
     @Html.AntiForgeryToken()

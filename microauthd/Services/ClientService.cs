@@ -473,6 +473,139 @@ public static class ClientService
     }
 
     /// <summary>
+    /// Retrieves a list of external identity provider (IDP) configurations for a specified client.
+    /// </summary>
+    /// <param name="clientId">The unique identifier of the client for which to retrieve external IDP providers. Cannot be null or whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a list of <see cref="ExternalIdpProviderDto"/> objects representing the
+    /// external IDP providers for the specified client. Returns a failure result if the client ID is invalid or if an
+    /// error occurs during retrieval.</returns>
+    public static ApiResult<List<ExternalIdpProviderDto>> GetExternalIdpProvidersForClient(string clientId)
+    {
+        if (string.IsNullOrWhiteSpace(clientId))
+            return ApiResult<List<ExternalIdpProviderDto>>.Fail("Client ID is required", 400);
+
+        try
+        {
+            var providers = ClientStore.GetExternalIdpsForClient(clientId);
+            return ApiResult<List<ExternalIdpProviderDto>>.Ok(providers);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to retrieve external IDP providers for client {ClientId}", clientId);
+            return ApiResult<List<ExternalIdpProviderDto>>.Fail("Failed to retrieve external IDP providers", 500);
+        }
+    }
+
+    /// <summary>
+    /// Retrieves an external identity provider by its client ID and provider key.
+    /// </summary>
+    /// <remarks>This method attempts to retrieve the external identity provider associated with the specified
+    /// client ID and provider key. If the provider is not found, a "Not Found" result is returned. In case of an error
+    /// during retrieval, a failure result is returned.</remarks>
+    /// <param name="clientId">The client ID associated with the external identity provider. Cannot be null or whitespace.</param>
+    /// <param name="providerKey">The unique key identifying the external identity provider. Cannot be null or whitespace.</param>
+    /// <returns>An <see cref="ApiResult{ExternalIdpProviderDto}"/> containing the external identity provider details if found;
+    /// otherwise, an error result indicating the provider was not found or an error occurred.</returns>
+    public static ApiResult<ExternalIdpProviderDto> GetExternalIdpProviderByKey(string clientId, string providerKey)
+    {
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(providerKey))
+            return ApiResult<ExternalIdpProviderDto>.Fail("Client ID and provider key are required", 400);
+        try
+        {
+            var provider = ClientStore.GetExternalIdpByKey(clientId, providerKey);
+            return provider is not null
+                ? ApiResult<ExternalIdpProviderDto>.Ok(provider)
+                : ApiResult<ExternalIdpProviderDto>.NotFound("External IDP provider not found");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to retrieve external IDP provider for client {ClientId} with key {ProviderKey}", clientId, providerKey);
+            return ApiResult<ExternalIdpProviderDto>.Fail("Failed to retrieve external IDP provider", 500);
+        }
+    }
+
+    /// <summary>
+    /// Inserts a new external identity provider into the system.
+    /// </summary>
+    /// <remarks>The method returns a 201 status code if the provider is successfully inserted, or a 400
+    /// status code if the insertion fails due to invalid input. In case of an internal error, a 500 status code is
+    /// returned.</remarks>
+    /// <param name="provider">The external identity provider details to insert. Must include a valid ClientId and ProviderKey.</param>
+    /// <returns>An <see cref="ApiResult{ExternalIdpProviderDto}"/> containing the inserted provider details if successful,  or
+    /// an error message with the appropriate HTTP status code if the operation fails.</returns>
+    public static ApiResult<ExternalIdpProviderDto> InsertExternalIdpProvider(ExternalIdpProviderDto provider)
+    {
+        if (string.IsNullOrWhiteSpace(provider.ClientId) || string.IsNullOrWhiteSpace(provider.ProviderKey))
+            return ApiResult<ExternalIdpProviderDto>.Fail("Client ID and provider key are required", 400);
+        try
+        {
+            var result = ClientStore.InsertExternalIdpProvider(provider);
+            return result is not null
+                ? ApiResult<ExternalIdpProviderDto>.Ok(result, 201)
+                : ApiResult<ExternalIdpProviderDto>.Fail("Failed to insert external IDP provider", 400);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error inserting external IDP provider for client {ClientId}", provider.ClientId);
+            return ApiResult<ExternalIdpProviderDto>.Fail("Internal server error", 500);
+        }
+    }
+
+    /// <summary>
+    /// Updates the specified external identity provider with new information.
+    /// </summary>
+    /// <remarks>This method attempts to update the external identity provider using the provided data. If the
+    /// update is successful, the method returns the updated provider information. If the update fails or an error
+    /// occurs, an appropriate error message and status code are returned.</remarks>
+    /// <param name="provider">The <see cref="ExternalIdpProviderDto"/> containing the updated information for the identity provider. The
+    /// <c>Id</c> property must not be null or whitespace.</param>
+    /// <returns>An <see cref="ApiResult{ExternalIdpProviderDto}"/> containing the updated provider information if successful;
+    /// otherwise, an error message and status code.</returns>
+    public static ApiResult<ExternalIdpProviderDto> UpdateExternalIdpProvider(ExternalIdpProviderDto provider)
+    {
+        if (string.IsNullOrWhiteSpace(provider.Id))
+            return ApiResult<ExternalIdpProviderDto>.Fail("Provider ID is required", 400);
+        try
+        {
+            var updated = ClientStore.UpdateExternalIdpProvider(provider);
+            return updated is not null
+                ? ApiResult<ExternalIdpProviderDto>.Ok(updated)
+                : ApiResult<ExternalIdpProviderDto>.Fail("Failed to update external IDP provider", 400);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error updating external IDP provider with ID {ProviderId}", provider.Id);
+            return ApiResult<ExternalIdpProviderDto>.Fail("Internal server error", 500);
+        }
+    }
+
+    /// <summary>
+    /// Deletes an external identity provider associated with a specified client.
+    /// </summary>
+    /// <param name="id">The unique identifier of the external identity provider to delete. Cannot be null or whitespace.</param>
+    /// <param name="clientId">The unique identifier of the client associated with the external identity provider. Cannot be null or
+    /// whitespace.</param>
+    /// <returns>An <see cref="ApiResult{T}"/> containing a <see cref="MessageResponse"/>.  Returns a successful result if the
+    /// provider is deleted, a not found result if the provider does not exist,  or a failure result if an error occurs.</returns>
+    public static ApiResult<MessageResponse> DeleteExternalIdpProvider(string id, string clientId)
+    {
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(clientId))
+            return ApiResult<MessageResponse>.Fail("Provider ID and client ID are required", 400);
+        try
+        {
+            var deleted = ClientStore.DeleteExternalIdpProvider(id, clientId);
+            return deleted
+                ? ApiResult<MessageResponse>.Ok(new MessageResponse(true, "External IDP provider deleted"))
+                : ApiResult<MessageResponse>.NotFound("External IDP provider not found");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error deleting external IDP provider with ID {ProviderId} for client {ClientId}", id, clientId);
+            return ApiResult<MessageResponse>.Fail("Internal server error", 500);
+        }
+    }
+
+    /// <summary>
     /// Retrieves the total number of clients currently stored in the system.
     /// </summary>
     /// <returns>The total count of clients as an integer. Returns 0 if no clients are stored.</returns>

@@ -720,6 +720,51 @@ internal class MadApiClient
         return parsed?.Message;
     }
 
+    public async Task<ExternalIdpProviderDto?> AddExternalIdp(ExternalIdpProviderDto dto)
+    {
+        var content = JsonContent.Create(dto, MadJsonContext.Default.ExternalIdpProviderDto);
+
+        var res = await _http.PostAsync(
+            $"{BaseUrl}/admin/clients/{dto.ClientId}/idp",
+            content);
+
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ExternalIdpProviderDto);
+    }
+
+    public async Task<ExternalIdpProviderDto?> UpdateExternalIdp(ExternalIdpProviderDto dto)
+    {
+        var content = JsonContent.Create(dto, MadJsonContext.Default.ExternalIdpProviderDto);
+
+        var res = await _http.PutAsync(
+            $"{BaseUrl}/admin/clients/{dto.ClientId}/idp/{dto.Id}",
+            content);
+
+        if (!res.IsSuccessStatusCode)
+            return null;
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ExternalIdpProviderDto);
+    }
+
+    public async Task<List<ExternalIdpProviderDto>> ListExternalIdps(string clientId)
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/admin/clients/{clientId}/idp");
+
+        if (!res.IsSuccessStatusCode)
+            return new();
+
+        return await res.Content.ReadFromJsonAsync(MadJsonContext.Default.ListExternalIdpProviderDto)
+               ?? new();
+    }
+
+    public async Task<bool> DeleteExternalIdp(string idpId, string clientId)
+    {
+        var res = await _http.DeleteAsync($"{BaseUrl}/admin/clients/{clientId}/idp/{idpId}");
+        return res.IsSuccessStatusCode;
+    }
+
     public void SetToken(string token)
     {
         Token = token;

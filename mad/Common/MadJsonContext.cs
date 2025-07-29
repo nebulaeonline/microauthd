@@ -60,4 +60,6 @@ namespace mad.Common;
 [JsonSerializable(typeof(ResetPasswordRequest))]
 [JsonSerializable(typeof(JwtIntrospectionResult))]
 [JsonSerializable(typeof(Dictionary<string, JsonElement>))]
+[JsonSerializable(typeof(ExternalIdpProviderDto))]
+[JsonSerializable(typeof(List<ExternalIdpProviderDto>))]
 public partial class MadJsonContext : JsonSerializerContext { }

@@ -7,7 +7,7 @@ namespace microauthd.Data;
 public static class DbMigrations
 {
     // Schema versioning
-    private const int CurrentSchemaVersion = 13;
+    private const int CurrentSchemaVersion = 14;
 
     /// <summary>
     /// Applies all necessary database schema migrations to bring the database up to the current schema version.
@@ -166,6 +166,9 @@ public static class DbMigrations
                 break;
             case (12, 13):
                 Migrate_12_to_13();
+                break;
+            case (13, 14):
+                Migrate_13_to_14();
                 break;
             default:
                 throw new InvalidOperationException($"No migration defined for v{fromVersion} → v{toVersion}");
@@ -481,5 +484,29 @@ public static class DbMigrations
                 cmd.ExecuteNonQuery();
             });
         }
+    }
+
+    private static void Migrate_13_to_14()
+    {
+        Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS external_idp_providers (
+                    id TEXT PRIMARY KEY,
+                    client_id TEXT NOT NULL,
+                    provider_key TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    issuer TEXT NOT NULL,
+                    client_identifier TEXT NOT NULL,
+                    scopes TEXT NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    modified_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX idx_ext_idp_client_provider ON external_idp_providers (client_id, provider_key);
+            """;
+            cmd.ExecuteNonQuery();
+        });
     }
 }

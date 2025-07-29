@@ -1,0 +1,68 @@
+﻿@page "{clientId?}"
+@model microauthd.Pages.Admin.Clients.ExternalProvidersModel
+@using microauthd.Data;
+@{
+    ViewData["Title"] = "External Identity Providers";
+    Layout = "_Layout";
+}
+
+<h2 class="mb-4">External Identity Providers</h2>
+
+@if (!string.IsNullOrWhiteSpace(Model.ClientId))
+{
+    <div class="mb-3">
+        <strong>Client:</strong> <span class="fs-5">@ClientStore.GetClientIdentifierById(Model.ClientId)</span><br />
+        <small class="text-muted">Internal ID: @Model.ClientId</small>
+    </div>
+}
+
+<a asp-page="/Admin/Clients/EditExternalProvider" asp-route-clientId="@Model.ClientId" class="btn btn-primary mb-3">
+    Add New Provider
+</a>
+
+@if (Model.Providers.Count == 0)
+{
+    <p>No external identity providers have been added for this client.</p>
+}
+else
+{
+    <table class="table table-striped w-75">
+        <thead>
+            <tr>
+                <th>Provider Key</th>
+                <th>Display Name</th>
+                <th>Issuer</th>
+                <th>Scopes</th>
+                <th style="width: 180px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var provider in Model.Providers)
+            {
+                <tr>
+                    <td>@provider.ProviderKey</td>
+                    <td>@provider.DisplayName</td>
+                    <td>@provider.Issuer</td>
+                    <td>@provider.Scopes</td>
+                    <td>
+                        <a asp-page="/Admin/Clients/EditExternalProvider"
+                           asp-route-id="@provider.Id"
+                           asp-route-clientId="@Model.ClientId"
+                           class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                        <form method="post" asp-page-handler="Delete" class="d-inline">
+                            <input type="hidden" name="Id" value="@provider.Id" />
+                            <input type="hidden" name="ClientId" value="@Model.ClientId" />
+                            <button type="submit"
+                                    class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Delete this provider?');">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+<a asp-page="/Admin/Clients/Edit" asp-route-id="@Model.ClientId" class="btn btn-secondary">Back</a>
+
