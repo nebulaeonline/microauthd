@@ -209,128 +209,86 @@ public static class TokenCertManager
     }
 
     /// <summary>
-    /// Exports the public key from a private PEM file to a specified output file.
+    /// Exports the public key from a private key PEM file and writes it to a specified output file.
     /// </summary>
-    /// <remarks>This method reads a private key from a PEM file, extracts the corresponding public key,  and
-    /// writes it to a new PEM file. The private key can be encrypted, in which case a passphrase  must be provided.
-    /// Supported key formats include RSA and EC.</remarks>
-    /// <param name="privateKeyPath">The file path to the private key PEM file. Must be a valid file path.</param>
-    /// <param name="passphrase">The passphrase used to decrypt the private key, if it is encrypted.  Can be <see langword="null"/> or empty if
-    /// the private key is not encrypted.</param>
-    /// <param name="outputPublicKeyPath">The file path where the public key PEM file will be written.</param>
+    /// <remarks>This method supports both RSA and EC private keys. If the private key PEM file is encrypted, 
+    /// the provided <paramref name="passphrase"/> will be used to decrypt it. The public key is exported  in the
+    /// Subject Public Key Info (SPKI) format and written to the specified output file in PEM encoding.</remarks>
+    /// <param name="privateKeyPath">The file path to the private key PEM file. The file must exist.</param>
+    /// <param name="passphrase">The passphrase used to decrypt the private key, if the PEM file is encrypted.  Specify <see langword="null"/> or
+    /// an empty string if the private key is not encrypted.</param>
+    /// <param name="outputPublicKeyPath">The file path where the exported public key will be written.</param>
     /// <exception cref="FileNotFoundException">Thrown if the file specified by <paramref name="privateKeyPath"/> does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown if the private key format is unsupported or unrecognized.</exception>
     /// <exception cref="NotSupportedException">Thrown if the private key type is unsupported.</exception>
     public static void ExportPublicKeyFromPrivatePem(string privateKeyPath, string? passphrase, string outputPublicKeyPath)
     {
         if (!File.Exists(privateKeyPath))
             throw new FileNotFoundException("Private key file not found.", privateKeyPath);
 
-        var pemText = File.ReadAllText(privateKeyPath);
+        var pem = File.ReadAllText(privateKeyPath);
 
         AsymmetricAlgorithm key;
-
-        if (pemText.Contains("EC PRIVATE KEY") || pemText.Contains("PRIVATE KEY"))
+        if (pem.Contains("ENCRYPTED"))
         {
-            var ec = ECDsa.Create();
-
-            if (!string.IsNullOrWhiteSpace(passphrase))
-                ec.ImportFromEncryptedPem(pemText, passphrase);
-            else
-                ec.ImportFromPem(pemText);
-
-            key = ec;
-        }
-        else if (pemText.Contains("RSA PRIVATE KEY"))
-        {
-            var rsa = RSA.Create();
-
-            if (!string.IsNullOrWhiteSpace(passphrase))
-                rsa.ImportFromEncryptedPem(pemText, passphrase);
-            else
-                rsa.ImportFromPem(pemText);
-
-            key = rsa;
+            // Try RSA then EC
+            try { var rsa = RSA.Create(); rsa.ImportFromEncryptedPem(pem, passphrase ?? ""); key = rsa; }
+            catch
+            {
+                var ec = ECDsa.Create(); ec.ImportFromEncryptedPem(pem, passphrase ?? "");
+                key = ec;
+            }
         }
         else
         {
-            throw new InvalidOperationException("Unsupported or unknown key format.");
+            // Try RSA then EC
+            try { var rsa = RSA.Create(); rsa.ImportFromPem(pem); key = rsa; }
+            catch
+            {
+                var ec = ECDsa.Create(); ec.ImportFromPem(pem);
+                key = ec;
+            }
         }
 
-        byte[] publicBytes = key switch
+        byte[] spki = key switch
         {
             RSA rsa => rsa.ExportSubjectPublicKeyInfo(),
             ECDsa ec => ec.ExportSubjectPublicKeyInfo(),
             _ => throw new NotSupportedException("Unsupported key type")
         };
 
-        var pem = new string(PemEncoding.Write("PUBLIC KEY", publicBytes));
-        File.WriteAllText(outputPublicKeyPath, pem);
-
-        Log.Information("Exported public key to {OutputPath}", outputPublicKeyPath);
+        File.WriteAllText(outputPublicKeyPath, new string(System.Security.Cryptography.PemEncoding.Write("PUBLIC KEY", spki)));
     }
 
     /// <summary>
-    /// Loads a private key from a PEM file and returns the corresponding cryptographic algorithm.
+    /// Loads a private key from a PEM file and returns the corresponding asymmetric algorithm instance.
     /// </summary>
-    /// <remarks>This method supports loading both EC (Elliptic Curve) and RSA private keys from PEM files.
-    /// Ensure the file at <paramref name="path"/> contains a valid PEM-encoded private key.</remarks>
-    /// <param name="path">The file path to the PEM file containing the private key.</param>
-    /// <param name="passphrase">An optional passphrase used to decrypt the private key if the PEM file is encrypted. If <see langword="null"/>
-    /// or empty, the method assumes the PEM file is not encrypted.</param>
-    /// <returns>An instance of <see cref="AsymmetricAlgorithm"/> representing the loaded private key. The returned object will
-    /// be either an <see cref="ECDsa"/> or <see cref="RSA"/> depending on the key type.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the PEM file contains an unsupported or unrecognized private key format.</exception>
+    /// <remarks>This method attempts to load the private key as either an RSA or ECDsa key. If the key is
+    /// encrypted,  the provided <paramref name="passphrase"/> is used to decrypt it. If the key is unencrypted, the 
+    /// passphrase is ignored. <para> The method throws an exception if the key format is unsupported, unrecognized, or
+    /// if the passphrase  is incorrect for an encrypted key. </para></remarks>
+    /// <param name="path">The file path to the PEM-encoded private key.</param>
+    /// <param name="passphrase">The passphrase used to decrypt the private key, if the key is encrypted.  Specify <see langword="null"/> or an
+    /// empty string for unencrypted keys.</param>
+    /// <returns>An instance of <see cref="RSA"/> or <see cref="ECDsa"/> representing the loaded private key.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the private key cannot be loaded due to an unsupported format, unrecognized PEM structure,  or
+    /// incorrect passphrase.</exception>
     internal static AsymmetricAlgorithm LoadPrivateKey(string path, string? passphrase)
     {
         var pem = File.ReadAllText(path);
 
+        // Encrypted?
         if (pem.Contains("ENCRYPTED"))
         {
-            if (string.IsNullOrWhiteSpace(passphrase))
-                throw new InvalidOperationException($"Encrypted PEM at {path}, but no passphrase provided.");
-
-            // Try both RSA and EC, log each attempt
-            try
-            {
-                var rsa = RSA.Create();
-                rsa.ImportFromEncryptedPem(pem, passphrase);
-                Log.Debug("Loaded encrypted RSA private key from {Path}", path);
-                return rsa;
-            }
-            catch (CryptographicException ex)
-            {
-                Log.Debug(ex, "RSA ImportFromEncryptedPem failed; attempting EC");
-            }
-
-            try
-            {
-                var ec = ECDsa.Create();
-                ec.ImportFromEncryptedPem(pem, passphrase);
-                Log.Debug("Loaded encrypted EC private key from {Path}", path);
-                return ec;
-            }
-            catch (CryptographicException ex)
-            {
-                Log.Debug(ex, "EC ImportFromEncryptedPem failed");
-                throw new InvalidOperationException($"Failed to load encrypted private key from {path}. Passphrase may be incorrect or key format unsupported.");
-            }
+            // Try RSA first
+            try { var rsa = RSA.Create(); rsa.ImportFromEncryptedPem(pem, passphrase ?? ""); return rsa; } catch { }
+            // Then EC
+            try { var ec = ECDsa.Create(); ec.ImportFromEncryptedPem(pem, passphrase ?? ""); return ec; } catch { }
+            throw new InvalidOperationException($"Failed to load encrypted private key from {path}. Passphrase wrong or format unsupported.");
         }
 
-        // Same for unencrypted
-        if (pem.Contains("BEGIN EC PRIVATE KEY"))
-        {
-            var ec = ECDsa.Create();
-            ec.ImportFromPem(pem);
-            return ec;
-        }
-
-        if (pem.Contains("BEGIN RSA PRIVATE KEY") || pem.Contains("BEGIN PRIVATE KEY"))
-        {
-            var rsa = RSA.Create();
-            rsa.ImportFromPem(pem);
-            return rsa;
-        }
+        // Unencrypted: try RSA, then EC
+        try { var rsa = RSA.Create(); rsa.ImportFromPem(pem); return rsa; } catch { }
+        try { var ec = ECDsa.Create(); ec.ImportFromPem(pem); return ec; } catch { }
 
         throw new InvalidOperationException("Unsupported or unrecognized PEM key format.");
     }
@@ -343,6 +301,16 @@ public static class TokenCertManager
         return privateKeyPath + ".pub.pem";
     }
 
+    /// <summary>
+    /// Generates a URL-safe key identifier from the public key of the specified asymmetric algorithm.
+    /// </summary>
+    /// <remarks>This method computes a unique identifier for the public key by exporting the key in the
+    /// SubjectPublicKeyInfo format, hashing it using SHA-256, and encoding the hash in a URL-safe Base64 format. The
+    /// resulting identifier can be used in scenarios such as key management or cryptographic operations.</remarks>
+    /// <param name="key">The asymmetric algorithm containing the public key. Supported types are <see cref="RSA"/> and <see
+    /// cref="ECDsa"/>.</param>
+    /// <returns>A URL-safe, Base64-encoded string representing the SHA-256 hash of the public key.</returns>
+    /// <exception cref="NotSupportedException">Thrown if the <paramref name="key"/> is not of a supported type (<see cref="RSA"/> or <see cref="ECDsa"/>).</exception>
     public static string GenerateKeyIdFromPublicKey(AsymmetricAlgorithm key)
     {
         byte[] pub = key switch

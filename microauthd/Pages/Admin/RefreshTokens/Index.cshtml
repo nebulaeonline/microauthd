@@ -9,14 +9,14 @@
 <div class="d-flex justify-content-between align-items-end mb-3">
     <!-- Left: Page size dropdown -->
     <form method="get" class="mb-3">
-        <label for="pageSize" class="form-label me-2">Sessions per page:</label>
+        <label for="pageSize" class="form-label me-2">Tokens per page:</label>
         <select name="pageSize" id="pageSize" class="form-select d-inline w-auto me-2" onchange="this.form.submit()">
-            <option value="10" selected="@((Model.PageSize == 10) ? "selected" : null)">10</option>
-            <option value="25" selected="@((Model.PageSize == 25) ? "selected" : null)">25</option>
-            <option value="50" selected="@((Model.PageSize == 50) ? "selected" : null)">50</option>
-            <option value="100" selected="@((Model.PageSize == 100) ? "selected" : null)">100</option>
+            <option value="10" selected="@((Model.PageSize == 10) ? "selected" : "")">10</option>
+            <option value="25" selected="@((Model.PageSize == 25) ? "selected" : "")">25</option>
+            <option value="50" selected="@((Model.PageSize == 50) ? "selected" : "")">50</option>
+            <option value="100" selected="@((Model.PageSize == 100) ? "selected" : "")">100</option>
         </select>
-        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pg" value="1" />
     </form>
 
     <!-- Right: Purge form -->
@@ -46,7 +46,7 @@
 }
 @if (!string.IsNullOrWhiteSpace(TempData["Error"] as string))
 {
-    <div class="alert alert-success">@TempData["Error"]</div>
+    <div class="alert alert-danger">@TempData["Error"]</div>
 }
 <table class="table table-dark table-bordered align-middle">
     <thead>

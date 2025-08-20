@@ -93,7 +93,7 @@ public static class Db
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                PRAGMA jounral_mode = DELETE;
+                PRAGMA journal_mode = DELETE;
                 VACUUM;
                 PRRAGMA journal_mode = WAL;            
             """;            

@@ -60,7 +60,6 @@ namespace microauthd.Common;
 [JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(long))]
-[JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(double))]
 [JsonSerializable(typeof(DateTime))]
 [JsonSerializable(typeof(string))]

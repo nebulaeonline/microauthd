@@ -25,7 +25,7 @@ public static class AuditStore
         {
             using var cmd = conn.CreateCommand();
             var where = new List<string>();
-            if (!string.IsNullOrWhiteSpace(userId)) where.Add("user_id = $uid");
+            if (!string.IsNullOrWhiteSpace(userId)) where.Add("actor_id = $uid");
             if (!string.IsNullOrWhiteSpace(action)) where.Add("action = $act");
 
             cmd.CommandText = $"""
@@ -76,7 +76,7 @@ public static class AuditStore
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, user_id, action, target, secondary, timestamp, ip_address, user_agent
+                SELECT id, actor_id, action, target, secondary, timestamp, ip_address, user_agent
                 FROM audit_logs
                 WHERE id = $id;
             """;
@@ -100,13 +100,12 @@ public static class AuditStore
     }
 
     /// <summary>
-    /// Deletes audit log entries that are older than the specified cutoff time.
+    /// Deletes audit log entries from the database that are older than the specified cutoff timestamp.
     /// </summary>
-    /// <remarks>This method executes a database operation to remove audit log entries based on the provided
-    /// cutoff duration. Ensure that the database connection is properly configured and accessible before calling this
-    /// method.</remarks>
-    /// <param name="isoCutoff">A <see cref="TimeSpan"/> representing the cutoff duration. Audit log entries with timestamps older than the
-    /// current time minus this duration will be purged.</param>
+    /// <remarks>This method executes a database operation to remove audit log entries. Ensure that the
+    /// provided timestamp is in a valid ISO 8601 format.</remarks>
+    /// <param name="isoCutoff">The cutoff timestamp in ISO 8601 format. Audit log entries with a timestamp earlier than this value will be
+    /// deleted.</param>
     /// <returns>The number of audit log entries that were deleted.</returns>
     public static int PurgeAuditLogs(string isoCutoff)
     {

@@ -7,7 +7,7 @@
 
 <h2 class="mb-4">Permissions</h2>
 <form method="get" class="mb-3">
-    <label for="pageSize" class="form-label me-2">Clients per page:</label>
+    <label for="pageSize" class="form-label me-2">Permissions per page:</label>
     <select name="pageSize" id="pageSize" class="form-select d-inline w-auto me-2" onchange="this.form.submit()">
         <option value="10" selected="@(Model.PageSize == 10)">10</option>
         <option value="25" selected="@(Model.PageSize == 25)">25</option>
@@ -57,7 +57,7 @@
                 {
                     var active = i == Model.CurrentPage ? "active" : "";
                     <li class="page-item @active">
-                        <a class="page-link" asp-page="/Admin/Clients/Index" asp-route-pg="@i">@i</a>
+                        <a class="page-link" asp-page="/Admin/Permissions/Index" asp-route-pg="@i">@i</a>
                     </li>
                 }
             }

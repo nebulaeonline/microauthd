@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using microauthd.Data;
 using microauthd.Services;
+using microauthd.Common;
 
 namespace microauthd.Pages.Admin.Permissions;
 
-[Authorize]
+[Authorize(Roles = Constants.MadAdmin)]
 public class IndexModel : BasePageModel
 {
     public List<PermissionObject> Permissions { get; private set; } = [];

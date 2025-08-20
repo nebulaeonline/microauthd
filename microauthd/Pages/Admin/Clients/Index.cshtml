@@ -9,10 +9,10 @@
 <form method="get" class="mb-3">
     <label for="pageSize" class="form-label me-2">Clients per page:</label>
     <select name="pageSize" id="pageSize" class="form-select d-inline w-auto me-2" onchange="this.form.submit()">
-        <option value="10" selected="@(Model.PageSize == 10)">10</option>
-        <option value="25" selected="@(Model.PageSize == 25)">25</option>
-        <option value="50" selected="@(Model.PageSize == 50)">50</option>
-        <option value="100" selected="@(Model.PageSize == 100)">100</option>
+        <option value="10" selected="@(Model.PageSize == 10 ? "selected" : "")>10</option>
+        <option value="25" selected="@(Model.PageSize == 25 ? "selected" : "")">25</option>
+        <option value="50" selected="@(Model.PageSize == 50 ? "selected" : "")">50</option>
+        <option value="100" selected="@(Model.PageSize == 100 ? "selected" : "")">100</option>
     </select>
     <input type="hidden" name="pg" value="1" />
 </form>

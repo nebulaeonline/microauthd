@@ -273,7 +273,7 @@ internal static class OobePrompts
         state.EnablePkce = PromptYesNo("Enable PKCE Login Flow?");
 
         if (state.EnablePkce)
-            state.Argon2Time = PromptInt("PKCE Code Lifetime (in seconds)", state.Config.PkceCodeLifetime, 1, 600);        
+            state.PkceCodeLifetime = PromptInt("PKCE Code Lifetime (in seconds)", state.Config.PkceCodeLifetime, 1, 600);        
     }
 
     public static void PromptPassCacheConfig(OobeState state)
@@ -281,12 +281,12 @@ internal static class OobePrompts
         state.EnablePassCache = PromptYesNo("Enable Password Caching?");
 
         if (state.EnablePassCache)
-            state.Argon2Time = PromptInt("Password cache duration (in seconds)", state.Config.PassCacheDuration, 1, 600);
+            state.PassCacheDuration = PromptInt("Password cache duration (in seconds)", state.Config.PassCacheDuration, 1, 600);
     }
 
     public static void PromptServePublicAuthFiles(OobeState state)
     {
-        state.EnablePkce = PromptYesNo("Do you wish to serve public AUTH files from the /public root (will be accessible @ '/')?");        
+        state.ServePublicAuthFiles = PromptYesNo("Do you wish to serve public AUTH files from the /public root (will be accessible @ '/')?");        
     }
 
     public static void WriteConfig(OobeState state)

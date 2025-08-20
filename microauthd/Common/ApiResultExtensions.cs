@@ -218,7 +218,7 @@ public static class ApiResultExtensions
                 MicroauthdJsonContext.Default.WhoamiResponse,
 
             _ => throw new InvalidOperationException(
-                $"JsonTypeInfo for {typeof(T).Name} not registered in MicroauthJsonContext.")
+                $"JsonTypeInfo for {typeof(T).Name} not registered in MicroauthdJsonContext.")
         };
 
         return (JsonTypeInfo<T>)resolved!;

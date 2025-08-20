@@ -43,12 +43,10 @@ public class AssignPermissionsModel : BasePageModel
 
     public IActionResult OnPost()
     {
-        if (string.IsNullOrWhiteSpace(targetRoleId) || SelectedPermissionIds == null || !SelectedPermissionIds.Any())
-        {
+        if (string.IsNullOrWhiteSpace(targetRoleId))
             return RedirectToPage("/Admin/Roles/Index");
-        }
 
-        var permissionDtos = SelectedPermissionIds
+        var permissionDtos = (SelectedPermissionIds ?? new List<string>())
             .Select(id => new PermissionDto { Id = id, Name = "" })
             .ToList();
 
