@@ -10,6 +10,7 @@ internal class OobeState
     public string DbFilePath = string.Empty;
     public string ConfigFilePath = string.Empty;
     public string LogFile = string.Empty;
+    public string TotpQrOutputRoot = string.Empty;
     public string DbPass = string.Empty;
 
     public bool FullSetup = false;

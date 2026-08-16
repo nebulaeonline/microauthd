@@ -141,6 +141,7 @@ Swagger is set up for API discovery on both endpoints, but is disabled by defaul
 | seconds-to-reset-login-failures | Reset failure counter after X seconds    | 300     |
 | failed-password-lockout-duration| Lockout duration (in seconds)            | 300     |
 | serve-public-auth-files         | Serve files located in /public via AUTH  | false   |
+| totp-qr-output-root             | Absolute trusted root for generated TOTP QR SVG files; empty disables file generation | blank |
 | trusted-proxies                 | Comma separated list of trusted proxies; when set, microauthd will look for X-Forwarded-For and X-Forwarded-Proto               | blank   |
 | enable-pass-cache               | Whether to enable password caching       | true    |
 | pass-cache-duration             | How long to cache passwords (in seconds) | 300     |

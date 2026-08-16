@@ -1174,7 +1174,30 @@ public static class UserService
 
             // Generate filename
             var filename = $"totp_qr_{Utils.RandHex(6)}.svg";
-            var fullPath = Path.Combine(outputPath, filename);
+            // Keep API-directed writes inside an operator-configured trusted directory.
+            if (string.IsNullOrWhiteSpace(config.TotpQrOutputRoot))
+                return ApiResult<TotpQrResponse>.Fail(
+                    "TOTP QR output is disabled; configure totp-qr-output-root or MAD_TOTP_QR_OUTPUT_ROOT", 503);
+
+            if (!Path.IsPathRooted(config.TotpQrOutputRoot))
+                return ApiResult<TotpQrResponse>.Fail(
+                    "TOTP QR output root must be an absolute path; check totp-qr-output-root", 503);
+
+            if (string.IsNullOrWhiteSpace(outputPath))
+                return ApiResult<TotpQrResponse>.Fail("QR output path is required", 400);
+
+            var allowedRoot = Path.GetFullPath(config.TotpQrOutputRoot);
+            var requestedDirectory = Path.GetFullPath(outputPath, allowedRoot);
+            var relativeDirectory = Path.GetRelativePath(allowedRoot, requestedDirectory);
+            if (Path.IsPathRooted(relativeDirectory) ||
+                relativeDirectory.Equals("..", StringComparison.Ordinal) ||
+                relativeDirectory.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            {
+                return ApiResult<TotpQrResponse>.Fail("QR output path is outside the allowed directory", 400);
+            }
+
+            Directory.CreateDirectory(requestedDirectory);
+            var fullPath = Path.Combine(requestedDirectory, filename);
 
             // Create SVG QR
             var qrGen = new QRCodeGenerator();

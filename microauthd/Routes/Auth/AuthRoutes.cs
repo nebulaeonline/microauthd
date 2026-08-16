@@ -201,13 +201,15 @@ public static class AuthRoutes
         {
             group.MapPost("/authorize", async (HttpContext ctx, AppConfig config) =>
             {
-                if (!ctx.Request.HasFormContentType)
+                IFormCollection form;
+                try
                 {
-                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid content type", 400).ToHttpResult();
+                    form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
                 }
-
-                // Read the form data
-                var form = await ctx.Request.ReadFormAsync();
+                catch (InvalidDataException)
+                {
+                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid form data", 400).ToHttpResult();
+                }
 
                 // See if we're doing the session-based PKCE login flow
                 var sessionLoginResult = AuthService.CheckPkceSessionAuthorization(form, config, ctx);
@@ -249,12 +251,17 @@ public static class AuthRoutes
         // pkce password login endpoint*************************************************************
         if (config.EnablePkce)
         {
-            group.MapPost("/login/password", (HttpContext ctx, AppConfig config) =>
+            group.MapPost("/login/password", async (HttpContext ctx, AppConfig config) =>
             {
-                if (!ctx.Request.HasFormContentType)
-                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid content type", 400).ToHttpResult();
-
-                var form = ctx.Request.ReadFormAsync().Result;
+                IFormCollection form;
+                try
+                {
+                    form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+                }
+                catch (InvalidDataException)
+                {
+                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid form data", 400).ToHttpResult();
+                }
                 return AuthService.HandlePkcePasswordLogin(form, config).ToHttpResult();
             })
             .AllowAnonymous()
@@ -269,12 +276,17 @@ public static class AuthRoutes
         // handle totp pkce login endpoint**********************************************************
         if (config.EnablePkce)
         {
-            group.MapPost("/login/totp", (HttpContext ctx, AppConfig config) =>
+            group.MapPost("/login/totp", async (HttpContext ctx, AppConfig config) =>
             {
-                if (!ctx.Request.HasFormContentType)
-                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid content type", 400).ToHttpResult();
-
-                var form = ctx.Request.ReadFormAsync().Result;
+                IFormCollection form;
+                try
+                {
+                    form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+                }
+                catch (InvalidDataException)
+                {
+                    return ApiResult<PkceAuthorizeResponse>.Fail("Invalid form data", 400).ToHttpResult();
+                }
                 return AuthService.HandlePkceTotpLogin(form, config).ToHttpResult();
             })
             .AllowAnonymous()
@@ -305,12 +317,17 @@ public static class AuthRoutes
         // finalize login for pkce endpoint*********************************************************
         if (config.EnablePkce)
         {
-            group.MapPost("/login/finalize", (HttpContext ctx, AppConfig config) =>
+            group.MapPost("/login/finalize", async (HttpContext ctx, AppConfig config) =>
             {
-                if (!ctx.Request.HasFormContentType)
-                    return ApiResult<ErrorResponse>.Fail("Invalid content type", 400).ToHttpResult();
-
-                var form = ctx.Request.ReadFormAsync().Result;
+                IFormCollection form;
+                try
+                {
+                    form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+                }
+                catch (InvalidDataException)
+                {
+                    return ApiResult<ErrorResponse>.Fail("Invalid form data", 400).ToHttpResult();
+                }
                 return AuthService.FinalizePkceLogin(form, config);
             })
             .AllowAnonymous()
@@ -339,12 +356,17 @@ public static class AuthRoutes
         // token request endpoint*******************************************************************
         group.MapPost("/token", async (AppConfig config, HttpContext ctx) =>
         {
-            if (!ctx.Request.HasFormContentType)
+            IFormCollection form;
+            try
+            {
+                form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+            }
+            catch (InvalidDataException)
+            {
                 return ApiResult<TokenResponse>
-                    .Fail("Invalid credentials", 400)
+                    .Fail("Invalid form data", 400)
                     .ToHttpResult();
-
-            var form = await ctx.Request.ReadFormAsync();
+            }
             var grantType = form["grant_type"].ToString().Trim();
                             
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -465,10 +487,15 @@ public static class AuthRoutes
         // OIDC token endpoint**********************************************************************
         group.MapPost("/oidc/token", async (HttpContext ctx, AppConfig config) =>
         {
-            if (!ctx.Request.HasFormContentType)
-                return ApiResult<TokenResponse>.Fail("Invalid content type", 400).ToHttpResult();
-
-            var form = await ctx.Request.ReadFormAsync();
+            IFormCollection form;
+            try
+            {
+                form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+            }
+            catch (InvalidDataException)
+            {
+                return ApiResult<TokenResponse>.Fail("Invalid form data", 400).ToHttpResult();
+            }
             return AuthService.IssueOidcToken(form, config).ToHttpResult();
         })
         .Produces<TokenResponse>(StatusCodes.Status200OK)

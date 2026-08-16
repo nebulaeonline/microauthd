@@ -166,6 +166,7 @@ public static class ConfigLoader
             SecondsToResetLoginFailures = GetInt(Options.SecondsToResetLoginFailures),
             FailedPasswordLockoutDuration = GetInt(Options.FailedPasswordLockoutDuration),
             LogFile = GetString(Options.LogFile),
+            TotpQrOutputRoot = GetString(Options.TotpQrOutputRoot),
             EnableAuditLogging = GetBool(Options.EnableAuditLogging),
             AuditLogRetentionDays = GetInt(Options.AuditLogRetentionDays),
             EnableAuthSwagger = GetBool(Options.EnableAuthSwagger),

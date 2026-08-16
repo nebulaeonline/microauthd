@@ -5,6 +5,12 @@ import {
   MessageResponse,
 } from "./models";
 
+function normalizeBaseUrl(baseUrl: string): string {
+  let end = baseUrl.length;
+  while (end > 0 && baseUrl.charCodeAt(end - 1) === 47) end--;
+  return baseUrl.slice(0, end);
+}
+
 export class AuthClient {
   private baseUrl: string;
   private client: AxiosInstance;
@@ -12,7 +18,7 @@ export class AuthClient {
   private refreshToken?: string;
 
   private constructor(baseUrl: string, token: string, refreshToken?: string) {
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.baseUrl = normalizeBaseUrl(baseUrl);
     this.token = token;
     this.refreshToken = refreshToken;
     this.client = axios.create({
@@ -31,7 +37,7 @@ export class AuthClient {
     clientId: string = "app"
   ): Promise<AuthClient> {
     const response = await axios.post<TokenResponse>(
-      `${authUrl.replace(/\/+$/, "")}/token`,
+      `${normalizeBaseUrl(authUrl)}/token`,
       new URLSearchParams({
         grant_type: "password",
         username,

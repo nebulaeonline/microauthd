@@ -57,6 +57,7 @@ public static class RootCommandBuilder
         root.AddOption(Options.SecondsToResetLoginFailures);
         root.AddOption(Options.FailedPasswordLockoutDuration);
         root.AddOption(Options.LogFile);
+        root.AddOption(Options.TotpQrOutputRoot);
         root.AddOption(Options.OidcIssuer);
         root.AddOption(Options.OidcClientId);
         root.AddOption(Options.OidcClientSecret);

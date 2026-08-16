@@ -6,6 +6,7 @@ using microauthd.Hosting;
 using microauthd.Logging;
 using microauthd.Tokens;
 using Microsoft.IdentityModel.JsonWebTokens;
+using madTypes.Common;
 using Serilog;
 using System.CommandLine;
 using System.CommandLine.Invocation;
@@ -91,6 +92,8 @@ public class Program
                     Db.FlushWal();
                 }
             }
+
+            WarnAboutTotpQrOutputMigration(config);
             
             // Get our token signing keys in order; that includes
             // generating them if they don't exist, and exporting the
@@ -131,6 +134,43 @@ public class Program
         });
 
         return await root.InvokeAsync(args);
+    }
+
+    private static void WarnAboutTotpQrOutputMigration(AppConfig config)
+    {
+        const string migrationHelp =
+            "Set 'totp-qr-output-root', '--totp-qr-output-root', or 'MAD_TOTP_QR_OUTPUT_ROOT' " +
+            "to the absolute directory previously supplied by your QR-generation client.";
+
+        if (string.IsNullOrWhiteSpace(config.TotpQrOutputRoot))
+        {
+            if (ClientFeaturesStore.IsFeatureEnabledForAnyClient(ClientFeatures.Flags.EnableTotp))
+            {
+                Log.Error(
+                    "TOTP is enabled for one or more clients, but no trusted TOTP QR output root is configured. " +
+                    "QR generation is disabled. {MigrationHelp}",
+                    migrationHelp);
+            }
+            else
+            {
+                Log.Warning(
+                    "No trusted TOTP QR output root is configured. QR file generation is disabled. " +
+                    "If an older deployment supplied output paths in API requests, migration is required. {MigrationHelp}",
+                    migrationHelp);
+            }
+
+            return;
+        }
+
+        if (!Path.IsPathRooted(config.TotpQrOutputRoot))
+        {
+            Log.Error(
+                "The configured TOTP QR output root is not absolute; QR generation is disabled. {MigrationHelp}",
+                migrationHelp);
+            return;
+        }
+
+        Log.Information("TOTP QR output is restricted to trusted root {TotpQrOutputRoot}", Path.GetFullPath(config.TotpQrOutputRoot));
     }
 }
 

@@ -5,6 +5,24 @@ namespace microauthd.Data;
 public static class ClientFeaturesStore
 {
     /// <summary>
+    /// Determines whether the specified feature is enabled for at least one client.
+    /// </summary>
+    public static bool IsFeatureEnabledForAnyClient(ClientFeatures.Flags featureFlag)
+    {
+        return Db.WithConnection(conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT 1 FROM client_features
+                WHERE feature_flag = $feature_flag AND is_enabled = 1
+                LIMIT 1;
+            """;
+            cmd.Parameters.AddWithValue("$feature_flag", ClientFeatures.GetFlagString(featureFlag));
+            return cmd.ExecuteScalar() is not null;
+        });
+    }
+
+    /// <summary>
     /// Sets the specified feature flag for a client, enabling or disabling it as specified.
     /// </summary>
     /// <remarks>If the feature flag already exists for the specified client, its state and options will be

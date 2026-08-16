@@ -456,6 +456,15 @@ internal static class Options
         };
 
     /// <summary>
+    /// Trusted root directory beneath which TOTP QR SVG files may be written.
+    /// </summary>
+    public static readonly Option<string> TotpQrOutputRoot =
+        new Option<string>("--totp-qr-output-root", () => string.Empty, "Trusted root directory for TOTP QR output (disabled when empty) (env var MAD_TOTP_QR_OUTPUT_ROOT)")
+        {
+            Arity = ArgumentArity.ExactlyOne
+        };
+
+    /// <summary>
     /// Represents an option to enable or disable audit logging.
     /// </summary>
     /// <remarks>This option defaults to <see langword="false"/> if not explicitly set.  It can be configured

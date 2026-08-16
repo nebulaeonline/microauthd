@@ -51,6 +51,7 @@ public class AppConfig
     public int SecondsToResetLoginFailures { get; set; } = 0;
     public int FailedPasswordLockoutDuration { get; set; } = 0;
     public string LogFile { get; set; } = string.Empty;
+    public string TotpQrOutputRoot { get; set; } = string.Empty;
     public bool EnableAuditLogging { get; set; } = false;
     public int AuditLogRetentionDays { get; set; } = 0;
 

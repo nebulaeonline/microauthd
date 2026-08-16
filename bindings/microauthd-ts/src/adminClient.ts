@@ -18,13 +18,19 @@ import {
   MeResponse,
 } from "./models";
 
+function normalizeBaseUrl(baseUrl: string): string {
+  let end = baseUrl.length;
+  while (end > 0 && baseUrl.charCodeAt(end - 1) === 47) end--;
+  return baseUrl.slice(0, end);
+}
+
 export class AdminClient {
   private baseUrl: string;
   private token: string;
   private client: AxiosInstance;
 
   constructor(baseUrl: string, adminToken: string) {
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.baseUrl = normalizeBaseUrl(baseUrl);
     this.token = adminToken;
     this.client = axios.create({
       baseURL: this.baseUrl,
@@ -47,7 +53,7 @@ export class AdminClient {
     clientId: string = "madui"
   ): Promise<AdminClient> {
     const response = await axios.post<TokenResponse>(
-      `${adminUrl.replace(/\/+$/, "")}/token`,
+      `${normalizeBaseUrl(adminUrl)}/token`,
       new URLSearchParams({
         grant_type: "password",
         username,
